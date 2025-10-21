@@ -262,7 +262,22 @@ const originalStudents = {
     '신중년(단)전기과': ['박성엽', '안태식', '김영권', '정혁진', '배상근', '조경훈', '정범식', '우상욱', '홍지문', '김형선(여)', '김명자(여)']
 };
 
-const departments = Object.keys(students);
+const departments = Object.keys(originalStudents);
+
+// 현재 활성 학생 목록 (퇴사자 제외)
+let students = {};
+
+// 퇴사한 학생 목록을 필터링하여 students 객체 생성
+function updateStudentsList() {
+    students = {};
+    const approvedResigns = resignRequests.filter(r => r.status === 'approved');
+    
+    Object.keys(originalStudents).forEach(dept => {
+        students[dept] = originalStudents[dept].filter(name => {
+            return !approvedResigns.some(r => r.department === dept && r.name === name);
+        });
+    });
+}
 
 // 현재 날짜를 가져오는 함수 (맨 위에 선언)
 function getCurrentDate() {
@@ -457,16 +472,19 @@ function changeDate(days) {
 if (db) {
     db.collection('submissions').onSnapshot(snapshot => {
         submissions = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        updateStudentsList();
         render();
     });
 
     db.collection('outings').onSnapshot(snapshot => {
         outings = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        updateStudentsList();
         render();
     });
 
     db.collection('resignRequests').onSnapshot(snapshot => {
         resignRequests = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        updateStudentsList();
         render();
     });
 }
@@ -582,13 +600,7 @@ async function approveResign(docId, name) {
             approvedDate: new Date().toISOString().split('T')[0]
         });
         
-        // 2. 학생 명단에서 제거
-        const studentIndex = students[dept].indexOf(name);
-        if (studentIndex > -1) {
-            students[dept].splice(studentIndex, 1);
-        }
-        
-        // 3. 해당 학생의 모든 제출 기록 삭제 (submissions)
+        // 2. 해당 학생의 모든 제출 기록 삭제 (submissions)
         const studentSubmissions = await db.collection('submissions')
             .where('department', '==', dept)
             .where('name', '==', name)
@@ -598,7 +610,7 @@ async function approveResign(docId, name) {
             await doc.ref.delete();
         }
         
-        // 4. 해당 학생의 모든 외출 기록 삭제 (outings)
+        // 3. 해당 학생의 모든 외출 기록 삭제 (outings)
         const studentOutings = await db.collection('outings')
             .where('department', '==', dept)
             .where('name', '==', name)
@@ -609,7 +621,8 @@ async function approveResign(docId, name) {
         }
         
         alert(`✓ ${name} 학생의 퇴사가 승인되었습니다.\n\n- ${dept}에서 제외되었습니다\n- 모든 제출 기록이 삭제되었습니다`);
-        render();
+        
+        // students 목록 업데이트는 onSnapshot에서 자동으로 처리됨
     } catch (error) {
         alert('× 승인 실패: ' + error.message);
     }
@@ -2225,6 +2238,9 @@ function showResignModal() {
 // 초기 렌더링
 if (db) {
     console.log('앱 시작 - 현재 날짜:', currentDate);
+    
+    // 초기 학생 목록 설정
+    updateStudentsList();
     render();
     
     // 시간 표시 업데이트 함수
