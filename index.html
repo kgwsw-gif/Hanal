@@ -240,7 +240,7 @@ const DEPARTMENT_LEADERS = {
     '산업설비과': { name: '김응준', password: '980420' },
     '스마트자동차과': { name: '문태근', password: '961205' },
     '스마트전기(전기)과': { name: '은준현', password: '971105' },
-    '스마트전기(소방)과': { name: '장세훈', password: '000000' },
+    '스마트전기(소방)과': { name: '장세훈', password: '970324' },
     '자동차도장과': { name: '윤태영', password: '921006' },
     '주얼리목공예과': { name: '김지민', password: '030403' },
     '스마트기계과': { name: '김용래', password: '960329' },
@@ -824,7 +824,7 @@ function render() {
                 </div>
                 <div class="flex gap-2 flex-wrap">
                     <button onclick="currentMode='student'; render()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium transition-all ${currentMode === 'student' ? 'bg-purple-300 text-white shadow-lg' : 'bg-white/70 text-gray-600'}">
-                        교육생
+                        <i class="fas fa-user"></i> 교육생
                     </button>
                     <button onclick="showLeaderLogin()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium transition-all ${currentMode === 'leader' ? 'bg-blue-300 text-white shadow-lg' : 'bg-white/70 text-gray-600'}">
                         <i class="fas fa-user-tie"></i> 학과대표
