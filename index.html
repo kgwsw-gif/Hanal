@@ -250,6 +250,33 @@ const DEPARTMENT_LEADERS = {
     '신중년(단)전기과': { name: '정혁진', password: '670926' }
 };
 
+// 학생 호실 정보
+const studentRoomNumbers = {
+    '김보람(여)': '101', '김혜린(여)': '102', '차은민(여)': '102', '정주희(여)': '103', '공찬미(여)': '104', '김진희(여)': '104', 
+    '김지현(여)': '105', '남혜성(여)': '107', '류소현(여)': '108', '황지원(여)': '109', '김명자(여)': '110', '김형선(여)': '110',
+    '장선우': '201', '최영진': '201', '김재형': '202', '권승두': '203', '안재범': '203', '이상효': '204',
+    '강의찬': '205', '장대일': '205', '김민기': '206', '임대혁': '206', '김주용': '207', '이지웅': '207',
+    '김현우': '208', '이동형': '208', '민준원': '209', '이상훈': '209', '김성진': '210', '김응준': '210',
+    '이성재': '211', '강민규': '212', '주 환': '212', '최재혁': '213', '태현석': '213', '구자훈': '214', '박현승': '214',
+    '김원영': '215', '최지만': '215', '송윤건': '216', '최예준': '216', '김도윤': '217', '오대현': '218', '이해원': '218',
+    '임상록': '219', '형성재': '219', '이평강': '221', '이재진': '222', '윤태영': '223', '추헌규': '223',
+    '이성민': '224', '이종환': '225', '주 현': '225', '서영재': '226', '정하윤': '226', '김현성': '227', '박정석': '227',
+    '김동만': '228', '문태근': '228', '김현유': '229', '최수용': '229', '오상수': '301', '윤덕중': '301',
+    '진용남': '302', '김지민': '303', '이홍주': '303', '배광조': '304', '안현빈': '304', '박용국': '305',
+    '신민준': '306', '이상현': '306', '장지후': '307', '김용래': '308', '이호찬': '308', '박정현': '309', '장윤호': '309',
+    '홍현하': '310', '송윤준': '311', '정재룡': '312', '김천동': '313', '우남영': '313', '최 룡': '314',
+    '이재훈': '315', '장세훈': '315', '은준현': '316', '이덕환': '316', '김광현': '317', '최정호': '317',
+    '유지현': '318', '추민재': '318', '강민석': '319', '왕준혁': '319', '권오선': '320', '박관홍': '320',
+    '김지성': '321', '이한빈': '321', '이종원': '324', '권순범': '324', '공홍익': '325', '함도현': '325',
+    '곽민수': '327', '김태용': '327', '박동희': '328', '노 준': '329', '김영권': '401', '배상근': '401',
+    '박성엽': '402', '안태식': '402', '정범식': '403', '조경훈': '403', '우상욱': '407', '정혁진': '408',
+    '홍지문': '409', '김현용': '410', '홍순명': '410', '우진하': '411', '이문환': '411', '박재환': '412', '서우호': '412',
+    '이상훈': '414', '유승준': '414', '김기철': '415', '김재수': '415', '강석원': '416', '박동한': '416',
+    '이윤상': '417', '조덕만': '417', '이승태': '418', '김영기': '419', '김연국': '422', '윤진균': '422',
+    '김영길': '423', '박종선': '423', '유부열': '424', '임규태': '424', '김동진': '425', '백영준': '425',
+    '이용수': '426', '김정규': '427', '최은식': '427', '김현민': '428', '차덕선': '428', '김선우': '429', '신승우': '429'
+};
+
 // 학생 생년월일 데이터 (YYMMDD 형식)
 const studentBirthDates = {
     '김재형': '971014', '권승두': '820328', '서동현': '001211', '최영진': '940922', '장선우': '960924', '이상효': '720305', '안재범': '871209', '김혜린(여)': '030102', '차은민(여)': '981102',
@@ -265,20 +292,20 @@ const studentBirthDates = {
     '박성엽': '640824', '안태식': '640903', '김영권': '610221', '정혁진': '670926', '배상근': '640415', '조경훈': '660127', '정범식': '660109', '우상욱': '640203', '홍지문': '660705', '김형선(여)': '720820', '김명자(여)': '641119'
 };
 
-// 원본 학생 데이터
+// 원본 학생 데이터 (호실 순으로 정렬됨)
 const originalStudents = {
-    '반도체표면처리과': ['김재형', '권승두', '서동현', '최영진', '장선우', '이상효', '안재범', '김혜린(여)', '차은민(여)'],
-    '산업설비과': ['이동형', '이성재', '장대일', '강의찬', '김민기', '이상훈', '김응준', '김성진', '김주용', '민준원', '이평강', '김현우', '김현민', '이지웅', '차덕선', '김선우', '신승우', '임대혁', '김보람(여)'],
-    '스마트자동차과': ['최재혁', '김동만', '이해원', '이종환', '태현석', '박정석', '강민규', '임상록', '김현성', '문태근', '최수용', '김현유', '정하윤', '주 현', '주 환', '형성재', '오대현', '서영재'],
-    '스마트전기(전기)과': ['이상현', '신민준', '은준현', '이덕환', '김광현', '최정호', '유지현', '추민재', '권오선', '박관홍', '김지성', '이한빈', '이종원', '김태용', '곽민수', '이승태', '최은식', '김정규'],
-    '스마트전기(소방)과': ['박동희', '왕준혁', '장세훈', '강민석', '공홍익', '최 룡', '이재훈', '함도현', '김영기', '김천동', '정재룡', '홍현하', '노 준', '권순범', '송윤준', '우남영'],
+    '반도체표면처리과': ['김혜린(여)', '차은민(여)', '최영진', '장선우', '김재형', '권승두', '안재범', '이상효', '서동현'],
+    '산업설비과': ['김보람(여)', '장대일', '강의찬', '김민기', '임대혁', '김주용', '이지웅', '이동형', '김현우', '민준원', '이상훈', '김응준', '김성진', '이성재', '이평강', '김현민', '차덕선', '김선우', '신승우'],
+    '스마트자동차과': ['강민규', '주 환', '최재혁', '태현석', '구자훈', '박현승', '김원영', '최지만', '송윤건', '최예준', '김도윤', '이해원', '오대현', '임상록', '형성재', '이재진', '윤태영', '추헌규', '이성민', '이종환', '주 현', '정하윤', '서영재', '박정석', '김현성', '김동만', '문태근', '최수용', '김현유'],
+    '스마트전기(전기)과': ['이상현', '신민준', '은준현', '이덕환', '김광현', '최정호', '유지현', '추민재', '강민석', '왕준혁', '권오선', '박관홍', '김지성', '이한빈', '이종원', '권순범', '공홍익', '함도현', '곽민수', '김태용', '박동희', '노 준', '이승태', '김정규', '최은식'],
+    '스마트전기(소방)과': ['홍현하', '송윤준', '정재룡', '김천동', '우남영', '최 룡', '장세훈', '이재훈', '김영기'],
     '자동차도장과': ['송윤건', '이성민', '최예준', '박현승', '윤태영', '최지만', '김도윤', '이재진', '구자훈', '김원영', '추헌규'],
-    '주얼리목공예과': ['배광조', '이홍주', '박용국', '윤덕중', '김지민', '진용남', '안현빈', '오상수', '공찬미(여)', '정주희(여)', '김진희(여)'],
+    '주얼리목공예과': ['정주희(여)', '공찬미(여)', '김진희(여)', '윤덕중', '오상수', '진용남', '이홍주', '김지민', '배광조', '안현빈', '박용국'],
     '스마트기계과': ['장지후', '김용래', '이호찬', '장윤호', '박정현'],
-    '신중년(장)설비과': ['이용수', '윤진균', '박동한', '강석원', '조덕만', '김기철', '이상훈', '박종선', '백영준', '임규태', '유부열', '유승준', '김연국', '김재수', '김영길', '김동진', '이윤상'],
+    '신중년(장)설비과': ['이상훈', '유승준', '김기철', '김재수', '박동한', '강석원', '조덕만', '이윤상', '이승태', '김영기', '윤진균', '김연국', '박종선', '김영길', '임규태', '유부열', '백영준', '김동진', '이용수'],
     '신중년(단)목공예제작': ['홍순명', '김현용', '우진하', '이문환', '서우호', '박재환'],
-    '여성재취업(바리스타)과정': ['김지현(여)', '남혜성(여)', '황지원(여)', '류소현(여)'],
-    '신중년(단)전기과': ['박성엽', '안태식', '김영권', '정혁진', '배상근', '조경훈', '정범식', '우상욱', '홍지문', '김형선(여)', '김명자(여)']
+    '여성재취업(바리스타)과정': ['김지현(여)', '남혜성(여)', '류소현(여)', '황지원(여)'],
+    '신중년(단)전기과': ['김영권', '배상근', '박성엽', '안태식', '조경훈', '정범식', '우상욱', '정혁진', '홍지문', '김형선(여)', '김명자(여)']
 };
 
 const departments = Object.keys(originalStudents);
@@ -299,6 +326,12 @@ function updateStudentsList() {
 }
 
 // 현재 날짜를 가져오는 함수 (맨 위에 선언)
+// 학생 이름에 호실 번호를 추가하는 헬퍼 함수
+function formatStudentName(name) {
+    const roomNumber = studentRoomNumbers[name];
+    return roomNumber ? `${roomNumber}호 ${name}` : name;
+}
+
 function getCurrentDate() {
     const now = new Date();
     const year = now.getFullYear();
@@ -832,7 +865,7 @@ function render() {
                     <button onclick="showAdminLogin()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium transition-all ${currentMode === 'admin' ? 'bg-purple-300 text-white shadow-lg' : 'bg-white/70 text-gray-600'}">
                         <i class="fas fa-lock"></i> 관리자
                     </button>
-                    ${isAdminLoggedIn || isLeaderLoggedIn ? '<button onclick="logout()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium bg-rose-200 text-red-700 hover:shadow-lg transition-all">로그아웃</button>' : ''}
+                    ${isAdminLoggedIn || isLeaderLoggedIn ? '<button onclick="logout()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium bg-rose-200 text-red-700 hover:shadow-lg transition-all"><i class="fas fa-power-off"></i> 로그아웃</button>' : ''}
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
@@ -1091,7 +1124,7 @@ function renderLeaderView() {
                         <div class="bg-teal-50 rounded-xl p-3 grid grid-cols-2 md:grid-cols-3 gap-2 border border-teal-200">
                             ${deptStay.map(s => `
                                 <div class="flex items-center justify-between bg-teal-100 px-3 py-2 rounded-lg border border-teal-200">
-                                    <span class="text-sm font-medium text-teal-800">${s.name}</span>
+                                    <span class="text-sm font-medium text-teal-800">${formatStudentName(s.name)}</span>
                                     <button onclick="leaderDeleteSubmission('${s.id}', '${s.name}')" 
                                             class="text-rose-600 hover:text-rose-800 ml-2" 
                                             title="삭제">
@@ -1109,7 +1142,7 @@ function renderLeaderView() {
                         <div class="bg-amber-50 rounded-xl p-3 grid grid-cols-2 md:grid-cols-3 gap-2 border border-amber-200">
                             ${deptOut.map(s => `
                                 <div class="flex items-center justify-between bg-amber-100 px-3 py-2 rounded-lg border border-amber-200">
-                                    <span class="text-sm font-medium text-amber-800">${s.name}</span>
+                                    <span class="text-sm font-medium text-amber-800">${formatStudentName(s.name)}</span>
                                     <button onclick="leaderDeleteSubmission('${s.id}', '${s.name}')" 
                                             class="text-rose-600 hover:text-rose-800 ml-2" 
                                             title="삭제">
@@ -1128,7 +1161,7 @@ function renderLeaderView() {
                             ${deptOuting.map(o => `
                                 <div class="bg-sky-100 px-4 py-2 rounded-lg flex items-center justify-between border border-sky-200">
                                     <div class="flex-1">
-                                        <span class="font-medium text-sky-800">${o.name}</span>
+                                        <span class="font-medium text-sky-800">${formatStudentName(o.name)}</span>
                                         <span class="text-xs text-gray-600 ml-2">(${o.outingTime} ~ ${o.returnTime} | ${o.reason})</span>
                                     </div>
                                     <button onclick="leaderDeleteOuting('${o.id}', '${o.name}')" 
@@ -1153,7 +1186,7 @@ function renderLeaderView() {
                                 <div ${!quickSubmitMode ? `onclick="quickSubmitStudent('${s}')"` : ''} 
                                      class="text-sm bg-rose-100 px-3 py-2 rounded-lg text-center font-medium text-rose-800 border border-rose-200 ${!quickSubmitMode ? 'cursor-pointer hover:bg-rose-200 hover:shadow-md transition-all active:scale-95' : 'opacity-50'}"
                                      ${!quickSubmitMode ? `title="클릭하여 빠른 신청"` : ''}>
-                                    ${s}
+                                    ${formatStudentName(s)}
                                 </div>
                             `).join('')}
                         </div>
@@ -1380,7 +1413,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
                                         <span class="${textColor}">${icon}</span>
-                                        <span class="font-medium ${textColor}">${student}</span>
+                                        <span class="font-medium ${textColor}">${formatStudentName(student)}</span>
                                     </div>
                                     <div class="flex items-center">
                                         <span class="text-sm font-bold ${textColor} px-2 py-1 rounded-lg bg-white/50">${statusText}</span>
@@ -1432,6 +1465,23 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
         }
     });
     
+    // 호실 순으로 정렬하는 함수
+    const sortByRoomNumber = (a, b) => {
+        const roomA = studentRoomNumbers[a.name];
+        const roomB = studentRoomNumbers[b.name];
+        
+        if (!roomA && !roomB) return 0;
+        if (!roomA) return 1;
+        if (!roomB) return -1;
+        
+        return parseInt(roomA) - parseInt(roomB);
+    };
+    
+    // 각 섹션을 호실 순으로 정렬
+    femaleStay.sort(sortByRoomNumber);
+    femaleOut.sort(sortByRoomNumber);
+    femaleOuting.sort(sortByRoomNumber);
+    femaleNotSubmitted.sort(sortByRoomNumber);
     return `
         <div class="bg-gradient-to-br from-pink-50 to-rose-50 rounded-3xl shadow-lg p-8 mb-6 fade-in border-2 border-pink-200">
             <h2 class="text-2xl font-bold mb-6 text-pink-700"><i class="fas fa-female"></i> 여자교육생 현황 (전체 ${allFemales.length}명)</h2>
@@ -1447,7 +1497,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                             ${femaleStay.map(s => `
                                 <div class="bg-emerald-50 px-4 py-2 rounded-lg flex items-center justify-between">
                                     <div>
-                                        <span class="font-medium">${s.name}</span>
+                                        <span class="font-medium">${formatStudentName(s.name)}</span>
                                         <span class="text-sm text-gray-600 ml-2">[${s.dept}]</span>
                                     </div>
                                     <button onclick="deleteSubmission('${s.id}', '${s.name}')" class="text-red-600 hover:text-red-800" title="삭제">
@@ -1469,7 +1519,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                             ${femaleOut.map(s => `
                                 <div class="bg-orange-50 px-4 py-2 rounded-lg flex items-center justify-between">
                                     <div>
-                                        <span class="font-medium">${s.name}</span>
+                                        <span class="font-medium">${formatStudentName(s.name)}</span>
                                         <span class="text-sm text-gray-600 ml-2">[${s.dept}]</span>
                                     </div>
                                     <button onclick="deleteSubmission('${s.id}', '${s.name}')" class="text-red-600 hover:text-red-800" title="삭제">
@@ -1492,7 +1542,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                                 <div class="bg-indigo-50 px-4 py-2 rounded-lg">
                                     <div class="flex items-center justify-between mb-1">
                                         <div>
-                                            <span class="font-medium">${o.name}</span>
+                                            <span class="font-medium">${formatStudentName(o.name)}</span>
                                             <span class="text-sm text-gray-600 ml-2">[${o.dept}]</span>
                                         </div>
                                         <button onclick="deleteOuting('${o.id}', '${o.name}')" class="text-red-600 hover:text-red-800" title="삭제">
@@ -1515,7 +1565,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                         <div class="space-y-2">
                             ${femaleNotSubmitted.map(s => `
                                 <div class="bg-red-50 px-4 py-2 rounded-lg">
-                                    <span class="font-medium text-red-800">${s.name}</span>
+                                    <span class="font-medium text-red-800">${formatStudentName(s.name)}</span>
                                     <span class="text-sm text-gray-600 ml-2">[${s.dept}]</span>
                                 </div>
                             `).join('')}
@@ -1620,9 +1670,9 @@ document.addEventListener('change', e => {
             const studentOptions = students[dept].map(s => {
                 const resigned = isResigned(dept, s);
                 if (resigned) {
-                    return `<option value="${s}" disabled style="color: #ccc;">${s} (퇴사)</option>`;
+                    return `<option value="${s}" disabled style="color: #ccc;">${formatStudentName(s)} (퇴사)</option>`;
                 } else {
-                    return `<option value="${s}">${s}</option>`;
+                    return `<option value="${s}">${formatStudentName(s)}</option>`;
                 }
             }).join('');
             studentSelect.innerHTML = '<option value="">교육생 선택</option>' + studentOptions;
@@ -2461,7 +2511,7 @@ function downloadExcel() {
             !selectedOutings.find(o => o.department === dept && o.name === student)
         );
         notSubmitted.forEach(name => {
-            csv += `${currentDate},${dept},${name},미제출,-,-\n`;
+            csv += `${currentDate},${dept},${formatStudentName(name)},미제출,-,-\n`;
         });
     });
     
@@ -2486,12 +2536,12 @@ function downloadAllData() {
     // 모든 잔류/외박 데이터
     submissions.forEach(s => {
         const status = s.status === 'stay' ? '잔류' : '외박';
-        csv += `${s.date},${s.department},${s.name},${status},-,${s.timestamp}\n`;
+        csv += `${s.date},${s.department},${formatStudentName(s.name)},${status},-,${s.timestamp}\n`;
     });
     
     // 모든 외출 데이터
     outings.forEach(o => {
-        csv += `${o.date},${o.department},${o.name},외출,"${o.outingTime}~${o.returnTime} (${o.reason})",${o.timestamp}\n`;
+        csv += `${o.date},${o.department},${formatStudentName(o.name)},외출,"${o.outingTime}~${o.returnTime} (${o.reason})",${o.timestamp}\n`;
     });
     
     // 모든 퇴사 신청 데이터
@@ -2536,7 +2586,7 @@ function copyNotificationMessage() {
             hasNotSubmitted = true;
             message += `【${dept}】\n`;
             notSubmitted.forEach(name => {
-                message += `  • ${name}\n`;
+                message += `  • ${formatStudentName(name)}\n`;
             });
             message += `\n`;
         }
@@ -2584,7 +2634,7 @@ function copyPhoneNumbers() {
             totalCount += notSubmitted.length;
             list += `【${dept}】 ${notSubmitted.length}명\n`;
             notSubmitted.forEach(name => {
-                list += `${name}\n`;
+                list += `${formatStudentName(name)}\n`;
             });
             list += `\n`;
         }
