@@ -348,6 +348,7 @@ let leaderDepartment = null;
 let currentDate = getCurrentDate(); // 현재 날짜로 초기화
 let submissions = [];
 let outings = [];
+let outingHistory = []; // 외출 신청 기록 (잔류/외박으로 변경된 외출 신청)
 let resignRequests = [];
 let announcement = ''; // 공지사항
 
@@ -407,7 +408,7 @@ function getAvailableDates() {
     const todayStr = getCurrentDate(); // 실시간 날짜 함수 사용
     availableDates.push({
         date: todayStr,
-        label: `${getDateLabel(todayStr)}`
+        label: getDateLabel(todayStr)
     });
     addedDates.add(todayStr);
     
@@ -431,27 +432,9 @@ function getAvailableDates() {
         if (isWeekend || isHolidayDay) {
             // 연속된 휴일
             if (!addedDates.has(checkDateStr)) {
-                let label = '';
-                if (i === 1) {
-                    if (isHolidayDay && !isWeekend) {
-                        label = `내일 공휴일 (${getDateLabel(checkDateStr)})`;
-                    } else if (checkDayOfWeek === 6) {
-                        label = `내일 토요일 (${getDateLabel(checkDateStr)})`;
-                    } else if (checkDayOfWeek === 0) {
-                        label = `내일 일요일 (${getDateLabel(checkDateStr)})`;
-                    }
-                } else {
-                    const dayName = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][checkDayOfWeek];
-                    if (isHolidayDay && !isWeekend) {
-                        label = `${dayName} 공휴일 (${getDateLabel(checkDateStr)})`;
-                    } else {
-                        label = `${dayName} (${getDateLabel(checkDateStr)})`;
-                    }
-                }
-                
                 availableDates.push({
                     date: checkDateStr,
-                    label: label
+                    label: getDateLabel(checkDateStr)
                 });
                 addedDates.add(checkDateStr);
             }
@@ -476,7 +459,7 @@ function getAvailableDates() {
         if (!addedDates.has(saturdayStr)) {
             availableDates.push({
                 date: saturdayStr,
-                label: `내일 토요일 (${getDateLabel(saturdayStr)})`
+                label: getDateLabel(saturdayStr)
             });
             addedDates.add(saturdayStr);
         }
@@ -491,7 +474,7 @@ function getAvailableDates() {
         if (!addedDates.has(sundayStr)) {
             availableDates.push({
                 date: sundayStr,
-                label: `일요일 (${getDateLabel(sundayStr)})`
+                label: getDateLabel(sundayStr)
             });
             addedDates.add(sundayStr);
         }
@@ -506,7 +489,7 @@ function getDateLabel(dateStr) {
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
     const weekday = weekdays[date.getDay()];
-    return `${parseInt(month)}월${parseInt(day)}일 (${weekday})`;
+    return `${parseInt(month)}월${parseInt(day)}일 ${weekday}`;
 }
 
 // 날짜 변경 함수 (관리자용)
@@ -535,6 +518,11 @@ if (db) {
     db.collection('outings').onSnapshot(snapshot => {
         outings = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
         updateStudentsList();
+        render();
+    });
+
+    db.collection('outingHistory').onSnapshot(snapshot => {
+        outingHistory = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
         render();
     });
 
@@ -593,28 +581,42 @@ async function submitStay(dept, name) {
     const submitDateSelect = document.getElementById('submitDateSelect');
     const submitDate = submitDateSelect ? submitDateSelect.value : getCurrentDate();
     const docId = `${submitDate}_${dept}_${name}`;
-    await db.collection('submissions').doc(docId).set({
-        department: dept,
-        name: name,
-        status: 'stay',
-        date: submitDate,
-        timestamp: new Date().toLocaleTimeString('ko-KR')
-    });
-    alert('✓ 잔류 신청이 완료되었습니다!');
+    
+    try {
+        // 잔류 신청 저장 (외출 신청은 그대로 유지하고 기록으로 남김)
+        await db.collection('submissions').doc(docId).set({
+            department: dept,
+            name: name,
+            status: 'stay',
+            date: submitDate,
+            timestamp: new Date().toLocaleTimeString('ko-KR')
+        });
+        alert('✓ 잔류 신청이 완료되었습니다!');
+    } catch (error) {
+        console.error('잔류 신청 오류:', error);
+        alert('× 잔류 신청 실패: ' + error.message);
+    }
 }
 
 async function submitOut(dept, name) {
     const submitDateSelect = document.getElementById('submitDateSelect');
     const submitDate = submitDateSelect ? submitDateSelect.value : getCurrentDate();
     const docId = `${submitDate}_${dept}_${name}`;
-    await db.collection('submissions').doc(docId).set({
-        department: dept,
-        name: name,
-        status: 'out',
-        date: submitDate,
-        timestamp: new Date().toLocaleTimeString('ko-KR')
-    });
-    alert('✓ 외박 신청이 완료되었습니다!');
+    
+    try {
+        // 외박 신청 저장 (외출 신청은 그대로 유지하고 기록으로 남김)
+        await db.collection('submissions').doc(docId).set({
+            department: dept,
+            name: name,
+            status: 'out',
+            date: submitDate,
+            timestamp: new Date().toLocaleTimeString('ko-KR')
+        });
+        alert('✓ 외박 신청이 완료되었습니다!');
+    } catch (error) {
+        console.error('외박 신청 오류:', error);
+        alert('× 외박 신청 실패: ' + error.message);
+    }
 }
 
 async function submitOuting(dept, name, outTime, retTime, reason) {
@@ -624,16 +626,23 @@ async function submitOuting(dept, name, outTime, retTime, reason) {
                        leaderSubmitDateSelect ? leaderSubmitDateSelect.value : 
                        getCurrentDate();
     const docId = `${submitDate}_${dept}_${name}`;
-    await db.collection('outings').doc(docId).set({
-        department: dept,
-        name: name,
-        date: submitDate,
-        outingTime: outTime,
-        returnTime: retTime,
-        reason: reason,
-        timestamp: new Date().toLocaleTimeString('ko-KR')
-    });
-    alert('✓ 외출 신청이 완료되었습니다!');
+    
+    try {
+        // 외출 신청 저장 (기존 잔류/외박은 삭제하지 않고 보존)
+        await db.collection('outings').doc(docId).set({
+            department: dept,
+            name: name,
+            date: submitDate,
+            outingTime: outTime,
+            returnTime: retTime,
+            reason: reason,
+            timestamp: new Date().toLocaleTimeString('ko-KR')
+        });
+        alert('✓ 외출 신청이 완료되었습니다!');
+    } catch (error) {
+        console.error('외출 신청 오류:', error);
+        alert('× 외출 신청 실패: ' + error.message);
+    }
 }
 
 async function submitResign(dept, name, resignDate, reason) {
@@ -818,10 +827,21 @@ function verifyBirthDate(name) {
 function getStats() {
     const todaySubmissions = submissions.filter(s => s.date === currentDate);
     const todayOutings = outings.filter(o => o.date === currentDate);
+    
+    // 잔류/외박 신청한 학생들의 학과-이름 목록 (우선순위가 높음)
+    const submissionStudentKeys = todaySubmissions.map(s => `${s.department}_${s.name}`);
+    
+    // 잔류/외박 카운트 (그대로)
     const stayCount = todaySubmissions.filter(s => s.status === 'stay').length;
     const outCount = todaySubmissions.filter(s => s.status === 'out').length;
-    const outingCount = todayOutings.length;
+    
+    // 외출 카운트 - 잔류/외박이 있는 학생은 외출에서 제외
+    const outingCount = todayOutings.filter(o => 
+        !submissionStudentKeys.includes(`${o.department}_${o.name}`)
+    ).length;
+    
     const totalStudents = Object.values(students).flat().length;
+    
     return {
         totalStudents,
         stayCount,
@@ -913,6 +933,15 @@ function render() {
         const announcementInput = document.getElementById('announcementInput');
         if (announcementInput && currentMode === 'admin') {
             announcementInput.value = announcement;
+        }
+    }, 50);
+    
+    // 학과대표 날짜 선택 드롭다운 동기화
+    setTimeout(() => {
+        const leaderDateSelect = document.getElementById('leaderDateSelect');
+        if (leaderDateSelect && currentMode === 'leader') {
+            console.log('학과대표 날짜 드롭다운 동기화:', leaderDateSelect.value, '->', currentDate);
+            leaderDateSelect.value = currentDate;
         }
     }, 50);
 }
@@ -1008,23 +1037,46 @@ function renderLeaderView() {
         return '<div class="text-center text-gray-500 py-20 text-xl">학과대표 로그인이 필요합니다.</div>';
     }
     
+    // 신청 가능한 날짜 목록 먼저 확인
+    const availableDates = getAvailableDates();
+    
+    // currentDate가 선택 가능한 날짜가 아니면 첫 번째 날짜로 조정
+    const availableDateStrings = availableDates.map(d => d.date);
+    if (!availableDateStrings.includes(currentDate) && availableDates.length > 0) {
+        currentDate = availableDates[0].date;
+        console.log('학과대표 모드: 선택 가능한 첫 날짜로 조정 ->', currentDate);
+    }
+    
     const todaySubmissions = submissions.filter(s => s.date === currentDate);
     const todayOutings = outings.filter(o => o.date === currentDate);
     const deptStudents = students[leaderDepartment];
     
+    // 잔류/외박 신청한 학생들의 이름 목록 (우선순위가 높음)
+    const submissionStudentNames = todaySubmissions
+        .filter(s => s.department === leaderDepartment)
+        .map(s => s.name);
+    
     // 학과 제출 현황 계산
-    const deptStay = todaySubmissions.filter(s => s.status === 'stay' && s.department === leaderDepartment);
-    const deptOut = todaySubmissions.filter(s => s.status === 'out' && s.department === leaderDepartment);
-    const deptOuting = todayOutings.filter(o => o.department === leaderDepartment);
+    const deptStay = todaySubmissions.filter(s => 
+        s.status === 'stay' && 
+        s.department === leaderDepartment
+    );
+    const deptOut = todaySubmissions.filter(s => 
+        s.status === 'out' && 
+        s.department === leaderDepartment
+    );
+    // 외출은 잔류/외박이 없는 학생만 카운트
+    const deptOuting = todayOutings.filter(o => 
+        o.department === leaderDepartment &&
+        !submissionStudentNames.includes(o.name)
+    );
     const notSubmitted = deptStudents.filter(student => 
         !todaySubmissions.find(s => s.department === leaderDepartment && s.name === student) &&
         !todayOutings.find(o => o.department === leaderDepartment && o.name === student)
     );
     
-    // 신청 가능한 날짜 목록
-    const availableDates = getAvailableDates();
     const dateOptions = availableDates.map(d => 
-        `<option value="${d.date}">${d.label}</option>`
+        `<option value="${d.date}" ${d.date === currentDate ? 'selected' : ''}>${d.label}</option>`
     ).join('');
     
     return `
@@ -1039,6 +1091,21 @@ function renderLeaderView() {
                     외박 ${deptOut.length} | 
                     외출 ${deptOuting.length} | 
                     미제출 ${notSubmitted.length}
+                </div>
+            </div>
+            
+            <!-- 날짜 선택 (학과대표용) -->
+            <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-5 mb-6 border border-purple-200">
+                <h3 class="text-lg font-bold mb-3 text-purple-700">
+                    <i class="fas fa-calendar-check"></i> 날짜 선택
+                </h3>
+                <p class="text-sm text-gray-600 mb-3">
+                    💡 금요일에는 토요일, 일요일까지 신청할 수 있습니다!
+                </p>
+                <div class="custom-select">
+                    <select id="leaderDateSelect" class="w-full px-6 py-4 rounded-2xl border-2 border-purple-200 bg-white text-lg" onchange="updateLeaderDate(this.value)">
+                        ${dateOptions}
+                    </select>
                 </div>
             </div>
             
@@ -1175,6 +1242,49 @@ function renderLeaderView() {
                     </div>
                 ` : ''}
                 
+                ${(() => {
+                    // 잔류/외박으로 변경된 외출 신청 내역 표시
+                    const allDeptOutings = todayOutings.filter(o => o.department === leaderDepartment);
+                    const replacedOutings = allDeptOutings.filter(o => submissionStudentNames.includes(o.name));
+                    if (replacedOutings.length > 0) {
+                        return `
+                            <div class="mb-4">
+                                <div class="font-bold text-gray-600 mb-2">
+                                    <i class="fas fa-history"></i> 외출 신청 내역 (변경됨 ${replacedOutings.length}명)
+                                </div>
+                                <div class="bg-gray-50 rounded-xl p-3 space-y-2 border border-gray-300">
+                                    ${replacedOutings.map(o => {
+                                        const submission = todaySubmissions.find(s => 
+                                            s.department === leaderDepartment && s.name === o.name
+                                        );
+                                        const statusText = submission.status === 'stay' ? '잔류' : '외박';
+                                        const statusColor = submission.status === 'stay' ? 'teal' : 'amber';
+                                        return `
+                                            <div class="bg-white px-4 py-2 rounded-lg border border-gray-300">
+                                                <div class="flex items-center justify-between">
+                                                    <div class="flex-1">
+                                                        <span class="font-medium text-gray-700">${formatStudentName(o.name)}</span>
+                                                        <span class="text-xs text-gray-500 ml-2 line-through">(${o.outingTime} ~ ${o.returnTime} | ${o.reason})</span>
+                                                        <span class="ml-2 px-2 py-0.5 bg-${statusColor}-100 text-${statusColor}-700 text-xs rounded-full font-medium">
+                                                            → ${statusText}로 변경
+                                                        </span>
+                                                    </div>
+                                                    <button onclick="leaderDeleteOuting('${o.id}', '${o.name}')" 
+                                                            class="text-rose-600 hover:text-rose-800 ml-2" 
+                                                            title="외출 기록 삭제">
+                                                        <i class="fas fa-times-circle"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    return '';
+                })()}
+                
                 ${notSubmitted.length > 0 ? `
                     <div>
                         <div class="font-bold text-rose-700 mb-2">
@@ -1308,6 +1418,9 @@ function renderAdminView(todaySubmissions, todayOutings, stats) {
         <!-- 여자교육생 현황 -->
         ${renderFemaleStatus(todaySubmissions, todayOutings)}
 
+        <!-- 외출 신청 현황 -->
+        ${renderOutingStatus(todayOutings, outingHistory)}
+
         <!-- 학과별 현황 -->
         <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
             <h2 class="text-2xl font-bold mb-6"><i class="fas fa-chart-pie text-indigo-500"></i> 학과별 제출 현황</h2>
@@ -1335,7 +1448,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
     return departments.map(dept => {
         const deptStudents = students[dept];
         
-        // 학생별 상태 계산
+        // 학생별 상태 계산 (잔류/외박이 우선순위, 외출은 보조)
         const studentStatus = deptStudents.map(student => {
             const stayRecord = todaySubmissions.find(s => s.status === 'stay' && s.department === dept && s.name === student);
             const outRecord = todaySubmissions.find(s => s.status === 'out' && s.department === dept && s.name === student);
@@ -1345,6 +1458,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
             let detail = null;
             let id = null;
             
+            // 잔류/외박이 최우선 순위
             if (stayRecord) {
                 status = 'stay';
                 id = stayRecord.id;
@@ -1357,7 +1471,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                 id = outingRecord.id;
             }
             
-            return { student, status, detail, id };
+            return { student, status, detail, id, outingRecord };
         });
         
         const stayCount = studentStatus.filter(s => s.status === 'stay').length;
@@ -1379,8 +1493,9 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    ${studentStatus.map(({ student, status, detail, id }) => {
+                    ${studentStatus.map(({ student, status, detail, id, outingRecord }) => {
                         let bgColor, textColor, icon, statusText, deleteBtn;
+                        let outingInfo = '';
                         
                         if (status === 'stay') {
                             bgColor = 'bg-emerald-100 border-emerald-300';
@@ -1388,12 +1503,20 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                             icon = '<i class="fas fa-check-circle"></i>';
                             statusText = '잔류';
                             deleteBtn = `<button onclick="deleteSubmission('${id}', '${student}')" class="ml-2 text-red-600 hover:text-red-800" title="삭제"><i class="fas fa-times-circle"></i></button>`;
+                            // 외출 신청 내역이 있으면 표시
+                            if (outingRecord) {
+                                outingInfo = `<div class="text-xs text-gray-600 mt-2 pl-6 line-through">외출신청: ${outingRecord.outingTime}~${outingRecord.returnTime} (${outingRecord.reason})</div>`;
+                            }
                         } else if (status === 'out') {
                             bgColor = 'bg-orange-100 border-orange-300';
                             textColor = 'text-orange-800';
                             icon = '<i class="fas fa-moon"></i>';
                             statusText = '외박';
                             deleteBtn = `<button onclick="deleteSubmission('${id}', '${student}')" class="ml-2 text-red-600 hover:text-red-800" title="삭제"><i class="fas fa-times-circle"></i></button>`;
+                            // 외출 신청 내역이 있으면 표시
+                            if (outingRecord) {
+                                outingInfo = `<div class="text-xs text-gray-600 mt-2 pl-6 line-through">외출신청: ${outingRecord.outingTime}~${outingRecord.returnTime} (${outingRecord.reason})</div>`;
+                            }
                         } else if (status === 'outing') {
                             bgColor = 'bg-indigo-100 border-indigo-300';
                             textColor = 'text-indigo-800';
@@ -1421,6 +1544,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                                     </div>
                                 </div>
                                 ${detail ? `<div class="text-xs ${textColor} mt-2 pl-6">${detail}</div>` : ''}
+                                ${outingInfo}
                             </div>
                         `;
                     }).join('')}
@@ -1454,6 +1578,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
         const outRecord = todaySubmissions.find(s => s.department === dept && s.name === name && s.status === 'out');
         const outingRecord = todayOutings.find(o => o.department === dept && o.name === name);
         
+        // 잔류/외박이 최우선 순위
         if (stayRecord) {
             femaleStay.push({ ...stayRecord, dept });
         } else if (outRecord) {
@@ -1571,6 +1696,111 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                             `).join('')}
                         </div>
                     ` : '<div class="text-gray-400 text-center py-4">전원 제출 완료 ✓</div>'}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderOutingStatus(todayOutings, outingHistory) {
+    // 오늘 날짜의 외출 신청
+    const todayOutingHistory = outingHistory.filter(h => h.date === currentDate);
+    
+    if (todayOutings.length === 0 && todayOutingHistory.length === 0) {
+        return '';
+    }
+    
+    return `
+        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-sky-200">
+            <h2 class="text-2xl font-bold mb-6 text-sky-700">
+                <i class="fas fa-walking"></i> 외출 신청 현황
+            </h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 현재 외출 신청 (활성) -->
+                <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-2xl p-6 border-2 border-sky-300">
+                    <div class="font-bold text-sky-800 mb-4 text-xl flex items-center gap-2">
+                        <i class="fas fa-check-circle"></i> 현재 외출 신청 (${todayOutings.length}명)
+                    </div>
+                    ${todayOutings.length > 0 ? `
+                        <div class="space-y-3">
+                            ${todayOutings.map(o => `
+                                <div class="bg-white rounded-xl p-4 shadow-sm border border-sky-200">
+                                    <div class="flex items-start justify-between mb-2">
+                                        <div class="flex-1">
+                                            <div class="font-bold text-lg text-gray-800">${formatStudentName(o.name)}</div>
+                                            <div class="text-sm text-gray-600 mt-1">[${o.department}]</div>
+                                        </div>
+                                        <button onclick="deleteOuting('${o.id}', '${o.name}')" 
+                                                class="text-red-600 hover:text-red-800 ml-2" 
+                                                title="삭제">
+                                            <i class="fas fa-times-circle text-xl"></i>
+                                        </button>
+                                    </div>
+                                    <div class="bg-sky-100 rounded-lg p-3 mt-2">
+                                        <div class="text-sm">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <i class="fas fa-clock text-sky-600"></i>
+                                                <span class="font-medium">${o.outingTime} ~ ${o.returnTime}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i class="fas fa-comment text-sky-600"></i>
+                                                <span>${o.reason}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        <i class="fas fa-info-circle"></i> 신청시각: ${o.timestamp}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="text-gray-400 text-center py-8">현재 외출 신청이 없습니다</div>'}
+                </div>
+                
+                <!-- 변경된 외출 신청 (기록) -->
+                <div class="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-6 border-2 border-gray-300">
+                    <div class="font-bold text-gray-700 mb-4 text-xl flex items-center gap-2">
+                        <i class="fas fa-history"></i> 외출 신청 기록 (${todayOutingHistory.length}건)
+                    </div>
+                    <div class="text-xs text-gray-600 mb-3">
+                        <i class="fas fa-info-circle"></i> 외출 신청 후 잔류/외박으로 변경된 기록입니다
+                    </div>
+                    ${todayOutingHistory.length > 0 ? `
+                        <div class="space-y-3 max-h-96 overflow-y-auto">
+                            ${todayOutingHistory.map(h => `
+                                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-300">
+                                    <div class="flex items-start justify-between mb-2">
+                                        <div class="flex-1">
+                                            <div class="font-bold text-gray-800">${formatStudentName(h.name)}</div>
+                                            <div class="text-sm text-gray-600 mt-1">[${h.department}]</div>
+                                        </div>
+                                        <span class="px-3 py-1 rounded-full text-xs font-bold ${
+                                            h.replacedBy === 'stay' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
+                                        }">
+                                            ${h.replacedBy === 'stay' ? '잔류로 변경' : '외박으로 변경'}
+                                        </span>
+                                    </div>
+                                    <div class="bg-gray-100 rounded-lg p-3 mt-2">
+                                        <div class="text-sm text-gray-700">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <i class="fas fa-clock text-gray-600"></i>
+                                                <span class="font-medium">${h.outingTime} ~ ${h.returnTime}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i class="fas fa-comment text-gray-600"></i>
+                                                <span>${h.reason}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        <div><i class="fas fa-calendar"></i> 외출 신청: ${h.timestamp}</div>
+                                        <div><i class="fas fa-exchange-alt"></i> 변경 시각: ${h.replacedAt}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<div class="text-gray-400 text-center py-8">변경된 외출 신청 기록이 없습니다</div>'}
                 </div>
             </div>
         </div>
@@ -1922,6 +2152,13 @@ function setQuickSubmitMode(mode) {
     render();
 }
 
+// 학과대표 날짜 업데이트 함수
+function updateLeaderDate(selectedDate) {
+    currentDate = selectedDate;
+    console.log('학과대표 날짜 선택:', currentDate);
+    render();
+}
+
 // 선택된 학생 수 업데이트
 function updateLeaderSelectedCount() {
     const checkboxes = document.querySelectorAll('.leader-student-check');
@@ -1969,7 +2206,12 @@ async function confirmBatchSubmit() {
     const checkedText = checkedStatus === 'stay' ? '잔류' : '외박';
     const uncheckedText = uncheckedStatus === 'stay' ? '잔류' : '외박';
     
+    // 학과대표가 선택한 날짜 가져오기
+    const leaderDateSelect = document.getElementById('leaderDateSelect');
+    const submitDate = leaderDateSelect ? leaderDateSelect.value : getCurrentDate();
+    
     const confirmMsg = `다음과 같이 일괄 제출하시겠습니까?\n\n` +
+        `📅 날짜: ${submitDate}\n\n` +
         `✅ 체크한 학생 ${checkedStudents.length}명 → ${checkedText}\n` +
         `${checkedStudents.length > 0 ? checkedStudents.slice(0, 5).join(', ') + (checkedStudents.length > 5 ? ' 외 ' + (checkedStudents.length - 5) + '명' : '') : '없음'}\n\n` +
         `⬜ 나머지 학생 ${uncheckedStudents.length}명 → ${uncheckedText}\n` +
@@ -1981,7 +2223,6 @@ async function confirmBatchSubmit() {
     
     try {
         let successCount = 0;
-        const submitDate = getCurrentDate();
         
         // 체크된 교육생들 저장
         for (const name of checkedStudents) {
@@ -2009,7 +2250,7 @@ async function confirmBatchSubmit() {
             successCount++;
         }
         
-        alert(`✅ 일괄 제출 완료!\n\n총 ${successCount}명 처리\n${checkedText}: ${checkedStudents.length}명\n${uncheckedText}: ${uncheckedStudents.length}명`);
+        alert(`✅ 일괄 제출 완료!\n\n날짜: ${submitDate}\n총 ${successCount}명 처리\n${checkedText}: ${checkedStudents.length}명\n${uncheckedText}: ${uncheckedStudents.length}명`);
         
         // 초기화 및 재렌더링
         quickSubmitMode = null;
