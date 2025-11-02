@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&family=Jua&family=Sunflower:wght@500;700&family=Gugi&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&family=Jua&family=Sunflower:wght@500;700&family=Gugi&display=swap" rel="stylesheet">
     
     <style>
         @keyframes fadeIn {
@@ -1161,8 +1161,7 @@ function render() {
     
     app.innerHTML = `
         <!-- 헤더 -->
-        <div class="relative overflow-hidden rounded-3xl shadow-2xl p-8 mb-6 fade-in" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);">
-            <div class="absolute inset-0 backdrop-blur-xl bg-white/40 border border-white/50"></div>
+        <div class="relative overflow-hidden rounded-3xl shadow-2xl p-8 mb-6 fade-in bg-white border border-gray-200">
             <div class="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <div class="flex items-center gap-0.5">
                     <!-- 건물 로고 SVG -->
@@ -1214,14 +1213,18 @@ function render() {
                         <h1 class="text-2xl sm:text-3xl md:text-4xl" style="
                             font-family: 'Gugi', sans-serif;
                             font-weight: 400;
-                            color: #2d2d2d;
+                            color: #FFFFFF;
                             letter-spacing: -1px;
                             text-shadow: 
-                                -1px -1px 0 #87CEEB,
-                                1px -1px 0 #87CEEB,
-                                -1px 1px 0 #87CEEB,
-                                1px 1px 0 #87CEEB,
-                                0 0 3px #87CEEB;
+                                -2px -2px 0 #5B8AB8,
+                                2px -2px 0 #5B8AB8,
+                                -2px 2px 0 #5B8AB8,
+                                2px 2px 0 #5B8AB8,
+                                -2px 0 0 #5B8AB8,
+                                2px 0 0 #5B8AB8,
+                                0 -2px 0 #5B8AB8,
+                                0 2px 0 #5B8AB8,
+                                0 0 5px #5B8AB8;
                         ">행복관 인원관리</h1>
                     </div>
                 </div>
