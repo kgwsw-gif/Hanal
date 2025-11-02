@@ -6,23 +6,13 @@
     <title>행복관 인원관리 v2.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Black+Han+Sans&family=Jua&family=Sunflower:wght@500;700&family=Gugi&display=swap" rel="stylesheet">
     
     <style>
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px);     // 미제출 학생 클릭 이벤트 리스너 추가
-    setTimeout(() => {
-        if (window.notSubmittedStudents && currentMode === 'admin') {
-            window.notSubmittedStudents.forEach(student => {
-                const element = document.getElementById(student.id);
-                if (element) {
-                    element.addEventListener('click', function(e) {
-                        showIndividualSubmitMenu(e, student.dept, student.name);
-                    });
-                }
-            });
-        }
-    }, 100);
-}
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .fade-in { animation: fadeIn 0.3s ease-out; }
@@ -32,6 +22,30 @@
             justify-content: center;
             min-height: 100vh;
             font-size: 24px;
+        }
+        
+        /* 흐르는 글씨 효과 애니메이션 */
+        @keyframes textFlow {
+            from {
+                background-position: 0% center;
+            }
+            to {
+                background-position: -100% center;
+            }
+        }
+        
+        /* 건물 반짝임 효과 */
+        @keyframes buildingShine {
+            0%, 100% {
+                filter: brightness(1) drop-shadow(0 0 0px rgba(108, 169, 219, 0));
+            }
+            50% {
+                filter: brightness(1.2) drop-shadow(0 0 8px rgba(108, 169, 219, 0.8));
+            }
+        }
+        
+        .building-icon {
+            animation: buildingShine 2s ease-in-out infinite;
         }
         
         /* 커스텀 셀렉트 박스 스타일 */
@@ -138,13 +152,13 @@
 <div id="passwordModal" class="password-modal">
     <div class="password-modal-content">
         <h3 class="text-2xl font-bold mb-4 text-gray-800 text-center">
-            <i class="fas fa-lock text-purple-600"></i> 관리자 로그인
+            <i class="fas fa-lock text-indigo-500"></i> 관리자 로그인
         </h3>
         <p class="text-gray-600 mb-4 text-center">비밀번호를 입력하세요</p>
         <input 
             type="password" 
             id="adminPasswordInput" 
-            class="w-full px-4 py-3 rounded-xl border-2 border-purple-200 mb-4 text-lg text-center"
+            class="w-full px-4 py-3 rounded-xl border-2 border-indigo-300 mb-4 text-lg text-center bg-white focus:border-indigo-500 focus:outline-none"
             placeholder="••••••••"
             autocomplete="off"
         >
@@ -152,7 +166,7 @@
             <button onclick="cancelAdminLogin()" class="flex-1 px-6 py-3 bg-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-400 transition-all">
                 취소
             </button>
-            <button onclick="confirmAdminLogin()" class="flex-1 px-6 py-3 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-all">
+            <button onclick="confirmAdminLogin()" class="flex-1 px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all">
                 확인
             </button>
         </div>
@@ -163,12 +177,12 @@
 <div id="leaderModal" class="password-modal">
     <div class="password-modal-content">
         <h3 class="text-2xl font-bold mb-4 text-gray-800 text-center">
-            <i class="fas fa-user-tie text-blue-600"></i> 학과대표 로그인
+            <i class="fas fa-user-tie text-indigo-500"></i> 학과대표 로그인
         </h3>
         <div class="mb-4">
             <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
             <div class="custom-select">
-                <select id="leaderDeptSelect" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200 text-lg">
+                <select id="leaderDeptSelect" class="w-full px-4 py-3 rounded-xl border-2 border-indigo-500 text-lg bg-white focus:border-indigo-600 focus:outline-none">
                     <option value="">학과를 선택하세요</option>
                 </select>
             </div>
@@ -178,7 +192,7 @@
             <input 
                 type="password" 
                 id="leaderPasswordInput" 
-                class="w-full px-4 py-3 rounded-xl border-2 border-blue-200 text-lg text-center"
+                class="w-full px-4 py-3 rounded-xl border-2 border-indigo-500 text-lg text-center bg-white focus:border-indigo-600 focus:outline-none"
                 placeholder="••••••••"
                 autocomplete="off"
             >
@@ -187,7 +201,7 @@
             <button onclick="cancelLeaderLogin()" class="flex-1 px-6 py-3 bg-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-400 transition-all">
                 취소
             </button>
-            <button onclick="confirmLeaderLogin()" class="flex-1 px-6 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all">
+            <button onclick="confirmLeaderLogin()" class="flex-1 px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all">
                 확인
             </button>
         </div>
@@ -271,7 +285,7 @@ setTimeout(() => {
 const ADMIN_PASSWORD = '3503133';
 
 // 학과대표 정보 (학과: {대표이름, 비밀번호-주민등록번호})
-const DEPARTMENT_LEADERS = {
+let DEPARTMENT_LEADERS = {
     '반도체표면처리과': { name: '김재형', password: '971014' },
     '산업설비과': { name: '김응준', password: '980420' },
     '스마트자동차과': { name: '문태근', password: '961205' },
@@ -282,66 +296,66 @@ const DEPARTMENT_LEADERS = {
     '스마트기계과': { name: '김용래', password: '960329' },
     '신중년(장)설비과': { name: '조덕만', password: '810115' },
     '신중년(단)목공예제작': { name: '서우호', password: '680120' },
-    '여성재취업(바리스타)과정': { name: '김지현(여)', password: '011107' },
-    '신중년(단)전기과': { name: '정혁진', password: '670926' }
+    '여성재취업(바리스타)과정': { name: '김지현(여)', password: '011107' }
 };
 
 // 학생 호실 정보
-const studentRoomNumbers = {
+let studentRoomNumbers = {
     '김보람(여)': '101', '김혜린(여)': '102', '차은민(여)': '102', '정주희(여)': '103', '공찬미(여)': '104', '김진희(여)': '104', 
-    '김지현(여)': '105', '남혜성(여)': '107', '류소현(여)': '108', '황지원(여)': '109', '김명자(여)': '110', '김형선(여)': '110',
+    '김지현(여)': '105', '남혜성(여)': '107', '류소현(여)': '108', '황지원(여)': '109',
     '장선우': '201', '최영진': '201', '김재형': '202', '권승두': '203', '안재범': '203', '이상효': '204',
     '강의찬': '205', '장대일': '205', '김민기': '206', '임대혁': '206', '김주용': '207', '이지웅': '207',
     '김현우': '208', '이동형': '208', '민준원': '209', '이성재': '211', '김성진': '210', '김응준': '210',
     '강민규': '212', '주 환': '212', '최재혁': '213', '태현석': '213', '구자훈': '214', '박현승': '214',
     '김원영': '215', '최지만': '215', '송윤건': '216', '최예준': '216', '김도윤': '217', '오대현': '218', '이해원': '218',
-    '임상록': '219', '형성재': '219', '이평강': '221', '이재진': '222', '윤태영': '223', '추헌규': '223',
+    '임상록': '219', '형성재': '219', '이재진': '222', '윤태영': '223', '추헌규': '223',
     '이성민': '224', '이종환': '225', '주 현': '225', '서영재': '226', '정하윤': '226', '김현성': '227', '박정석': '227',
     '김동만': '228', '문태근': '228', '김현유': '229', '최수용': '229', '오상수': '301', '윤덕중': '301',
     '진용남': '302', '김지민': '303', '이홍주': '303', '배광조': '304', '안현빈': '304', '박용국': '305',
     '신민준': '306', '이상현': '306', '장지후': '307', '김용래': '308', '이호찬': '308', '박정현': '309', '장윤호': '309',
-    '홍현하': '310', '송윤준': '311', '정재룡': '312', '김천동': '313', '우남영': '313', '최 룡': '314',
+    '홍현하': '310', '송윤준': '311', '정재룡': '312', '김천동': '313', '우남영': '313',
     '이재훈': '315', '장세훈': '315', '은준현': '316', '이덕환': '316', '김광현': '317', '최정호': '317',
     '유지현': '318', '추민재': '318', '강민석': '319', '왕준혁': '319', '권오선': '320', '박관홍': '320',
     '김지성': '321', '이한빈': '321', '이종원': '324', '권순범': '324', '공홍익': '325', '함도현': '325',
-    '곽민수': '327', '김태용': '327', '박동희': '328', '노 준': '329', '김영권': '401', '배상근': '401',
-    '박성엽': '402', '안태식': '402', '정범식': '403', '조경훈': '403', '우상욱': '407', '정혁진': '408',
-    '홍지문': '409', '김현용': '410', '홍순명': '410', '우진하': '411', '이문환': '411', '박재환': '412', '서우호': '412',
+    '곽민수': '327', '박동희': '328', '노 준': '329',
+    '서철식': '401', '김현수': '402', '최창호': '402', '이윤욱': '403', '서재출': '407', '양웅석': '409',
+    '김현용': '410', '홍순명': '410', '우진하': '411', '이문환': '411', '박재환': '412', '서우호': '412',
     '이상훈': '414', '유승준': '414', '김기철': '415', '김재수': '415', '강석원': '416', '박동한': '416',
     '이윤상': '417', '조덕만': '417', '이승태': '418', '김영기': '419', '김연국': '422', '윤진균': '422',
     '김영길': '423', '박종선': '423', '유부열': '424', '임규태': '424', '김동진': '425', '백영준': '425',
-    '이용수': '426', '김정규': '427', '최은식': '427', '김현민': '428', '차덕선': '428', '김선우': '429', '신승우': '429'
+    '이용수': '426', '김정규': '427', '최은식': '427', '김현민': '428', '차덕선': '428', '김선우': '429', '신승우': '429',
+    '서철식': '401', '최창호': '402', '김현수': '402', '이윤욱': '403', '서재출': '407', '양웅석': '409'
 };
 
 // 학생 생년월일 데이터 (YYMMDD 형식) - 비밀번호로 사용
 let studentPasswords = {
-    '김재형': '971014', '권승두': '820328', '서동현': '001211', '최영진': '940922', '장선우': '960924', '이상효': '720305', '안재범': '871209', '김혜린(여)': '030102', '차은민(여)': '981102',
-    '이동형': '020820', '이성재': '780325', '장대일': '851019', '강의찬': '981125', '김민기': '980922', '이상훈': '960909', '김응준': '980420', '김성진': '950317', '김주용': '870719', '민준원': '000115', '이평강': '010103', '김현우': '011020', '김현민': '070326', '이지웅': '031215', '차덕선': '020130', '김선우': '940610', '신승우': '940930', '임대혁': '001210', '김보람(여)': '931103',
+    '김재형': '971014', '권승두': '820328', '최영진': '940922', '장선우': '960924', '이상효': '720305', '안재범': '871209', '김혜린(여)': '030102', '차은민(여)': '981102',
+    '이동형': '020820', '이성재': '780325', '장대일': '851019', '강의찬': '981125', '김민기': '980922', '이상훈': '960909', '김응준': '980420', '김성진': '950317', '김주용': '870719', '민준원': '000115', '김현우': '011020', '김현민': '070326', '이지웅': '031215', '차덕선': '020130', '김선우': '940610', '신승우': '940930', '임대혁': '001210', '김보람(여)': '931103',
     '최재혁': '021225', '김동만': '980330', '이해원': '980105', '이종환': '010410', '태현석': '021111', '박정석': '971102', '강민규': '990715', '임상록': '980209', '김현성': '971017', '문태근': '961205', '최수용': '010404', '김현유': '000229', '정하윤': '970105', '주 현': '990104', '주 환': '960107', '형성재': '021230', '오대현': '000315', '서영재': '020403',
-    '이승태': '731025', '박동희': '610218', '이한빈': '020918', '은준현': '971105', '왕준혁': '000807', '장세훈': '970324', '강민석': '001220', '권오선': '800121', '곽민수': '990511', '김지성': '020607', '박관홍': '751230', '김정규': '960603', '공홍익': '981212', '최 룡': '000000', '유지현': '990206', '이종원': '971028', '이재훈': '970723', '이상현': '970126', '추민재': '010124', '이덕환': '980302', '함도현': '061216', '김영기': '590405', '김천동': '651014', '정재룡': '681010', '김광현': '990111', '홍현하': '631224', '노 준': '771215', '최정호': '030126', '신민준': '000923', '권순범': '980221', '김태용': '020307', '송윤준': '740420', '우남영': '710417', '최은식': '751213',
+    '이승태': '731025', '박동희': '610218', '이한빈': '020918', '은준현': '971105', '왕준혁': '000807', '장세훈': '970324', '강민석': '001220', '권오선': '800121', '곽민수': '990511', '김지성': '020607', '박관홍': '751230', '김정규': '960603', '공홍익': '981212', '유지현': '990206', '이종원': '971028', '이재훈': '970723', '이상현': '970126', '추민재': '010124', '이덕환': '980302', '함도현': '061216', '김영기': '590405', '김천동': '651014', '정재룡': '681010', '김광현': '990111', '홍현하': '631224', '노 준': '771215', '최정호': '030126', '신민준': '000923', '권순범': '980221', '송윤준': '740420', '우남영': '710417', '최은식': '751213',
     '송윤건': '061104', '이성민': '910730', '최예준': '060815', '박현승': '950714', '윤태영': '921006', '최지만': '990624', '김도윤': '980926', '이재진': '880721', '구자훈': '980528', '김원영': '990703', '추헌규': '950822',
     '배광조': '621101', '이홍주': '870901', '박용국': '630805', '윤덕중': '570420', '김지민': '030403', '진용남': '601111', '안현빈': '990119', '오상수': '570206', '공찬미(여)': '010315', '정주희(여)': '780428', '김진희(여)': '050112',
     '장지후': '930713', '김용래': '960329', '이호찬': '980909', '장윤호': '960306', '박정현': '960502',
     '이용수': '691220', '윤진균': '640428', '박동한': '690124', '강석원': '700304', '조덕만': '810115', '김기철': '611011', '이상훈': '960909', '박종선': '661206', '백영준': '691110', '임규태': '671210', '유부열': '670320', '유승준': '710909', '김연국': '630217', '김재수': '640123', '김영길': '650416', '김동진': '670724', '이윤상': '710928',
     '홍순명': '570212', '김현용': '550516', '우진하': '661028', '이문환': '680423', '서우호': '680120', '박재환': '610129',
     '김지현(여)': '011107', '남혜성(여)': '040324', '황지원(여)': '000720', '류소현(여)': '940218',
-    '박성엽': '640824', '안태식': '640903', '김영권': '610221', '정혁진': '670926', '배상근': '640415', '조경훈': '660127', '정범식': '660109', '우상욱': '640203', '홍지문': '660705', '김형선(여)': '720820', '김명자(여)': '641119'
+    '서철식': '600510', '최창호': '681111', '김현수': '650615', '이윤욱': '600515', '서재출': '590304', '양웅석': '780101'
 };
 
 // 원본 학생 데이터 (호실 순으로 정렬됨) - 초기화 시 Firestore에서 로드
 let originalStudents = {
-    '반도체표면처리과': ['김혜린(여)', '차은민(여)', '최영진', '장선우', '김재형', '권승두', '안재범', '이상효', '서동현'],
-    '산업설비과': ['김보람(여)', '장대일', '강의찬', '김민기', '임대혁', '김주용', '이지웅', '김현우', '이동형', '민준원', '김성진', '김응준', '이성재', '이평강', '이상훈', '김현민', '차덕선', '김선우', '신승우'],
+    '반도체표면처리과': ['김혜린(여)', '차은민(여)', '최영진', '장선우', '김재형', '권승두', '안재범', '이상효'],
+    '산업설비과': ['김보람(여)', '장대일', '강의찬', '김민기', '임대혁', '김주용', '이지웅', '김현우', '이동형', '민준원', '김성진', '김응준', '이성재', '이상훈', '김현민', '차덕선', '김선우', '신승우'],
     '스마트자동차과': ['강민규', '주 환', '최재혁', '태현석', '이해원', '오대현', '임상록', '형성재', '이종환', '주 현', '정하윤', '서영재', '박정석', '김현성', '김동만', '문태근', '최수용', '김현유'],
-    '스마트전기(전기)과': ['이상현', '신민준', '은준현', '이덕환', '김광현', '최정호', '유지현', '추민재', '권오선', '박관홍', '김지성', '이한빈', '이종원', '김태용', '곽민수', '이승태', '최은식', '김정규'],
-    '스마트전기(소방)과': ['홍현하', '송윤준', '정재룡', '김천동', '우남영', '최 룡', '장세훈', '이재훈', '왕준혁', '강민석', '권순범', '공홍익', '함도현', '박동희', '노 준', '김영기'],
+    '스마트전기(전기)과': ['이상현', '신민준', '은준현', '이덕환', '김광현', '최정호', '유지현', '추민재', '권오선', '박관홍', '김지성', '이한빈', '이종원', '곽민수', '이승태', '최은식', '김정규'],
+    '스마트전기(소방)과': ['홍현하', '송윤준', '정재룡', '김천동', '우남영', '장세훈', '이재훈', '왕준혁', '강민석', '권순범', '공홍익', '함도현', '박동희', '노 준', '김영기'],
     '자동차도장과': ['박현승', '구자훈', '최지만', '김원영', '송윤건', '최예준', '김도윤', '이재진', '윤태영', '추헌규', '이성민'],
     '주얼리목공예과': ['정주희(여)', '공찬미(여)', '김진희(여)', '윤덕중', '오상수', '진용남', '이홍주', '김지민', '배광조', '안현빈', '박용국'],
     '스마트기계과': ['장지후', '김용래', '이호찬', '장윤호', '박정현'],
     '신중년(장)설비과': ['이상훈', '유승준', '김기철', '김재수', '박동한', '강석원', '조덕만', '이윤상', '윤진균', '김연국', '박종선', '김영길', '임규태', '유부열', '백영준', '김동진', '이용수'],
     '신중년(단)목공예제작': ['홍순명', '김현용', '우진하', '이문환', '서우호', '박재환'],
     '여성재취업(바리스타)과정': ['김지현(여)', '남혜성(여)', '류소현(여)', '황지원(여)'],
-    '신중년(단)전기과': ['김영권', '배상근', '박성엽', '안태식', '조경훈', '정범식', '우상욱', '정혁진', '홍지문', '김형선(여)', '김명자(여)']
+    '신중년(단)지게차': ['서철식', '최창호', '김현수', '이윤욱', '서재출', '양웅석']
 };
 
 let departments = Object.keys(originalStudents);
@@ -354,10 +368,15 @@ function updateStudentsList() {
     students = {};
     const approvedResigns = resignRequests.filter(r => r.status === 'approved');
     
-    Object.keys(originalStudents).forEach(dept => {
-        students[dept] = originalStudents[dept].filter(name => {
-            return !approvedResigns.some(r => r.department === dept && r.name === name);
-        });
+    // departments에 있는 학과만 처리
+    departments.forEach(dept => {
+        if (originalStudents[dept]) {
+            students[dept] = originalStudents[dept].filter(name => {
+                return !approvedResigns.some(r => r.department === dept && r.name === name);
+            });
+        } else {
+            students[dept] = [];
+        }
     });
 }
 
@@ -366,6 +385,31 @@ function updateStudentsList() {
 function formatStudentName(name) {
     const roomNumber = studentRoomNumbers[name];
     return roomNumber ? `${roomNumber}호 ${name}` : name;
+}
+
+// 호실번호 순으로 학생 정렬하는 함수
+function sortStudentsByRoom(students) {
+    return students.slice().sort((a, b) => {
+        const roomA = studentRoomNumbers[a] || '999';
+        const roomB = studentRoomNumbers[b] || '999';
+        return parseInt(roomA) - parseInt(roomB);
+    });
+}
+
+// 섹션으로 부드럽게 스크롤하는 함수
+function scrollToSection(sectionId) {
+    const element = document.getElementById(sectionId);
+    if (element) {
+        // 요소의 위치 계산
+        const elementPosition = element.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - 100; // 상단 여백 100px
+        
+        // 부드러운 스크롤
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
 }
 
 function getCurrentDate() {
@@ -387,6 +431,7 @@ let outings = [];
 let outingHistory = []; // 외출 신청 기록 (잔류/외박으로 변경된 외출 신청)
 let resignRequests = [];
 let announcement = ''; // 공지사항
+let adminTab = 'status'; // 관리자 탭: 'status' (현황보기) 또는 'settings' (관리자설정)
 
 // 대한민국 공휴일 (2025-2026년)
 const HOLIDAYS = [
@@ -543,29 +588,110 @@ function changeDate(days) {
     render();
 }
 
+// Debounce 함수 - 중복 render 호출 방지
+let renderTimeout = null;
+function debouncedRender() {
+    if (renderTimeout) clearTimeout(renderTimeout);
+    renderTimeout = setTimeout(() => {
+        render();
+        renderTimeout = null;
+    }, 100); // 100ms 지연
+}
+
 // 초기화 및 이벤트 위임 설정
 if (db) {
+    // departments 설정 로드
+    db.collection('config').doc('departments').onSnapshot(doc => {
+        if (doc.exists && doc.data().list) {
+            departments = doc.data().list;
+            console.log('departments 로드됨:', departments);
+        } else {
+            // 설정이 없으면 originalStudents에서 생성
+            departments = Object.keys(originalStudents);
+            console.log('departments 초기화:', departments);
+        }
+        debouncedRender();
+    });
+
+    // students 데이터 로드
+    db.collection('students').onSnapshot(snapshot => {
+        snapshot.docs.forEach(doc => {
+            const dept = doc.id;
+            if (doc.data().students) {
+                originalStudents[dept] = doc.data().students;
+            }
+        });
+        updateStudentsList();
+        debouncedRender();
+    });
+
+    // departmentLeaders 데이터 로드
+    db.collection('departmentLeaders').onSnapshot(snapshot => {
+        snapshot.docs.forEach(doc => {
+            const dept = doc.id;
+            if (doc.data().name && doc.data().password) {
+                DEPARTMENT_LEADERS[dept] = {
+                    name: doc.data().name,
+                    password: doc.data().password
+                };
+            }
+        });
+        debouncedRender();
+    });
+
     db.collection('submissions').onSnapshot(snapshot => {
         submissions = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
         updateStudentsList();
-        render();
+        debouncedRender();
+    });
+
+    // roomNumbers 데이터 로드
+    db.collection('roomNumbers').onSnapshot(snapshot => {
+        snapshot.docs.forEach(doc => {
+            const studentName = doc.id;
+            if (doc.data().room) {
+                studentRoomNumbers[studentName] = doc.data().room;
+            }
+        });
+        debouncedRender();
+    });
+
+    // passwords 데이터 로드
+    db.collection('passwords').onSnapshot(snapshot => {
+        console.log('passwords 리스너 실행됨, 문서 수:', snapshot.docs.length);
+        snapshot.docs.forEach(doc => {
+            const studentName = doc.id;
+            if (doc.data().password) {
+                studentPasswords[studentName] = doc.data().password;
+                // 양승석 학생의 데이터를 특별히 출력
+                if (studentName === '양승석' || studentName.includes('양승')) {
+                    console.log('⭐ 양승석 비밀번호 로드:', studentName, doc.data().password);
+                }
+            }
+        });
+        console.log('전체 studentPasswords:', Object.keys(studentPasswords).length, '개');
+        // 양승석 학생의 최종 비밀번호 확인
+        if (studentPasswords['양승석']) {
+            console.log('⭐ 최종 양승석 비밀번호:', studentPasswords['양승석']);
+        }
+        debouncedRender();
     });
 
     db.collection('outings').onSnapshot(snapshot => {
         outings = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
         updateStudentsList();
-        render();
+        debouncedRender();
     });
 
     db.collection('outingHistory').onSnapshot(snapshot => {
         outingHistory = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
-        render();
+        debouncedRender();
     });
 
     db.collection('resignRequests').onSnapshot(snapshot => {
         resignRequests = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
         updateStudentsList();
-        render();
+        debouncedRender();
     });
 
     db.collection('announcement').doc('current').onSnapshot(doc => {
@@ -574,7 +700,7 @@ if (db) {
         } else {
             announcement = '';
         }
-        render();
+        debouncedRender();
     });
 }
 
@@ -596,6 +722,18 @@ async function saveAnnouncement(text) {
 function updateAnnouncement() {
     const input = document.getElementById('announcementInput');
     if (!input) return;
+    
+    const text = input.value.trim();
+    saveAnnouncement(text);
+}
+
+// 관리자 설정 탭에서 공지사항 저장
+function saveAdminAnnouncement() {
+    const input = document.getElementById('announcementInput');
+    if (!input) {
+        alert('× 공지사항 입력란을 찾을 수 없습니다.');
+        return;
+    }
     
     const text = input.value.trim();
     saveAnnouncement(text);
@@ -628,6 +766,8 @@ async function submitStay(dept, name) {
             timestamp: new Date().toLocaleTimeString('ko-KR')
         });
         alert('✓ 잔류 신청이 완료되었습니다!');
+        // 즉시 UI 업데이트
+        render();
     } catch (error) {
         console.error('잔류 신청 오류:', error);
         alert('× 잔류 신청 실패: ' + error.message);
@@ -649,6 +789,8 @@ async function submitOut(dept, name) {
             timestamp: new Date().toLocaleTimeString('ko-KR')
         });
         alert('✓ 외박 신청이 완료되었습니다!');
+        // 즉시 UI 업데이트
+        render();
     } catch (error) {
         console.error('외박 신청 오류:', error);
         alert('× 외박 신청 실패: ' + error.message);
@@ -656,14 +798,27 @@ async function submitOut(dept, name) {
 }
 
 async function submitOuting(dept, name, outTime, retTime, reason) {
+    // 날짜 선택 우선순위: 교육생 모드 > 학과대표 모드 > 현재 날짜
+    let submitDate;
     const submitDateSelect = document.getElementById('submitDateSelect');
     const leaderSubmitDateSelect = document.getElementById('leaderSubmitDateSelect');
-    const submitDate = submitDateSelect ? submitDateSelect.value : 
-                       leaderSubmitDateSelect ? leaderSubmitDateSelect.value : 
-                       getCurrentDate();
+    
+    if (submitDateSelect && submitDateSelect.value) {
+        // 교육생 모드
+        submitDate = submitDateSelect.value;
+    } else if (leaderSubmitDateSelect && leaderSubmitDateSelect.value) {
+        // 학과대표 모드
+        submitDate = leaderSubmitDateSelect.value;
+    } else {
+        // 기본값: 현재 날짜
+        submitDate = getCurrentDate();
+    }
+    
     const docId = `${submitDate}_${dept}_${name}`;
     
     try {
+        console.log('외출 신청 시작:', {dept, name, submitDate, outTime, retTime, reason});
+        
         // 외출 신청 저장 (기존 잔류/외박은 삭제하지 않고 보존)
         await db.collection('outings').doc(docId).set({
             department: dept,
@@ -674,10 +829,17 @@ async function submitOuting(dept, name, outTime, retTime, reason) {
             reason: reason,
             timestamp: new Date().toLocaleTimeString('ko-KR')
         });
+        
+        console.log('✓ 외출 신청 저장 완료:', docId);
+        
         alert('✓ 외출 신청이 완료되었습니다!');
+        
+        // 즉시 UI 업데이트
+        render();
+        
     } catch (error) {
         console.error('외출 신청 오류:', error);
-        alert('× 외출 신청 실패: ' + error.message);
+        alert('× 외출 신청 실패: ' + error.message + '\n\n다시 시도해주세요.');
     }
 }
 
@@ -692,6 +854,8 @@ async function submitResign(dept, name, resignDate, reason) {
         status: 'pending'
     });
     alert('✓ 퇴사 신청이 완료되었습니다!');
+    // 즉시 UI 업데이트
+    render();
 }
 
 // 제출 삭제 함수
@@ -703,6 +867,8 @@ async function deleteSubmission(docId, name) {
     try {
         await db.collection('submissions').doc(docId).delete();
         alert('✓ 삭제되었습니다.');
+        // 즉시 UI 업데이트
+        render();
     } catch (error) {
         alert('× 삭제 실패: ' + error.message);
     }
@@ -717,6 +883,8 @@ async function deleteOuting(docId, name) {
     try {
         await db.collection('outings').doc(docId).delete();
         alert('✓ 삭제되었습니다.');
+        // 즉시 UI 업데이트
+        render();
     } catch (error) {
         alert('× 삭제 실패: ' + error.message);
     }
@@ -854,29 +1022,39 @@ function isResigned(dept, name) {
 function verifyBirthDate(name) {
     const birthDate = studentPasswords[name];
     
+    console.log('=== 비밀번호 확인 시작 ===');
+    console.log('학생 이름:', name);
+    console.log('저장된 비밀번호:', birthDate);
+    console.log('studentPasswords 객체:', studentPasswords);
+    console.log('전체 비밀번호 개수:', Object.keys(studentPasswords).length);
+    
     // 생년월일 정보가 없는 경우 (000000)
     if (!birthDate || birthDate === '000000') {
-        const proceed = confirm(`${name} 교육생의 생년월일 정보가 등록되어 있지 않습니다.\n\n생년월일 확인 없이 진행하시겠습니까?\n(보안을 위해 관리자에게 생년월일 등록을 요청하세요)`);
+        console.log('비밀번호 없음 - 확인 창 표시');
+        const proceed = confirm(`${name} 교육생의 비밀번호 정보가 등록되어 있지 않습니다.\n\n비밀번호 확인 없이 진행하시겠습니까?\n(보안을 위해 관리자에게 비밀번호 등록을 요청하세요)`);
         return proceed;
     }
     
-    const input = prompt(`본인 확인을 위해 생년월일 6자리를 입력하세요.\n(예: 990312 = 1999년 3월 12일)`);
+    const input = prompt(`본인 확인을 위해 비밀번호를 입력하세요.`);
     
     // 취소 버튼을 누르거나 빈 값을 입력한 경우
     if (input === null) {
-        alert('❌ 생년월일 입력이 취소되었습니다.');
+        alert('❌ 비밀번호 입력이 취소되었습니다.');
         return false;
     }
     
     if (input.trim() === '') {
-        alert('❌ 생년월일을 입력해주세요.');
+        alert('❌ 비밀번호를 입력해주세요.');
         return false;
     }
+    
+    console.log('입력한 비밀번호:', input);
+    console.log('일치 여부:', input === birthDate);
     
     if (input === birthDate) {
         return true;
     } else {
-        alert('❌ 생년월일이 일치하지 않습니다.\n본인이 아닌 경우 다른 사람의 정보를 제출할 수 없습니다.');
+        alert('❌ 비밀번호가 일치하지 않습니다.\n본인이 아닌 경우 다른 사람의 정보를 제출할 수 없습니다.');
         return false;
     }
 }
@@ -942,32 +1120,90 @@ function render() {
     
     app.innerHTML = `
         <!-- 헤더 -->
-        <div class="bg-white/70 backdrop-blur-md rounded-3xl shadow-xl p-8 mb-6 fade-in">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                <div class="flex items-center gap-2 sm:gap-4">
-                    <div class="text-3xl sm:text-4xl"><i class="fas fa-building text-purple-600"></i></div>
-                    <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">행복관 인원관리</h1>
+        <div class="relative overflow-hidden rounded-3xl shadow-2xl p-8 mb-6 fade-in" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);">
+            <div class="absolute inset-0 backdrop-blur-xl bg-white/40 border border-white/50"></div>
+            <div class="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                <div class="flex items-center gap-0.5">
+                    <!-- 건물 로고 SVG -->
+                    <div class="relative building-icon">
+                        <svg width="80" height="80" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            <!-- 장식 점들 -->
+                            <circle cx="20" cy="30" r="2" fill="#6CA9DB" opacity="0.6"/>
+                            <circle cx="15" cy="45" r="2" fill="#6CA9DB" opacity="0.6"/>
+                            <circle cx="25" cy="55" r="2" fill="#6CA9DB" opacity="0.6"/>
+                            <circle cx="85" cy="35" r="2" fill="#6CA9DB" opacity="0.6"/>
+                            <circle cx="82" cy="50" r="2" fill="#6CA9DB" opacity="0.6"/>
+                            
+                            <!-- 메인 건물 -->
+                            <rect x="35" y="25" width="30" height="50" fill="#6CA9DB" rx="2"/>
+                            
+                            <!-- 창문들 -->
+                            <rect x="40" y="30" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="48" y="30" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="56" y="30" width="6" height="6" fill="white" opacity="0.9"/>
+                            
+                            <rect x="40" y="40" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="48" y="40" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="56" y="40" width="6" height="6" fill="white" opacity="0.9"/>
+                            
+                            <rect x="40" y="50" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="48" y="50" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="56" y="50" width="6" height="6" fill="white" opacity="0.9"/>
+                            
+                            <rect x="40" y="60" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="48" y="60" width="6" height="6" fill="white" opacity="0.9"/>
+                            <rect x="56" y="60" width="6" height="6" fill="white" opacity="0.9"/>
+                            
+                            <!-- 입구 -->
+                            <rect x="46" y="68" width="8" height="7" fill="#5B8AB8"/>
+                            
+                            <!-- 왼쪽 작은 건물 -->
+                            <rect x="28" y="50" width="8" height="25" fill="#A8C6E0" rx="1"/>
+                            <rect x="30" y="55" width="4" height="4" fill="white" opacity="0.8"/>
+                            <rect x="30" y="62" width="4" height="4" fill="white" opacity="0.8"/>
+                            
+                            <!-- 오른쪽 작은 건물 -->
+                            <rect x="64" y="45" width="8" height="30" fill="#A8C6E0" rx="1"/>
+                            <rect x="66" y="50" width="4" height="4" fill="white" opacity="0.8"/>
+                            <rect x="66" y="57" width="4" height="4" fill="white" opacity="0.8"/>
+                            <rect x="66" y="64" width="4" height="4" fill="white" opacity="0.8"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl sm:text-3xl md:text-4xl" style="
+                            font-family: 'Gugi', sans-serif;
+                            font-weight: 400;
+                            color: #2d2d2d;
+                            letter-spacing: -1px;
+                            text-shadow: 
+                                -1px -1px 0 #87CEEB,
+                                1px -1px 0 #87CEEB,
+                                -1px 1px 0 #87CEEB,
+                                1px 1px 0 #87CEEB,
+                                0 0 3px #87CEEB;
+                        ">행복관 인원관리</h1>
+                    </div>
                 </div>
                 <div class="flex gap-2 flex-wrap">
-                    <button onclick="currentMode='student'; render()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium transition-all ${currentMode === 'student' ? 'bg-purple-300 text-white shadow-lg' : 'bg-white/70 text-gray-600'}">
+                    <button onclick="currentMode='student'; render()" class="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-2xl font-medium transition-all text-base ${currentMode === 'student' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-white/50 backdrop-blur-md text-gray-800 border border-white/70 shadow-md'}">
                         <i class="fas fa-user"></i> 교육생
                     </button>
-                    <button onclick="showLeaderLogin()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium transition-all ${currentMode === 'leader' ? 'bg-blue-300 text-white shadow-lg' : 'bg-white/70 text-gray-600'}">
+                    <button onclick="showLeaderLogin()" class="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-2xl font-medium transition-all text-base ${currentMode === 'leader' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-white/50 backdrop-blur-md text-gray-800 border border-white/70 shadow-md'}">
                         <i class="fas fa-user-tie"></i> 학과대표
                     </button>
-                    <button onclick="showAdminLogin()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium transition-all ${currentMode === 'admin' ? 'bg-purple-300 text-white shadow-lg' : 'bg-white/70 text-gray-600'}">
+                    <button onclick="showAdminLogin()" class="px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-2xl font-medium transition-all text-base ${currentMode === 'admin' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-white/50 backdrop-blur-md text-gray-800 border border-white/70 shadow-md'}">
                         <i class="fas fa-lock"></i> 관리자
                     </button>
-                    ${isAdminLoggedIn || isLeaderLoggedIn ? '<button onclick="logout()" class="px-3 sm:px-6 py-2 sm:py-3 rounded-2xl font-medium bg-rose-200 text-red-700 hover:shadow-lg transition-all"><i class="fas fa-power-off"></i> 로그아웃</button>' : ''}
+                    ${isAdminLoggedIn || isLeaderLoggedIn ? '<button onclick="logout()" class="px-2.5 sm:px-3.5 py-1 sm:py-1.5 font-medium text-gray-700 hover:text-gray-900 transition-all flex items-center gap-2 bg-white/40 backdrop-blur-md rounded-2xl border border-white/60 text-base"><i class="fas fa-power-off"></i> 로그아웃</button>' : ''}
                 </div>
             </div>
-            <div class="flex items-center gap-2 flex-wrap">
+            <div class="relative flex items-center gap-2 flex-wrap">
                 <i class="fas fa-calendar-alt text-purple-600"></i>
                 <input type="date" id="mainDateInput" value="${currentDate}" onchange="currentDate=this.value; render()" 
-                       class="px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-lg" 
+                       class="px-4 py-2 rounded-xl bg-white/60 backdrop-blur-md border border-white/70 text-lg shadow-md" 
                        style="min-width: 150px;"
                        ${currentMode === 'leader' ? 'disabled' : ''}>
-                <button onclick="currentDate=getCurrentDate(); render();" class="px-3 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-all" title="Today">
+                <button onclick="currentDate=getCurrentDate(); render();" class="px-3 py-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-all shadow-lg" title="Today">
                     <i class="fas fa-home"></i> Today (${(() => {
                         const [year, month, day] = currentDate.split('-');
                         const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
@@ -976,14 +1212,14 @@ function render() {
                     })()})
                 </button>
                 ${currentMode === 'admin' ? `
-                <button onclick="changeDate(-1);" class="px-2 py-1.5 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm" title="하루 전">
-                    <i class="fas fa-chevron-left"></i> ${getDateButtonLabel(-1)}
+                <button onclick="changeDate(-1);" class="px-3 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm shadow-md" title="하루 전">
+                    <i class="fas fa-chevron-left"></i> -1day
                 </button>
-                <button onclick="changeDate(1);" class="px-2 py-1.5 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm" title="하루 후">
-                    ${getDateButtonLabel(1)} <i class="fas fa-chevron-right"></i>
+                <button onclick="changeDate(1);" class="px-3 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm shadow-md" title="하루 후">
+                    +1day <i class="fas fa-chevron-right"></i>
                 </button>
-                <button onclick="changeDate(-7);" class="px-2 py-1.5 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-all text-sm" title="일주일 전">
-                    <i class="fas fa-backward"></i> ${getDateButtonLabel(-7)}
+                <button onclick="changeDate(-7);" class="px-3 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-all text-sm shadow-md" title="일주일 전">
+                    <i class="fas fa-backward"></i> -7day
                 </button>
                 ` : ''}
                 ${currentMode === 'leader' ? '<span class="text-sm text-gray-600 font-medium">(학과대표는 오늘만 신청 가능)</span>' : ''}
@@ -1178,7 +1414,7 @@ function renderLeaderView() {
                     <i class="fas fa-calendar-check"></i> 날짜 선택
                 </h3>
                 <p class="text-sm text-gray-600 mb-3">
-                    💡 금요일에는 토요일, 일요일까지 신청할 수 있습니다!
+                    💡 평일(월-목)은 당일 신청만 가능하며, 금요일에는 토요일, 일요일까지 신청할 수 있습니다!
                 </p>
                 <div class="custom-select">
                     <select id="leaderDateSelect" class="w-full px-6 py-4 rounded-2xl border-2 border-purple-200 bg-white text-lg" onchange="updateLeaderDate(this.value)">
@@ -1267,7 +1503,11 @@ function renderLeaderView() {
                     <div class="mb-4">
                         <div class="font-bold text-teal-700 mb-2"><i class="fas fa-check-circle"></i> 잔류 (${deptStay.length}명)</div>
                         <div class="bg-teal-50 rounded-xl p-3 grid grid-cols-2 md:grid-cols-3 gap-2 border border-teal-200">
-                            ${deptStay.map(s => `
+                            ${deptStay.sort((a, b) => {
+                                const roomA = studentRoomNumbers[a.name] || '999';
+                                const roomB = studentRoomNumbers[b.name] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            }).map(s => `
                                 <div class="flex items-center justify-between bg-teal-100 px-3 py-2 rounded-lg border border-teal-200">
                                     <span class="text-sm font-medium text-teal-800">${formatStudentName(s.name)}</span>
                                     <button onclick="leaderDeleteSubmission('${s.id}', '${s.name}')" 
@@ -1285,7 +1525,11 @@ function renderLeaderView() {
                     <div class="mb-4">
                         <div class="font-bold text-amber-700 mb-2"><i class="fas fa-moon"></i> 외박 (${deptOut.length}명)</div>
                         <div class="bg-amber-50 rounded-xl p-3 grid grid-cols-2 md:grid-cols-3 gap-2 border border-amber-200">
-                            ${deptOut.map(s => `
+                            ${deptOut.sort((a, b) => {
+                                const roomA = studentRoomNumbers[a.name] || '999';
+                                const roomB = studentRoomNumbers[b.name] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            }).map(s => `
                                 <div class="flex items-center justify-between bg-amber-100 px-3 py-2 rounded-lg border border-amber-200">
                                     <span class="text-sm font-medium text-amber-800">${formatStudentName(s.name)}</span>
                                     <button onclick="leaderDeleteSubmission('${s.id}', '${s.name}')" 
@@ -1303,7 +1547,11 @@ function renderLeaderView() {
                     <div class="mb-4">
                         <div class="font-bold text-sky-700 mb-2"><i class="fas fa-walking"></i> 외출 (${deptOuting.length}명)</div>
                         <div class="bg-sky-50 rounded-xl p-3 space-y-2 border border-sky-200">
-                            ${deptOuting.map(o => `
+                            ${deptOuting.sort((a, b) => {
+                                const roomA = studentRoomNumbers[a.name] || '999';
+                                const roomB = studentRoomNumbers[b.name] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            }).map(o => `
                                 <div class="bg-sky-100 px-4 py-2 rounded-lg flex items-center justify-between border border-sky-200">
                                     <div class="flex-1">
                                         <span class="font-medium text-sky-800">${formatStudentName(o.name)}</span>
@@ -1370,7 +1618,7 @@ function renderLeaderView() {
                             <span class="text-sm font-normal text-indigo-600 ml-2">※ 이름을 클릭하면 개별 신청 가능</span>
                         </div>
                         <div class="bg-rose-50 rounded-xl p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 border border-rose-200">
-                            ${notSubmitted.map(s => `
+                            ${sortStudentsByRoom(notSubmitted).map(s => `
                                 <div onclick="leaderQuickSubmit('${s.replace(/'/g, "\\'")}')" 
                                      class="text-sm bg-rose-100 px-3 py-2 rounded-lg text-center font-medium text-rose-800 border border-rose-200 cursor-pointer hover:bg-rose-200 hover:shadow-md transition-all active:scale-95"
                                      title="클릭하여 신청">
@@ -1391,409 +1639,38 @@ function renderAdminView(todaySubmissions, todayOutings, stats) {
     }
     
     return `
-        <!-- 통계 -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-5 mb-6 fade-in">
-            <div class="bg-gradient-to-br from-slate-100 to-zinc-100 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-gray-200">
-                <div class="text-3xl sm:text-4xl md:text-5xl mb-2"><i class="fas fa-users text-slate-600"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}</div>
-                <div class="text-sm font-medium text-gray-600">전체</div>
-            </div>
-            <div class="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-teal-200">
-                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-check-circle text-teal-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}</div>
-                <div class="text-sm font-medium text-teal-600">잔류</div>
-            </div>
-            <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-amber-200">
-                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-moon text-amber-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}</div>
-                <div class="text-sm font-medium text-amber-600">외박</div>
-            </div>
-            <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-sky-200">
-                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-walking text-sky-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}</div>
-                <div class="text-sm font-medium text-sky-600">외출</div>
-            </div>
-            <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-rose-200">
-                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-exclamation-circle text-rose-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}</div>
-                <div class="text-sm font-medium text-rose-600">미제출</div>
-            </div>
-        </div>
-
-        <!-- 다운로드 버튼 -->
-        <div class="flex gap-3 mb-6 fade-in flex-wrap">
-            <button onclick="downloadExcel()" class="flex-1 min-w-[200px] bg-gradient-to-r from-teal-100 to-emerald-100 text-teal-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-teal-200">
-                <i class="fas fa-download"></i> 선택 날짜 엑셀 다운로드
-            </button>
-            <button onclick="downloadAllData()" class="flex-1 min-w-[200px] bg-gradient-to-r from-sky-100 to-blue-100 text-sky-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-sky-200">
-                <i class="fas fa-chart-bar"></i> 전체 데이터 다운로드
-            </button>
-        </div>
-        
-        <!-- 공지사항 관리 -->
-        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
-            <h2 class="text-2xl font-bold mb-6 text-purple-700">
-                <i class="fas fa-bullhorn"></i> 공지사항 관리
-            </h2>
-            <div class="mb-4">
-                <label class="block text-gray-700 font-medium mb-2">공지사항 내용</label>
-                <textarea 
-                    id="announcementInput" 
-                    class="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-400 focus:outline-none resize-vertical"
-                    rows="4"
-                    placeholder="교육생들에게 전달할 공지사항을 입력하세요..."
-                >${announcement}</textarea>
-                <div class="text-sm text-gray-500 mt-2">
-                    <i class="fas fa-info-circle"></i> 이 공지사항은 교육생 화면 상단에 표시됩니다.
-                </div>
-            </div>
-            <div class="flex gap-3">
-                <button onclick="updateAnnouncement()" class="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl font-bold hover:shadow-lg transition-all">
-                    <i class="fas fa-save"></i> 공지사항 저장
+        <!-- 관리자 탭 메뉴 -->
+        <div class="bg-white/90 rounded-2xl shadow-lg p-2 mb-6 fade-in border border-gray-200">
+            <div class="flex gap-2">
+                <button 
+                    onclick="switchAdminTab('status')" 
+                    id="adminTabStatus"
+                    class="flex-1 px-6 py-4 rounded-xl font-bold text-lg transition-all ${adminTab === 'status' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-600 hover:bg-gradient-to-br hover:from-slate-300 hover:to-zinc-300 border border-gray-300'}"
+                >
+                    <i class="fas fa-chart-line"></i> 현황 보기
                 </button>
-                <button onclick="clearAnnouncement()" class="px-6 py-3 bg-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-400 transition-all">
-                    <i class="fas fa-eraser"></i> 지우기
+                <button 
+                    onclick="switchAdminTab('settings')" 
+                    id="adminTabSettings"
+                    class="flex-1 px-6 py-4 rounded-xl font-bold text-lg transition-all ${adminTab === 'settings' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-600 hover:bg-gradient-to-br hover:from-slate-300 hover:to-zinc-300 border border-gray-300'}"
+                >
+                    <i class="fas fa-cog"></i> 관리자 설정
                 </button>
             </div>
         </div>
-        
-        <!-- 학과/교육생 관리 -->
-        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
-            <h2 class="text-2xl font-bold mb-6 text-indigo-700">
-                <i class="fas fa-users-cog"></i> 학과/교육생 관리
-            </h2>
-            
-            <!-- 탭 메뉴 -->
-            <div class="flex gap-2 mb-6 border-b-2 border-gray-200">
-                <button onclick="switchManageTab('students')" id="tabStudents" class="px-6 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600">
-                    <i class="fas fa-user-graduate"></i> 교육생 관리
-                </button>
-                <button onclick="switchManageTab('departments')" id="tabDepartments" class="px-6 py-3 font-bold text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-building"></i> 학과 관리
-                </button>
-            </div>
-            
-            <!-- 교육생 관리 탭 -->
-            <div id="studentsManageTab">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- 교육생 추가 -->
-                    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
-                        <h3 class="text-xl font-bold mb-4 text-blue-700">
-                            <i class="fas fa-user-plus"></i> 교육생 추가
-                        </h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
-                                <div class="manage-select">
-                                    <select id="addStudentDept" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200">
-                                        <option value="">학과 선택</option>
-                                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">이름</label>
-                                <input type="text" id="addStudentName" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200" placeholder="예: 홍길동 또는 김영희(여)">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">호실번호 (선택)</label>
-                                <input type="text" id="addStudentRoom" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200" placeholder="예: 301">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">비밀번호 (선택)</label>
-                                <input type="text" id="addStudentPassword" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200" placeholder="예: 1234">
-                            </div>
-                            <button onclick="addStudent()" class="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all">
-                                <i class="fas fa-plus-circle"></i> 교육생 추가
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- 교육생 삭제 -->
-                    <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-200">
-                        <h3 class="text-xl font-bold mb-4 text-rose-700">
-                            <i class="fas fa-user-minus"></i> 교육생 삭제
-                        </h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
-                                <div class="manage-select">
-                                    <select id="deleteStudentDept" class="w-full px-4 py-3 rounded-xl border-2 border-rose-200" onchange="updateDeleteStudentList()">
-                                        <option value="">학과 선택</option>
-                                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">교육생 선택</label>
-                                <div class="manage-select">
-                                    <select id="deleteStudentName" class="w-full px-4 py-3 rounded-xl border-2 border-rose-200">
-                                        <option value="">교육생 선택</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <button onclick="deleteStudent()" class="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all">
-                                <i class="fas fa-trash-alt"></i> 교육생 삭제
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 전체 교육생 목록 -->
-                <div class="mt-6 bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                    <h3 class="text-xl font-bold mb-4 text-gray-700">
-                        <i class="fas fa-list"></i> 전체 교육생 목록 (${Object.values(students).flat().length}명)
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                        ${departments.map(dept => `
-                            <div class="bg-white rounded-xl p-4 border border-gray-200">
-                                <div class="font-bold text-indigo-600 mb-2">${dept} (${students[dept].length}명)</div>
-                                <div class="space-y-1">
-                                    ${students[dept].map(s => {
-                                        const room = studentRoomNumbers[s] || '-';
-                                        const pw = studentPasswords[s] || '-';
-                                        return `<div class="flex items-center justify-between py-1 border-b border-gray-100">
-                                            <span class="font-medium">${formatStudentName(s)}</span>
-                                            <span class="text-sm text-gray-500">${room}호 / ${pw}</span>
-                                        </div>`;
-                                    }).join('')}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 학과 관리 탭 -->
-            <div id="departmentsManageTab" style="display:none;">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- 학과 추가 -->
-                    <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200">
-                        <h3 class="text-xl font-bold mb-4 text-green-700">
-                            <i class="fas fa-plus-square"></i> 학과 추가
-                        </h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">학과명</label>
-                                <input type="text" id="addDeptName" class="w-full px-4 py-3 rounded-xl border-2 border-green-200" placeholder="예: 컴퓨터공학과">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">학과대표 이름</label>
-                                <input type="text" id="addDeptLeaderName" class="w-full px-4 py-3 rounded-xl border-2 border-green-200" placeholder="예: 김대표">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">학과대표 비밀번호</label>
-                                <input type="text" id="addDeptLeaderPassword" class="w-full px-4 py-3 rounded-xl border-2 border-green-200" placeholder="예: 970101">
-                            </div>
-                            <button onclick="addDepartment()" class="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all">
-                                <i class="fas fa-plus-circle"></i> 학과 추가
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- 학과 삭제 -->
-                    <div class="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-6 border border-red-200">
-                        <h3 class="text-xl font-bold mb-4 text-red-700">
-                            <i class="fas fa-minus-square"></i> 학과 삭제
-                        </h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
-                                <div class="manage-select">
-                                    <select id="deleteDeptName" class="w-full px-4 py-3 rounded-xl border-2 border-red-200">
-                                        <option value="">학과 선택</option>
-                                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="bg-red-100 border-2 border-red-300 rounded-xl p-4 text-red-700 text-sm">
-                                <i class="fas fa-exclamation-triangle"></i> 
-                                <strong>경고:</strong> 학과를 삭제하면 해당 학과의 모든 교육생과 데이터가 삭제됩니다!
-                            </div>
-                            <button onclick="deleteDepartment()" class="w-full bg-gradient-to-r from-red-500 to-rose-500 text-white px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all">
-                                <i class="fas fa-trash-alt"></i> 학과 삭제
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 전체 학과 목록 -->
-                <div class="mt-6 bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                    <h3 class="text-xl font-bold mb-4 text-gray-700">
-                        <i class="fas fa-list"></i> 전체 학과 목록 (${departments.length}개)
-                    </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        ${departments.map(dept => {
-                            const leader = DEPARTMENT_LEADERS[dept];
-                            return `
-                            <div class="bg-white rounded-xl p-4 border border-gray-200">
-                                <div class="font-bold text-indigo-600 mb-2">${dept}</div>
-                                <div class="text-sm text-gray-600">
-                                    <div>학과대표: ${leader ? leader.name : '미설정'}</div>
-                                    <div>교육생: ${students[dept].length}명</div>
-                                    <div>비밀번호: ${leader ? leader.password : '미설정'}</div>
-                                </div>
-                            </div>
-                        `}).join('')}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        
-        <!-- 날짜 정보 표시 -->
-        <div class="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl p-6 mb-6 fade-in border border-indigo-200">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <i class="fas fa-info-circle text-indigo-500 text-2xl"></i>
-                    <span class="text-lg font-bold text-gray-800">
-                        ${currentDate === getCurrentDate() ? 
-                            '<span class="text-teal-600">오늘 날짜</span> 데이터를 조회 중입니다' : 
-                            `<span class="text-blue-600">${currentDate}</span> 날짜 데이터를 조회 중입니다`}
-                    </span>
-                </div>
-                ${currentDate !== getCurrentDate() ? 
-                    `<button onclick="currentDate=getCurrentDate(); render();" class="px-6 py-3 bg-indigo-500 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all">
-                        <i class="fas fa-home"></i> 오늘로 돌아가기
-                    </button>` : ''}
-            </div>
-        </div>
-        
-        <!-- 알림 메시지 생성 버튼 -->
-        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-6 mb-6 fade-in border border-gray-200">
-            <h3 class="text-xl font-bold mb-4 text-gray-800"><i class="fas fa-bullhorn text-amber-500"></i> 미제출자 알림</h3>
-            <div class="flex gap-3">
-                <button onclick="copyNotificationMessage()" class="flex-1 bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 px-6 py-4 rounded-2xl font-bold hover:shadow-lg transition-all border border-amber-200">
-                    <i class="fas fa-comment-dots"></i> 카카오톡 메시지 복사
-                </button>
-                <button onclick="copyPhoneNumbers()" class="flex-1 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 px-6 py-4 rounded-2xl font-bold hover:shadow-lg transition-all border border-indigo-200">
-                    <i class="fas fa-mobile-alt"></i> 미제출자 명단 복사
-                </button>
-            </div>
-            <div id="notification-preview" class="mt-4 p-4 bg-gray-50 rounded-xl text-sm hidden border border-gray-200"></div>
+
+        <!-- 현황 보기 탭 -->
+        <div id="adminStatusTab" style="display: ${adminTab === 'status' ? 'block' : 'none'}">
+            ${renderAdminStatusTab(todaySubmissions, todayOutings, stats)}
         </div>
 
-        <!-- 여자교육생 현황 -->
-        ${renderFemaleStatus(todaySubmissions, todayOutings)}
-
-        <!-- 외출 신청 현황 -->
-        ${renderOutingStatus(todayOutings, outingHistory)}
-
-        <!-- 학과별 현황 -->
-        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
-            <h2 class="text-2xl font-bold mb-6"><i class="fas fa-chart-pie text-indigo-500"></i> 학과별 제출 현황</h2>
-            <div class="space-y-4">
-                ${renderDepartmentStatus(todaySubmissions, todayOutings)}
-            </div>
+        <!-- 관리자 설정 탭 -->
+        <div id="adminSettingsTab" style="display: ${adminTab === 'settings' ? 'block' : 'none'}">
+            ${renderAdminSettingsTab()}
         </div>
-
-        <!-- 퇴사 신청 관리 -->
-        ${renderResignRequests()}
-
-        <!-- 미제출 현황 -->
-        ${stats.notSubmitted > 0 ? `
-            <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 fade-in border border-gray-200">
-                <h2 class="text-2xl font-bold mb-6 text-rose-600"><i class="fas fa-exclamation-triangle"></i> 미제출 현황 (${stats.notSubmitted}명)</h2>
-                
-                <!-- 일괄 신청 기능 -->
-                <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border-2 border-indigo-200">
-                    <h3 class="text-xl font-bold mb-4 text-indigo-700">
-                        <i class="fas fa-check-double"></i> 미제출자 일괄 신청
-                    </h3>
-                    <p class="text-sm text-gray-600 mb-4">
-                        💡 잔류 또는 외박을 선택하고, 체크박스로 학생을 선택한 후 확인 버튼을 누르세요!<br>
-                        <span class="font-bold">체크된 학생 → 선택한 것 / 나머지 학생 → 반대</span>로 자동 제출됩니다.
-                    </p>
-                    
-                    <!-- 현재 선택 상태 표시 -->
-                    ${adminBatchMode ? `
-                    <div class="mb-4 p-3 rounded-2xl ${adminBatchMode === 'stay' ? 'bg-gradient-to-r from-emerald-100 to-teal-100 border-emerald-300' : 'bg-gradient-to-r from-orange-100 to-amber-100 border-orange-300'} font-bold text-center shadow-lg border-2">
-                        <div class="flex items-center justify-center gap-2">
-                            <i class="fas ${adminBatchMode === 'stay' ? 'fa-home' : 'fa-bed'} text-2xl ${adminBatchMode === 'stay' ? 'text-emerald-600' : 'text-orange-600'} animate-bounce"></i>
-                            <div>
-                                <div class="text-lg font-black ${adminBatchMode === 'stay' ? 'text-emerald-700' : 'text-orange-700'}">${adminBatchMode === 'stay' ? '잔류 활성화' : '외박 활성화'}</div>
-                                <div class="text-xs mt-1 font-normal text-gray-600">👇 아래에서 학생들을 선택하고 확인 버튼을 누르세요</div>
-                            </div>
-                        </div>
-                    </div>
-                    ` : ''}
-                    
-                    <div class="flex gap-3 mb-4">
-                        <button onclick="setAdminBatchMode('stay')" id="adminBatchStay" class="flex-1 px-4 py-4 rounded-xl font-bold transition-all bg-gray-100 text-gray-500 border-2 border-gray-200 hover:scale-105 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300">
-                            <i class="fas fa-home text-xl"></i>
-                            <div class="text-lg">잔류</div>
-                        </button>
-                        <button onclick="setAdminBatchMode('out')" id="adminBatchOut" class="flex-1 px-4 py-4 rounded-xl font-bold transition-all bg-gray-100 text-gray-500 border-2 border-gray-200 hover:scale-105 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300">
-                            <i class="fas fa-bed text-xl"></i>
-                            <div class="text-lg">외박</div>
-                        </button>
-                        <button onclick="setAdminBatchMode(null)" id="adminBatchOff" class="flex-1 px-4 py-4 rounded-xl font-bold transition-all bg-gradient-to-br from-slate-100 to-gray-100 text-gray-600 border-2 border-gray-300 shadow-md hover:scale-105 hover:bg-gradient-to-br hover:from-slate-200 hover:to-gray-200">
-                            <i class="fas fa-times-circle text-xl"></i>
-                            <div class="text-lg">끄기</div>
-                        </button>
-                    </div>
-                    
-                    ${(() => {
-                        const todaySubmissions = submissions.filter(s => s.date === currentDate);
-                        const todayOutings = outings.filter(o => o.date === currentDate);
-                        const allNotSubmitted = [];
-                        departments.forEach(dept => {
-                            students[dept].filter(student => 
-                                !todaySubmissions.find(s => s.department === dept && s.name === student) &&
-                                !todayOutings.find(o => o.department === dept && o.name === student)
-                            ).forEach(name => allNotSubmitted.push({dept, name}));
-                        });
-                        
-                        if (allNotSubmitted.length > 0 && adminBatchMode) {
-                            return `
-                            <div class="bg-white rounded-xl p-4 mb-3 border border-gray-200">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="font-bold text-gray-700">
-                                        <i class="fas fa-tasks"></i> 학생 선택 
-                                        <span class="text-indigo-600">(선택: <span id="adminBatchCount">0</span>명)</span>
-                                    </span>
-                                    <div class="flex gap-2">
-                                        <button onclick="selectAllAdminBatch()" class="px-3 py-1 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600">
-                                            <i class="fas fa-check-double"></i> 전체선택
-                                        </button>
-                                        <button onclick="deselectAllAdminBatch()" class="px-3 py-1 bg-gray-400 text-white rounded-lg text-sm hover:bg-gray-500">
-                                            <i class="fas fa-times"></i> 전체해제
-                                        </button>
-                                    </div>
-                                </div>
-                                <div id="adminBatchCheckList" class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3 max-h-96 overflow-y-auto">
-                                    ${allNotSubmitted.map(s => `
-                                        <label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-100 border border-slate-200">
-                                            <input type="checkbox" 
-                                                   class="admin-batch-check w-4 h-4" 
-                                                   value="${s.name}"
-                                                   data-dept="${s.dept}"
-                                                   onchange="updateAdminBatchCount()">
-                                            <span class="text-sm font-medium text-gray-700">${formatStudentName(s.name)}</span>
-                                        </label>
-                                    `).join('')}
-                                </div>
-                                <button onclick="confirmAdminBatchSubmit()" class="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all hover:scale-105">
-                                    <i class="fas fa-check-circle"></i> 확인 - 일괄 제출하기
-                                </button>
-                            </div>
-                            `;
-                        }
-                        return '';
-                    })()}
-                </div>
-                
-                <div class="space-y-4">
-                    <h3 class="text-lg font-bold text-gray-700">
-                        <i class="fas fa-list"></i> 학과별 미제출 현황
-                        <span class="text-sm font-normal text-indigo-600 ml-2">※ 학생 이름을 클릭하면 잔류/외박 선택 가능</span>
-                    </h3>
-                    ${renderNotSubmitted(todaySubmissions, todayOutings)}
-                </div>
-            </div>
-        ` : ''}
     `;
 }
+
 
 function renderDepartmentStatus(todaySubmissions, todayOutings) {
     return departments.map(dept => {
@@ -1883,7 +1760,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                         }
                         
                         return `
-                            <div class="${bgColor} border-2 rounded-xl p-3">
+                            <div class="${bgColor} border rounded-xl p-3">
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
                                         <span class="${textColor}">${icon}</span>
@@ -1903,6 +1780,164 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
             </div>
         `;
     }).join('');
+}
+
+// 잔류 현황 섹션
+function renderStaySection(todaySubmissions) {
+    const stayStudents = todaySubmissions.filter(s => s.status === 'stay');
+    if (stayStudents.length === 0) return '';
+    
+    // 학과별로 그룹화
+    const byDept = {};
+    stayStudents.forEach(s => {
+        if (!byDept[s.department]) byDept[s.department] = [];
+        byDept[s.department].push(s);
+    });
+    
+    return `
+        <div id="staySection" class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-emerald-700">
+                    <i class="fas fa-check-circle"></i> 잔류 현황 (${stayStudents.length}명)
+                </h2>
+                <button onclick="scrollToSection('statsCards')" class="group relative w-12 h-12 bg-white border-2 border-teal-500 text-teal-600 rounded-full font-medium hover:bg-teal-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-110">
+                    <i class="fas fa-arrow-up text-xl"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${Object.keys(byDept).map(dept => `
+                    <div class="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                        <div class="font-bold text-emerald-700 mb-3">${dept} (${byDept[dept].length}명)</div>
+                        <div class="space-y-2">
+                            ${byDept[dept].sort((a, b) => {
+                                const roomA = studentRoomNumbers[a.name] || '999';
+                                const roomB = studentRoomNumbers[b.name] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            }).map(s => `
+                                <div class="bg-white px-3 py-2 rounded-lg flex items-center justify-between border border-emerald-200">
+                                    <span class="font-medium text-emerald-800">${formatStudentName(s.name)}</span>
+                                    <button onclick="deleteSubmission('${s.id}', '${s.name}')" 
+                                            class="text-red-600 hover:text-red-800" 
+                                            title="삭제">
+                                        <i class="fas fa-times-circle"></i>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// 외박 현황 섹션
+function renderOutSection(todaySubmissions) {
+    const outStudents = todaySubmissions.filter(s => s.status === 'out');
+    if (outStudents.length === 0) return '';
+    
+    // 학과별로 그룹화
+    const byDept = {};
+    outStudents.forEach(s => {
+        if (!byDept[s.department]) byDept[s.department] = [];
+        byDept[s.department].push(s);
+    });
+    
+    return `
+        <div id="outSection" class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-amber-700">
+                    <i class="fas fa-moon"></i> 외박 현황 (${outStudents.length}명)
+                </h2>
+                <button onclick="scrollToSection('statsCards')" class="group relative w-12 h-12 bg-white border-2 border-amber-500 text-amber-600 rounded-full font-medium hover:bg-amber-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-110">
+                    <i class="fas fa-arrow-up text-xl"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${Object.keys(byDept).map(dept => `
+                    <div class="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                        <div class="font-bold text-amber-700 mb-3">${dept} (${byDept[dept].length}명)</div>
+                        <div class="space-y-2">
+                            ${byDept[dept].sort((a, b) => {
+                                const roomA = studentRoomNumbers[a.name] || '999';
+                                const roomB = studentRoomNumbers[b.name] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            }).map(s => `
+                                <div class="bg-white px-3 py-2 rounded-lg flex items-center justify-between border border-amber-200">
+                                    <span class="font-medium text-amber-800">${formatStudentName(s.name)}</span>
+                                    <button onclick="deleteSubmission('${s.id}', '${s.name}')" 
+                                            class="text-red-600 hover:text-red-800" 
+                                            title="삭제">
+                                        <i class="fas fa-times-circle"></i>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// 외출 현황 섹션 (기존 renderOutingStatus 수정)
+function renderOutingSection(todayOutings, todaySubmissions) {
+    // 잔류/외박 신청한 학생들의 이름 목록 (외출 제외)
+    const submissionStudentNames = todaySubmissions.map(s => s.name);
+    
+    // 외출만 신청한 학생 (잔류/외박이 없는)
+    const pureOutings = todayOutings.filter(o => !submissionStudentNames.includes(o.name));
+    
+    if (pureOutings.length === 0) return '';
+    
+    // 학과별로 그룹화
+    const byDept = {};
+    pureOutings.forEach(o => {
+        if (!byDept[o.department]) byDept[o.department] = [];
+        byDept[o.department].push(o);
+    });
+    
+    return `
+        <div id="outingSection" class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border-2 border-sky-300">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-sky-700">
+                    <i class="fas fa-walking"></i> 외출 현황 (${pureOutings.length}명)
+                </h2>
+                <button onclick="scrollToSection('statsCards')" class="group relative w-12 h-12 bg-white border-2 border-sky-500 text-sky-600 rounded-full font-medium hover:bg-sky-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-110">
+                    <i class="fas fa-arrow-up text-xl"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${Object.keys(byDept).map(dept => `
+                    <div class="bg-sky-50 rounded-xl p-4 border border-sky-200">
+                        <div class="font-bold text-sky-700 mb-3">${dept} (${byDept[dept].length}명)</div>
+                        <div class="space-y-2">
+                            ${byDept[dept].sort((a, b) => {
+                                const roomA = studentRoomNumbers[a.name] || '999';
+                                const roomB = studentRoomNumbers[b.name] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            }).map(o => `
+                                <div class="bg-white px-3 py-2 rounded-lg border border-sky-200">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-sky-800">${formatStudentName(o.name)}</span>
+                                        <button onclick="deleteOuting('${o.id}', '${o.name}')" 
+                                                class="text-red-600 hover:text-red-800" 
+                                                title="삭제">
+                                            <i class="fas fa-times-circle"></i>
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-600">
+                                        ${o.outingTime} ~ ${o.returnTime}
+                                    </div>
+                                    <div class="text-xs text-gray-600">${o.reason}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
 }
 
 function renderFemaleStatus(todaySubmissions, todayOutings) {
@@ -1959,12 +1994,12 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
     femaleOuting.sort(sortByRoomNumber);
     femaleNotSubmitted.sort(sortByRoomNumber);
     return `
-        <div class="bg-gradient-to-br from-pink-50 to-rose-50 rounded-3xl shadow-lg p-8 mb-6 fade-in border-2 border-pink-200">
+        <div class="bg-gradient-to-br from-pink-50 to-rose-50 rounded-3xl shadow-lg p-8 mb-6 fade-in">
             <h2 class="text-2xl font-bold mb-6 text-pink-700"><i class="fas fa-female"></i> 여자교육생 현황 (전체 ${allFemales.length}명)</h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- 잔류 -->
-                <div class="bg-white/80 rounded-2xl p-5 border-2 border-emerald-200">
+                <div class="bg-white/80 rounded-2xl p-5 border border-emerald-200">
                     <div class="font-bold text-emerald-700 mb-3 text-lg flex items-center gap-2">
                         <i class="fas fa-check-circle"></i> 잔류 (${femaleStay.length}명)
                     </div>
@@ -1986,7 +2021,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                 </div>
                 
                 <!-- 외박 -->
-                <div class="bg-white/80 rounded-2xl p-5 border-2 border-orange-200">
+                <div class="bg-white/80 rounded-2xl p-5 border border-orange-200">
                     <div class="font-bold text-orange-700 mb-3 text-lg flex items-center gap-2">
                         <i class="fas fa-moon"></i> 외박 (${femaleOut.length}명)
                     </div>
@@ -2007,33 +2042,8 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                     ` : '<div class="text-gray-400 text-center py-4">없음</div>'}
                 </div>
                 
-                <!-- 외출 -->
-                <div class="bg-white/80 rounded-2xl p-5 border-2 border-indigo-200">
-                    <div class="font-bold text-indigo-700 mb-3 text-lg flex items-center gap-2">
-                        <i class="fas fa-walking"></i> 외출 (${femaleOuting.length}명)
-                    </div>
-                    ${femaleOuting.length > 0 ? `
-                        <div class="space-y-2">
-                            ${femaleOuting.map(o => `
-                                <div class="bg-indigo-50 px-4 py-2 rounded-lg">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <div>
-                                            <span class="font-medium">${formatStudentName(o.name)}</span>
-                                            <span class="text-sm text-gray-600 ml-2">[${o.dept}]</span>
-                                        </div>
-                                        <button onclick="deleteOuting('${o.id}', '${o.name}')" class="text-red-600 hover:text-red-800" title="삭제">
-                                            <i class="fas fa-times-circle"></i>
-                                        </button>
-                                    </div>
-                                    <div class="text-xs text-gray-600">${o.outingTime} ~ ${o.returnTime} | ${o.reason}</div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : '<div class="text-gray-400 text-center py-4">없음</div>'}
-                </div>
-                
                 <!-- 미제출 -->
-                <div class="bg-white/80 rounded-2xl p-5 border-2 border-red-200">
+                <div class="bg-white/80 rounded-2xl p-5 border border-red-200">
                     <div class="font-bold text-red-700 mb-3 text-lg flex items-center gap-2">
                         <i class="fas fa-exclamation-circle"></i> 미제출 (${femaleNotSubmitted.length}명)
                     </div>
@@ -2054,113 +2064,28 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
 }
 
 function renderOutingStatus(todayOutings, outingHistory) {
-    // 오늘 날짜의 외출 신청
-    const todayOutingHistory = outingHistory.filter(h => h.date === currentDate);
-    
-    if (todayOutings.length === 0 && todayOutingHistory.length === 0) {
-        return '';
-    }
-    
-    return `
-        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-sky-200">
-            <h2 class="text-2xl font-bold mb-6 text-sky-700">
-                <i class="fas fa-walking"></i> 외출 신청 현황
-            </h2>
-            
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- 현재 외출 신청 (활성) -->
-                <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-2xl p-6 border-2 border-sky-300">
-                    <div class="font-bold text-sky-800 mb-4 text-xl flex items-center gap-2">
-                        <i class="fas fa-check-circle"></i> 현재 외출 신청 (${todayOutings.length}명)
-                    </div>
-                    ${todayOutings.length > 0 ? `
-                        <div class="space-y-3">
-                            ${todayOutings.map(o => `
-                                <div class="bg-white rounded-xl p-4 shadow-sm border border-sky-200">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <div class="flex-1">
-                                            <div class="font-bold text-lg text-gray-800">${formatStudentName(o.name)}</div>
-                                            <div class="text-sm text-gray-600 mt-1">[${o.department}]</div>
-                                        </div>
-                                        <button onclick="deleteOuting('${o.id}', '${o.name}')" 
-                                                class="text-red-600 hover:text-red-800 ml-2" 
-                                                title="삭제">
-                                            <i class="fas fa-times-circle text-xl"></i>
-                                        </button>
-                                    </div>
-                                    <div class="bg-sky-100 rounded-lg p-3 mt-2">
-                                        <div class="text-sm">
-                                            <div class="flex items-center gap-2 mb-1">
-                                                <i class="fas fa-clock text-sky-600"></i>
-                                                <span class="font-medium">${o.outingTime} ~ ${o.returnTime}</span>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <i class="fas fa-comment text-sky-600"></i>
-                                                <span>${o.reason}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 mt-2">
-                                        <i class="fas fa-info-circle"></i> 신청시각: ${o.timestamp}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : '<div class="text-gray-400 text-center py-8">현재 외출 신청이 없습니다</div>'}
-                </div>
-                
-                <!-- 변경된 외출 신청 (기록) -->
-                <div class="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-6 border-2 border-gray-300">
-                    <div class="font-bold text-gray-700 mb-4 text-xl flex items-center gap-2">
-                        <i class="fas fa-history"></i> 외출 신청 기록 (${todayOutingHistory.length}건)
-                    </div>
-                    <div class="text-xs text-gray-600 mb-3">
-                        <i class="fas fa-info-circle"></i> 외출 신청 후 잔류/외박으로 변경된 기록입니다
-                    </div>
-                    ${todayOutingHistory.length > 0 ? `
-                        <div class="space-y-3 max-h-96 overflow-y-auto">
-                            ${todayOutingHistory.map(h => `
-                                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-300">
-                                    <div class="flex items-start justify-between mb-2">
-                                        <div class="flex-1">
-                                            <div class="font-bold text-gray-800">${formatStudentName(h.name)}</div>
-                                            <div class="text-sm text-gray-600 mt-1">[${h.department}]</div>
-                                        </div>
-                                        <span class="px-3 py-1 rounded-full text-xs font-bold ${
-                                            h.replacedBy === 'stay' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
-                                        }">
-                                            ${h.replacedBy === 'stay' ? '잔류로 변경' : '외박으로 변경'}
-                                        </span>
-                                    </div>
-                                    <div class="bg-gray-100 rounded-lg p-3 mt-2">
-                                        <div class="text-sm text-gray-700">
-                                            <div class="flex items-center gap-2 mb-1">
-                                                <i class="fas fa-clock text-gray-600"></i>
-                                                <span class="font-medium">${h.outingTime} ~ ${h.returnTime}</span>
-                                            </div>
-                                            <div class="flex items-center gap-2">
-                                                <i class="fas fa-comment text-gray-600"></i>
-                                                <span>${h.reason}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 mt-2">
-                                        <div><i class="fas fa-calendar"></i> 외출 신청: ${h.timestamp}</div>
-                                        <div><i class="fas fa-exchange-alt"></i> 변경 시각: ${h.replacedAt}</div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : '<div class="text-gray-400 text-center py-8">변경된 외출 신청 기록이 없습니다</div>'}
-                </div>
-            </div>
-        </div>
-    `;
+    // 외출 신청 현황 섹션 제거 - 학생이 잔류로 변경해도 기록이 남아 혼란을 줄 수 있음
+    return '';
 }
 
 function renderResignRequests() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 오늘 날짜의 시작 시간으로 설정
+    
     const pendingRequests = resignRequests.filter(r => r.status === 'pending');
-    const approvedRequests = resignRequests.filter(r => r.status === 'approved');
+    
+    // 승인 완료 건 중 퇴사예정일이 오늘 이상인 것만 표시 (퇴사예정일 다음날부터 숨김)
+    const approvedRequests = resignRequests.filter(r => {
+        if (r.status !== 'approved') return false;
+        if (!r.resignDate) return false;
+        
+        // 퇴사예정일 파싱 (YYYY-MM-DD 형식)
+        const resignDate = new Date(r.resignDate);
+        resignDate.setHours(0, 0, 0, 0);
+        
+        // 퇴사예정일이 오늘 이상인 경우만 표시 (퇴사예정일 당일까지 보임, 다음날부터 숨김)
+        return resignDate >= today;
+    });
     
     if (pendingRequests.length === 0 && approvedRequests.length === 0) {
         return '';
@@ -2232,10 +2157,21 @@ function renderNotSubmitted(todaySubmissions, todayOutings) {
         if (notSubmitted.length === 0) return '';
         
         return `
-            <div class="bg-red-50 border-2 border-red-200 rounded-2xl p-5">
-                <div class="font-bold text-red-800 mb-3 text-base">${dept} (${notSubmitted.length}명)</div>
+            <div class="bg-red-50 border border-red-200 rounded-2xl p-5">
+                <div class="font-bold text-red-800 mb-3 text-base">
+                    ${dept} (${notSubmitted.length}명)
+                    <span class="text-sm font-normal text-indigo-600 ml-2">※ 이름을 클릭하면 개별 신청 가능</span>
+                </div>
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    ${notSubmitted.map(s => `<div class="text-base bg-red-100 px-3 py-2 rounded-lg font-medium text-red-700">${s}</div>`).join('')}
+                    ${sortStudentsByRoom(notSubmitted).map(s => `
+                        <div 
+                            onclick="quickSubmitAdminStudent('${dept.replace(/'/g, "\\'")}', '${s.replace(/'/g, "\\'")}')"
+                            class="text-base bg-rose-100 px-3 py-2 rounded-lg text-center font-medium text-rose-800 border border-rose-200 cursor-pointer hover:bg-rose-200 hover:shadow-md transition-all active:scale-95"
+                            title="클릭하여 신청"
+                        >
+                            ${formatStudentName(s)}
+                        </div>
+                    `).join('')}
                 </div>
             </div>
         `;
@@ -2248,7 +2184,8 @@ document.addEventListener('change', e => {
         const dept = e.target.value;
         const studentSelect = document.getElementById('studentSelect');
         if (dept) {
-            const studentOptions = students[dept].map(s => {
+            const sortedStudents = sortStudentsByRoom(students[dept]);
+            const studentOptions = sortedStudents.map(s => {
                 const resigned = isResigned(dept, s);
                 if (resigned) {
                     return `<option value="${s}" disabled style="color: #ccc;">${formatStudentName(s)} (퇴사)</option>`;
@@ -2367,12 +2304,15 @@ function showLeaderLogin() {
         return;
     }
     
-    // 학과 선택 드롭다운 채우기 (여성재취업(바리스타)과정 제외)
+    // 학과 선택 드롭다운 채우기 (여성재취업(바리스타)과정 제외, departments 배열 기반)
     const deptSelect = document.getElementById('leaderDeptSelect');
     deptSelect.innerHTML = '<option value="">학과를 선택하세요</option>' +
-        Object.keys(DEPARTMENT_LEADERS)
-            .filter(dept => dept !== '여성재취업(바리스타)과정')
-            .map(dept => `<option value="${dept}">${dept} (${DEPARTMENT_LEADERS[dept].name})</option>`).join('');
+        departments
+            .filter(dept => dept !== '여성재취업(바리스타)과정' && DEPARTMENT_LEADERS[dept])
+            .map(dept => {
+                const leaderInfo = DEPARTMENT_LEADERS[dept];
+                return `<option value="${dept}">${dept} (${leaderInfo ? leaderInfo.name : '미설정'})</option>`;
+            }).join('');
     
     // 모달 표시
     const modal = document.getElementById('leaderModal');
@@ -2389,19 +2329,19 @@ function showLeaderLogin() {
 }
 
 function showAdminAsLeaderSelection() {
-    const depts = Object.keys(DEPARTMENT_LEADERS).filter(dept => dept !== '여성재취업(바리스타)과정');
+    const depts = departments.filter(dept => dept !== '여성재취업(바리스타)과정');
     
     // 학과 목록 생성
     const deptListHTML = depts.map(dept => {
         const leaderInfo = DEPARTMENT_LEADERS[dept];
-        const studentCount = students[dept].length;
+        const studentCount = students[dept] ? students[dept].length : 0;
         return `
             <button 
                 onclick="selectAdminDept('${dept}')" 
                 class="w-full px-6 py-4 bg-gradient-to-r from-blue-100 to-indigo-100 hover:from-blue-200 hover:to-indigo-200 text-left rounded-xl border-2 border-blue-200 hover:border-blue-400 transition-all"
             >
                 <div class="font-bold text-lg text-gray-800">${dept}</div>
-                <div class="text-sm text-gray-600">학과대표: ${leaderInfo.name} | 학생: ${studentCount}명</div>
+                <div class="text-sm text-gray-600">학과대표: ${leaderInfo ? leaderInfo.name : '미설정'} | 학생: ${studentCount}명</div>
             </button>
         `;
     }).join('');
@@ -2659,6 +2599,41 @@ function showIndividualSubmitMenu(event, dept, name) {
     setTimeout(() => {
         document.addEventListener('click', closeIndividualSubmitMenu);
     }, 100);
+}
+
+// 관리자 모드 - 미제출 학생 개별 클릭 시 신청
+async function quickSubmitAdminStudent(dept, name) {
+    // 잔류/외박 선택
+    const choice = confirm(`${formatStudentName(name)} 교육생 신청\n학과: ${dept}\n\n확인 = 잔류\n취소 = 외박`);
+    
+    const status = choice ? 'stay' : 'out';
+    const statusText = choice ? '잔류' : '외박';
+    
+    // 다시 확인
+    if (!confirm(`${formatStudentName(name)} 교육생을 ${statusText}로 신청하시겠습니까?\n\n날짜: ${currentDate}`)) {
+        return;
+    }
+    
+    try {
+        const docId = `${currentDate}_${dept}_${name}`;
+        await db.collection('submissions').doc(docId).set({
+            department: dept,
+            name: name,
+            status: status,
+            date: currentDate,
+            timestamp: new Date().toLocaleTimeString('ko-KR')
+        });
+        
+        // 성공 피드백
+        const toast = document.createElement('div');
+        toast.className = 'fixed top-20 right-8 bg-green-500 text-white px-6 py-3 rounded-xl shadow-xl z-50 font-bold';
+        toast.innerHTML = `✓ ${formatStudentName(name)} → ${statusText} 신청 완료`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+        
+    } catch (error) {
+        alert('× 저장 실패: ' + error.message);
+    }
 }
 
 // 개별 학생 신청 메뉴 닫기
@@ -3493,7 +3468,8 @@ function copyPhoneNumbers() {
     let totalCount = 0;
     
     departments.forEach(dept => {
-        const notSubmitted = students[dept].filter(student => 
+        const deptStudents = students[dept] || [];
+        const notSubmitted = deptStudents.filter(student => 
             !todaySubmissions.find(s => s.department === dept && s.name === student) &&
             !todayOutings.find(o => o.department === dept && o.name === student)
         );
@@ -3522,32 +3498,57 @@ function copyPhoneNumbers() {
         
         // 미리보기 표시
         const preview = document.getElementById('notification-preview');
-        preview.textContent = list;
-        preview.classList.remove('hidden');
+        if (preview) {
+            preview.textContent = list;
+            preview.classList.remove('hidden');
+        }
     }).catch(err => {
         alert('× 복사 실패: ' + err);
     });
+}
+
+// copyNotSubmittedMessage - copyPhoneNumbers의 별칭
+function copyNotSubmittedMessage() {
+    copyPhoneNumbers();
 }
 
 // ========== 학과/교육생 관리 함수들 ==========
 
 // 탭 전환
 function switchManageTab(tab) {
+    // 탭 요소들
     const studentsTab = document.getElementById('studentsManageTab');
     const departmentsTab = document.getElementById('departmentsManageTab');
-    const btnStudents = document.getElementById('tabStudents');
-    const btnDepartments = document.getElementById('tabDepartments');
+    const leadersTab = document.getElementById('leadersManageTab');
     
+    // 버튼 요소들
+    const btnStudents = document.getElementById('manageTabStudents');
+    const btnDepartments = document.getElementById('manageTabDepts');
+    const btnLeaders = document.getElementById('manageTabLeaders');
+    
+    // 모든 탭 숨기기
+    studentsTab.style.display = 'none';
+    departmentsTab.style.display = 'none';
+    leadersTab.style.display = 'none';
+    
+    // 모든 버튼 비활성화 스타일
+    const inactiveClass = 'px-4 py-2 rounded-lg font-medium whitespace-nowrap bg-gray-200 text-gray-700 hover:bg-gray-300';
+    const activeClass = 'px-4 py-2 rounded-lg font-medium whitespace-nowrap bg-indigo-500 text-white';
+    
+    btnStudents.className = inactiveClass;
+    btnDepartments.className = inactiveClass;
+    btnLeaders.className = inactiveClass;
+    
+    // 선택된 탭만 표시
     if (tab === 'students') {
         studentsTab.style.display = 'block';
-        departmentsTab.style.display = 'none';
-        btnStudents.className = 'px-6 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600';
-        btnDepartments.className = 'px-6 py-3 font-bold text-gray-400 hover:text-gray-600';
-    } else {
-        studentsTab.style.display = 'none';
+        btnStudents.className = activeClass;
+    } else if (tab === 'departments') {
         departmentsTab.style.display = 'block';
-        btnStudents.className = 'px-6 py-3 font-bold text-gray-400 hover:text-gray-600';
-        btnDepartments.className = 'px-6 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600';
+        btnDepartments.className = activeClass;
+    } else if (tab === 'leaders') {
+        leadersTab.style.display = 'block';
+        btnLeaders.className = activeClass;
     }
 }
 
@@ -3568,20 +3569,19 @@ async function addStudent() {
         return;
     }
     
+    if (!password) {
+        alert('비밀번호를 입력해주세요.');
+        return;
+    }
+    
     // 중복 체크
-    if (students[dept].includes(name)) {
+    if (students[dept] && students[dept].includes(name)) {
         alert('이미 존재하는 교육생입니다.');
         return;
     }
     
     try {
-        // Firestore에 저장
-        await db.collection('students').doc(dept).set({
-            students: [...students[dept], name],
-            updatedAt: new Date().toISOString()
-        });
-        
-        // 호실번호 저장
+        // 호실번호 먼저 저장 (정렬을 위해)
         if (room) {
             await db.collection('roomNumbers').doc(name).set({
                 room: room,
@@ -3591,31 +3591,78 @@ async function addStudent() {
             studentRoomNumbers[name] = room;
         }
         
-        // 비밀번호 저장
-        if (password) {
-            await db.collection('passwords').doc(name).set({
-                password: password,
-                department: dept,
-                updatedAt: new Date().toISOString()
-            });
-            studentPasswords[name] = password;
+        // 비밀번호 저장 (필수)
+        await db.collection('passwords').doc(name).set({
+            password: password,
+            department: dept,
+            updatedAt: new Date().toISOString()
+        });
+        studentPasswords[name] = password;
+        console.log('비밀번호 저장 완료:', name, password);
+        
+        // originalStudents 업데이트 - 호실번호 순으로 정렬
+        if (!originalStudents[dept]) {
+            originalStudents[dept] = [];
         }
         
-        // 로컬 데이터 업데이트
-        students[dept].push(name);
+        // 새 학생 추가 후 호실번호 순으로 정렬
+        const updatedStudents = [...(originalStudents[dept] || []), name].sort((a, b) => {
+            const roomA = studentRoomNumbers[a] || '999';
+            const roomB = studentRoomNumbers[b] || '999';
+            return parseInt(roomA) - parseInt(roomB);
+        });
         
-        alert(`✓ ${name} 교육생이 ${dept}에 추가되었습니다!`);
+        originalStudents[dept] = updatedStudents;
+        
+        // Firestore에 정렬된 순서로 저장
+        await db.collection('students').doc(dept).set({
+            students: updatedStudents,
+            updatedAt: new Date().toISOString()
+        });
+        
+        // Firebase에 제대로 저장되었는지 확인
+        const savedDoc = await db.collection('passwords').doc(name).get();
+        if (savedDoc.exists) {
+            console.log('✓ Firebase 저장 확인:', name, savedDoc.data().password);
+        } else {
+            throw new Error('Firebase 저장 실패 - 비밀번호가 저장되지 않았습니다.');
+        }
+        
+        // 로컬 students 객체 즉시 업데이트 (정렬된 순서로) - 수정됨
+        if (!students[dept]) {
+            students[dept] = [];
+        }
+        students[dept] = [...updatedStudents]; // 배열 복사로 확실히 업데이트
+        
+        console.log('✓ 교육생 추가 완료:', dept, name, '현재 인원:', students[dept].length);
+        
+        alert(`✓ ${name} 교육생이 ${dept}에 추가되었습니다!\n호실: ${room || '미지정'}\n비밀번호: ${password}\n\n※ 호실번호 순으로 자동 정렬되었습니다.`);
         
         // 입력 필드 초기화
         document.getElementById('addStudentName').value = '';
         document.getElementById('addStudentRoom').value = '';
         document.getElementById('addStudentPassword').value = '';
         
+        // 즉시 UI 업데이트
         render();
         
     } catch (error) {
         console.error('교육생 추가 실패:', error);
-        alert('× 교육생 추가 실패: ' + error.message);
+        alert('× 교육생 추가 실패: ' + error.message + '\n\n다시 시도해주세요.');
+        
+        // 롤백: 부분적으로 저장된 데이터 정리
+        try {
+            if (studentRoomNumbers[name]) {
+                await db.collection('roomNumbers').doc(name).delete();
+                delete studentRoomNumbers[name];
+            }
+            if (studentPasswords[name]) {
+                await db.collection('passwords').doc(name).delete();
+                delete studentPasswords[name];
+            }
+        } catch (rollbackError) {
+            console.error('롤백 실패:', rollbackError);
+        }
     }
 }
 
@@ -3646,80 +3693,149 @@ async function deleteStudent() {
         return;
     }
     
-    if (!confirm(`정말로 ${formatStudentName(name)} 교육생을 삭제하시겠습니까?\n\n관련된 모든 제출 기록도 삭제됩니다.`)) {
+    // 학과대표 확인
+    const isLeader = DEPARTMENT_LEADERS[dept] && DEPARTMENT_LEADERS[dept].name === name;
+    
+    let confirmMessage = `정말로 ${formatStudentName(name)} 교육생을 삭제하시겠습니까?\n\n관련된 모든 제출 기록도 삭제됩니다.`;
+    if (isLeader) {
+        confirmMessage = `⚠️ ${formatStudentName(name)} 교육생은 ${dept}의 학과대표입니다!\n\n삭제하면 학과대표 정보도 함께 삭제됩니다.\n\n정말로 삭제하시겠습니까?`;
+    }
+    
+    if (!confirm(confirmMessage)) {
         return;
     }
     
     try {
-        // 학생 목록에서 제거
-        const updatedStudents = students[dept].filter(s => s !== name);
+        console.log('교육생 삭제 시작:', dept, name);
+        
+        // 1. 학생 목록에서 제거
+        const updatedStudents = originalStudents[dept] ? originalStudents[dept].filter(s => s !== name) : [];
+        originalStudents[dept] = updatedStudents;
         
         await db.collection('students').doc(dept).set({
             students: updatedStudents,
             updatedAt: new Date().toISOString()
         });
+        console.log('✓ 학생 목록 업데이트 완료');
         
-        // 호실번호 삭제
+        // 2. 호실번호 삭제
         if (studentRoomNumbers[name]) {
             await db.collection('roomNumbers').doc(name).delete();
             delete studentRoomNumbers[name];
+            console.log('✓ 호실번호 삭제 완료');
         }
         
-        // 비밀번호 삭제
+        // 3. 비밀번호 삭제
         if (studentPasswords[name]) {
             await db.collection('passwords').doc(name).delete();
             delete studentPasswords[name];
+            console.log('✓ 비밀번호 삭제 완료');
         }
         
-        // 제출 기록 삭제
+        // 4. 학과대표인 경우 학과대표 정보 삭제
+        if (isLeader) {
+            await db.collection('departmentLeaders').doc(dept).delete();
+            delete DEPARTMENT_LEADERS[dept];
+            console.log('✓ 학과대표 정보 삭제 완료');
+        }
+        
+        // 5. 제출 기록 삭제
         const submissionsQuery = await db.collection('submissions')
             .where('department', '==', dept)
             .where('name', '==', name)
             .get();
         
-        const batch1 = db.batch();
-        submissionsQuery.docs.forEach(doc => {
-            batch1.delete(doc.ref);
-        });
-        await batch1.commit();
+        if (submissionsQuery.docs.length > 0) {
+            const batch1 = db.batch();
+            submissionsQuery.docs.forEach(doc => {
+                batch1.delete(doc.ref);
+            });
+            await batch1.commit();
+            console.log(`✓ 제출 기록 ${submissionsQuery.docs.length}건 삭제 완료`);
+        }
         
-        // 외출 기록 삭제
+        // 6. 외출 기록 삭제
         const outingsQuery = await db.collection('outings')
             .where('department', '==', dept)
             .where('name', '==', name)
             .get();
         
-        const batch2 = db.batch();
-        outingsQuery.docs.forEach(doc => {
-            batch2.delete(doc.ref);
-        });
-        await batch2.commit();
+        if (outingsQuery.docs.length > 0) {
+            const batch2 = db.batch();
+            outingsQuery.docs.forEach(doc => {
+                batch2.delete(doc.ref);
+            });
+            await batch2.commit();
+            console.log(`✓ 외출 기록 ${outingsQuery.docs.length}건 삭제 완료`);
+        }
         
-        // 로컬 데이터 업데이트
-        students[dept] = updatedStudents;
+        // 7. 외출 히스토리 삭제
+        const outingHistoryQuery = await db.collection('outingHistory')
+            .where('department', '==', dept)
+            .where('name', '==', name)
+            .get();
         
-        alert(`✓ ${formatStudentName(name)} 교육생이 삭제되었습니다.`);
+        if (outingHistoryQuery.docs.length > 0) {
+            const batch3 = db.batch();
+            outingHistoryQuery.docs.forEach(doc => {
+                batch3.delete(doc.ref);
+            });
+            await batch3.commit();
+            console.log(`✓ 외출 히스토리 ${outingHistoryQuery.docs.length}건 삭제 완료`);
+        }
+        
+        // 8. 퇴사 신청 삭제
+        const resignQuery = await db.collection('resignRequests')
+            .where('department', '==', dept)
+            .where('name', '==', name)
+            .get();
+        
+        if (resignQuery.docs.length > 0) {
+            const batch4 = db.batch();
+            resignQuery.docs.forEach(doc => {
+                batch4.delete(doc.ref);
+            });
+            await batch4.commit();
+            console.log(`✓ 퇴사 신청 ${resignQuery.docs.length}건 삭제 완료`);
+        }
+        
+        // 9. 로컬 students 객체 즉시 업데이트
+        if (students[dept]) {
+            students[dept] = students[dept].filter(s => s !== name);
+        }
+        
+        console.log('✓ 교육생 삭제 완료:', name);
+        
+        const deleteMsg = isLeader 
+            ? `✓ ${formatStudentName(name)} 교육생과 학과대표 정보가 삭제되었습니다.\n\n새로운 학과대표를 지정해주세요.`
+            : `✓ ${formatStudentName(name)} 교육생이 삭제되었습니다.`;
+        alert(deleteMsg);
         
         // 목록 초기화
         document.getElementById('deleteStudentDept').value = '';
         updateDeleteStudentList();
         
+        // 즉시 UI 업데이트
         render();
         
     } catch (error) {
         console.error('교육생 삭제 실패:', error);
-        alert('× 교육생 삭제 실패: ' + error.message);
+        alert('× 교육생 삭제 실패: ' + error.message + '\n\n일부 데이터가 남아있을 수 있습니다. 관리자에게 문의하세요.');
     }
 }
 
 // 학과 추가
 async function addDepartment() {
     const deptName = document.getElementById('addDeptName').value.trim();
-    const leaderName = document.getElementById('addDeptLeaderName').value.trim();
-    const leaderPassword = document.getElementById('addDeptLeaderPassword').value.trim();
     
     if (!deptName) {
         alert('학과명을 입력해주세요.');
+        return;
+    }
+    
+    // 빈 문자열이나 공백만 있는 경우 체크
+    if (deptName.length === 0) {
+        alert('유효한 학과명을 입력해주세요.');
         return;
     }
     
@@ -3728,53 +3844,123 @@ async function addDepartment() {
         return;
     }
     
-    if (!leaderName || !leaderPassword) {
-        alert('학과대표 이름과 비밀번호를 입력해주세요.');
-        return;
-    }
-    
     try {
-        // departments 배열에 추가
+        console.log('학과 추가 시작:', deptName);
+        
+        // 1. departments 배열에 추가
         const updatedDepartments = [...departments, deptName];
         
         await db.collection('config').doc('departments').set({
             list: updatedDepartments,
             updatedAt: new Date().toISOString()
         });
+        console.log('✓ departments 설정 업데이트 완료');
         
-        // 빈 학생 목록 생성
+        // 2. 빈 학생 목록 생성
         await db.collection('students').doc(deptName).set({
             students: [],
             updatedAt: new Date().toISOString()
         });
+        console.log('✓ 빈 학생 목록 생성 완료');
         
-        // 학과대표 정보 저장
-        await db.collection('departmentLeaders').doc(deptName).set({
-            name: leaderName,
-            password: leaderPassword,
-            updatedAt: new Date().toISOString()
-        });
+        // 3. originalStudents에도 추가
+        originalStudents[deptName] = [];
         
-        // 로컬 데이터 업데이트
-        departments.push(deptName);
+        // 4. 로컬 departments와 students 즉시 업데이트
+        if (!departments.includes(deptName)) {
+            departments.push(deptName);
+        }
         students[deptName] = [];
-        DEPARTMENT_LEADERS[deptName] = {
-            name: leaderName,
-            password: leaderPassword
-        };
         
-        alert(`✓ ${deptName} 학과가 추가되었습니다!`);
+        console.log('✓ 학과 추가 완료:', deptName, '현재 학과 수:', departments.length);
+        
+        alert(`✓ ${deptName} 학과가 추가되었습니다!\n\n교육생 등록 후 학과대표를 지정해주세요.`);
         
         // 입력 필드 초기화
         document.getElementById('addDeptName').value = '';
-        document.getElementById('addDeptLeaderName').value = '';
-        document.getElementById('addDeptLeaderPassword').value = '';
         
+        // 즉시 UI 업데이트
         render();
         
     } catch (error) {
         console.error('학과 추가 실패:', error);
-        alert('× 학과 추가 실패: ' + error.message);
+        alert('× 학과 추가 실패: ' + error.message + '\n\n다시 시도해주세요.');
+    }
+}
+
+// 학과대표 지정용 교육생 목록 업데이트
+function updateLeaderStudentList() {
+    const dept = document.getElementById('setLeaderDept').value;
+    const selectElement = document.getElementById('setLeaderStudent');
+    
+    selectElement.innerHTML = '<option value="">교육생 선택</option>';
+    
+    if (dept && students[dept]) {
+        // 호실번호 순서대로 정렬
+        const sortedStudents = [...students[dept]].sort((a, b) => {
+            const roomA = studentRoomNumbers[a] || '999';
+            const roomB = studentRoomNumbers[b] || '999';
+            return parseInt(roomA) - parseInt(roomB);
+        });
+        
+        sortedStudents.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            const room = studentRoomNumbers[name] || '-';
+            option.textContent = `${formatStudentName(name)} (${room}호)`;
+            selectElement.appendChild(option);
+        });
+    }
+}
+
+// 학과대표 지정
+async function setDepartmentLeader() {
+    const dept = document.getElementById('setLeaderDept').value;
+    const studentName = document.getElementById('setLeaderStudent').value;
+    const password = document.getElementById('setLeaderPassword').value.trim();
+    
+    if (!dept) {
+        alert('학과를 선택해주세요.');
+        return;
+    }
+    
+    if (!studentName) {
+        alert('학과대표로 지정할 교육생을 선택해주세요.');
+        return;
+    }
+    
+    if (!password) {
+        alert('학과대표 비밀번호를 입력해주세요.');
+        return;
+    }
+    
+    try {
+        // 학과대표 정보 저장
+        await db.collection('departmentLeaders').doc(dept).set({
+            name: studentName,
+            password: password,
+            updatedAt: new Date().toISOString()
+        });
+        
+        // 로컬 DEPARTMENT_LEADERS도 즉시 업데이트
+        DEPARTMENT_LEADERS[dept] = {
+            name: studentName,
+            password: password
+        };
+        
+        alert(`✓ ${dept}의 학과대표가 ${formatStudentName(studentName)}(으)로 지정되었습니다!`);
+        
+        // 입력 필드 초기화
+        document.getElementById('setLeaderDept').value = '';
+        document.getElementById('setLeaderStudent').innerHTML = '<option value="">교육생 선택</option>';
+        document.getElementById('setLeaderPassword').value = '';
+        
+        // 즉시 UI 업데이트
+        render();
+        
+    } catch (error) {
+        console.error('학과대표 지정 실패:', error);
+        alert('× 학과대표 지정 실패: ' + error.message);
     }
 }
 
@@ -3787,7 +3973,7 @@ async function deleteDepartment() {
         return;
     }
     
-    const studentCount = students[deptName] ? students[deptName].length : 0;
+    const studentCount = originalStudents[deptName] ? originalStudents[deptName].length : 0;
     
     if (!confirm(`정말로 ${deptName} 학과를 삭제하시겠습니까?\n\n해당 학과의 교육생 ${studentCount}명과 모든 데이터가 삭제됩니다!`)) {
         return;
@@ -3798,58 +3984,741 @@ async function deleteDepartment() {
     }
     
     try {
-        // departments 배열에서 제거
+        console.log('학과 삭제 시작:', deptName, '교육생 수:', studentCount);
+        
+        // 1. departments 배열에서 제거
         const updatedDepartments = departments.filter(d => d !== deptName);
         
         await db.collection('config').doc('departments').set({
             list: updatedDepartments,
             updatedAt: new Date().toISOString()
         });
+        console.log('✓ departments 설정 업데이트 완료');
         
-        // 학생 목록 삭제
+        // 2. 학생 목록 삭제
         await db.collection('students').doc(deptName).delete();
+        console.log('✓ 학생 목록 삭제 완료');
         
-        // 학과대표 정보 삭제
-        await db.collection('departmentLeaders').doc(deptName).delete();
+        // 3. 학과대표 정보 삭제
+        const leaderDoc = await db.collection('departmentLeaders').doc(deptName).get();
+        if (leaderDoc.exists) {
+            await db.collection('departmentLeaders').doc(deptName).delete();
+            console.log('✓ 학과대표 정보 삭제 완료');
+        }
         
-        // 해당 학과의 모든 제출 기록 삭제
+        // 4. 해당 학과의 모든 제출 기록 삭제
         const submissionsQuery = await db.collection('submissions')
             .where('department', '==', deptName)
             .get();
         
-        const batch1 = db.batch();
-        submissionsQuery.docs.forEach(doc => {
-            batch1.delete(doc.ref);
-        });
-        await batch1.commit();
+        if (submissionsQuery.docs.length > 0) {
+            const batch1 = db.batch();
+            submissionsQuery.docs.forEach(doc => {
+                batch1.delete(doc.ref);
+            });
+            await batch1.commit();
+            console.log(`✓ 제출 기록 ${submissionsQuery.docs.length}건 삭제 완료`);
+        }
         
-        // 해당 학과의 모든 외출 기록 삭제
+        // 5. 해당 학과의 모든 외출 기록 삭제
         const outingsQuery = await db.collection('outings')
             .where('department', '==', deptName)
             .get();
         
-        const batch2 = db.batch();
-        outingsQuery.docs.forEach(doc => {
-            batch2.delete(doc.ref);
-        });
-        await batch2.commit();
+        if (outingsQuery.docs.length > 0) {
+            const batch2 = db.batch();
+            outingsQuery.docs.forEach(doc => {
+                batch2.delete(doc.ref);
+            });
+            await batch2.commit();
+            console.log(`✓ 외출 기록 ${outingsQuery.docs.length}건 삭제 완료`);
+        }
         
-        // 로컬 데이터 업데이트
-        departments.splice(departments.indexOf(deptName), 1);
-        delete students[deptName];
+        // 6. 해당 학과의 외출 히스토리 삭제
+        const outingHistoryQuery = await db.collection('outingHistory')
+            .where('department', '==', deptName)
+            .get();
+        
+        if (outingHistoryQuery.docs.length > 0) {
+            const batch3 = db.batch();
+            outingHistoryQuery.docs.forEach(doc => {
+                batch3.delete(doc.ref);
+            });
+            await batch3.commit();
+            console.log(`✓ 외출 히스토리 ${outingHistoryQuery.docs.length}건 삭제 완료`);
+        }
+        
+        // 7. 해당 학과의 퇴사 신청 삭제
+        const resignQuery = await db.collection('resignRequests')
+            .where('department', '==', deptName)
+            .get();
+        
+        if (resignQuery.docs.length > 0) {
+            const batch4 = db.batch();
+            resignQuery.docs.forEach(doc => {
+                batch4.delete(doc.ref);
+            });
+            await batch4.commit();
+            console.log(`✓ 퇴사 신청 ${resignQuery.docs.length}건 삭제 완료`);
+        }
+        
+        // 8. 해당 학과 교육생들의 호실번호와 비밀번호 삭제
+        const studentsToDelete = originalStudents[deptName] || [];
+        for (const studentName of studentsToDelete) {
+            try {
+                const roomDoc = await db.collection('roomNumbers').doc(studentName).get();
+                if (roomDoc.exists) {
+                    await db.collection('roomNumbers').doc(studentName).delete();
+                }
+                
+                const pwDoc = await db.collection('passwords').doc(studentName).get();
+                if (pwDoc.exists) {
+                    await db.collection('passwords').doc(studentName).delete();
+                }
+                
+                delete studentRoomNumbers[studentName];
+                delete studentPasswords[studentName];
+            } catch (e) {
+                console.warn(`교육생 ${studentName} 데이터 삭제 중 오류:`, e);
+            }
+        }
+        console.log(`✓ 교육생 ${studentsToDelete.length}명의 호실/비밀번호 삭제 완료`);
+        
+        // 9. originalStudents에서도 제거
+        delete originalStudents[deptName];
         delete DEPARTMENT_LEADERS[deptName];
+        
+        // 10. 로컬 departments 배열과 students 객체 즉시 업데이트
+        const deptIndex = departments.indexOf(deptName);
+        if (deptIndex > -1) {
+            departments.splice(deptIndex, 1);
+        }
+        delete students[deptName];
+        
+        console.log('✓ 학과 삭제 완료:', deptName);
         
         alert(`✓ ${deptName} 학과가 삭제되었습니다.`);
         
         document.getElementById('deleteDeptName').value = '';
         
+        // 즉시 화면 업데이트
         render();
         
     } catch (error) {
         console.error('학과 삭제 실패:', error);
-        alert('× 학과 삭제 실패: ' + error.message);
+        alert('× 학과 삭제 실패: ' + error.message + '\n\n일부 데이터가 남아있을 수 있습니다. 관리자에게 문의하세요.');
     }
 }
+
+// 전체 데이터 초기화
+async function resetAllData() {
+    // 1단계: 경고 확인
+    if (!confirm('⚠️⚠️⚠️ 경고 ⚠️⚠️⚠️\n\n모든 학과, 교육생, 제출 기록이 영구적으로 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다!\n\n정말로 초기화하시겠습니까?')) {
+        return;
+    }
+    
+    // 2단계: 비밀번호 확인
+    const password = prompt('초기화를 진행하려면 관리자 비밀번호를 입력하세요:');
+    if (password !== ADMIN_PASSWORD) {
+        alert('× 비밀번호가 올바르지 않습니다.');
+        return;
+    }
+    
+    // 3단계: 최종 확인
+    const confirmText = prompt('정말로 초기화하시겠습니까?\n복구가 불가능합니다!\n\n계속하려면 "삭제" 라고 입력하세요:');
+    if (confirmText !== '삭제') {
+        alert('초기화가 취소되었습니다.');
+        return;
+    }
+    
+    try {
+        // 로딩 메시지
+        alert('초기화 중입니다... 잠시만 기다려주세요.');
+        
+        // 1. 모든 학과 삭제
+        await db.collection('config').doc('departments').set({
+            list: [],
+            updatedAt: new Date().toISOString()
+        });
+        
+        // 2. 모든 학생 데이터 삭제
+        const studentsSnapshot = await db.collection('students').get();
+        const batch1 = db.batch();
+        studentsSnapshot.docs.forEach(doc => {
+            batch1.delete(doc.ref);
+        });
+        await batch1.commit();
+        
+        // 3. 모든 학과대표 삭제
+        const leadersSnapshot = await db.collection('departmentLeaders').get();
+        const batch2 = db.batch();
+        leadersSnapshot.docs.forEach(doc => {
+            batch2.delete(doc.ref);
+        });
+        await batch2.commit();
+        
+        // 4. 모든 제출 기록 삭제
+        const submissionsSnapshot = await db.collection('submissions').get();
+        const batch3 = db.batch();
+        submissionsSnapshot.docs.forEach(doc => {
+            batch3.delete(doc.ref);
+        });
+        await batch3.commit();
+        
+        // 5. 모든 외출 기록 삭제
+        const outingsSnapshot = await db.collection('outings').get();
+        const batch4 = db.batch();
+        outingsSnapshot.docs.forEach(doc => {
+            batch4.delete(doc.ref);
+        });
+        await batch4.commit();
+        
+        // 6. 외출 히스토리 삭제
+        const outingHistorySnapshot = await db.collection('outingHistory').get();
+        const batch5 = db.batch();
+        outingHistorySnapshot.docs.forEach(doc => {
+            batch5.delete(doc.ref);
+        });
+        await batch5.commit();
+        
+        // 7. 모든 퇴사 신청 삭제
+        const resignSnapshot = await db.collection('resignRequests').get();
+        const batch6 = db.batch();
+        resignSnapshot.docs.forEach(doc => {
+            batch6.delete(doc.ref);
+        });
+        await batch6.commit();
+        
+        // 8. 모든 호실번호 삭제
+        const roomNumbersSnapshot = await db.collection('roomNumbers').get();
+        const batch7 = db.batch();
+        roomNumbersSnapshot.docs.forEach(doc => {
+            batch7.delete(doc.ref);
+        });
+        await batch7.commit();
+        
+        // 9. 모든 비밀번호 삭제
+        const passwordsSnapshot = await db.collection('passwords').get();
+        const batch8 = db.batch();
+        passwordsSnapshot.docs.forEach(doc => {
+            batch8.delete(doc.ref);
+        });
+        await batch8.commit();
+        
+        // 로컬 데이터 초기화
+        departments.length = 0;
+        originalStudents = {};
+        students = {};
+        DEPARTMENT_LEADERS = {};
+        submissions = [];
+        outings = [];
+        outingHistory = [];
+        resignRequests = [];
+        studentRoomNumbers = {};
+        studentPasswords = {};
+        
+        alert('✓ 전체 데이터가 성공적으로 초기화되었습니다.\n\n새로운 학과와 교육생을 등록해주세요.');
+        
+        // Firebase 리스너가 자동으로 render()를 호출함
+        
+    } catch (error) {
+        console.error('데이터 초기화 실패:', error);
+        alert('× 데이터 초기화 실패: ' + error.message);
+    }
+}
+
+// 관리자 탭 전환 함수
+function switchAdminTab(tab) {
+    adminTab = tab;
+    render();
+}
+
+// 현황 보기 탭 렌더링
+function renderAdminStatusTab(todaySubmissions, todayOutings, stats) {
+    return `
+        <!-- 통계 -->
+        <div id="statsCards" class="grid grid-cols-2 md:grid-cols-5 gap-5 mb-6 fade-in">
+            <div class="bg-gradient-to-br from-slate-100 to-zinc-100 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-gray-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('deptStatus')">
+                <div class="text-3xl sm:text-4xl md:text-5xl mb-2"><i class="fas fa-users text-slate-600"></i></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}</div>
+                <div class="text-sm font-medium text-gray-600">전체</div>
+            </div>
+            <div class="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-teal-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('staySection')">
+                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-check-circle text-teal-500"></i></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}</div>
+                <div class="text-sm font-medium text-teal-600">잔류</div>
+            </div>
+            <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-amber-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outSection')">
+                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-moon text-amber-500"></i></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}</div>
+                <div class="text-sm font-medium text-amber-600">외박</div>
+            </div>
+            <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-sky-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outingSection')">
+                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-walking text-sky-500"></i></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}</div>
+                <div class="text-sm font-medium text-sky-600">외출</div>
+            </div>
+            <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-rose-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('notSubmittedSection')">
+                <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-exclamation-circle text-rose-500"></i></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}</div>
+                <div class="text-sm font-medium text-rose-600">미제출</div>
+            </div>
+        </div>
+
+        <!-- 다운로드 버튼 -->
+        <div class="flex gap-3 mb-6 fade-in flex-wrap">
+            <button onclick="downloadExcel()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-300 hover:to-zinc-300">
+                <i class="fas fa-download"></i> 선택 날짜 엑셀 다운로드
+            </button>
+            <button onclick="downloadAllData()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-300 hover:to-zinc-300">
+                <i class="fas fa-chart-bar"></i> 전체 데이터 다운로드
+            </button>
+        </div>
+
+        <!-- 학과별 현황 -->
+        <!-- 여성 교육생 현황 -->
+        ${renderFemaleStatus(todaySubmissions, todayOutings)}
+
+        <div id="deptStatus" class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-gray-800"><i class="fas fa-th-list"></i> 학과별 현황</h2>
+                <button onclick="scrollToSection('statsCards')" class="group relative w-12 h-12 bg-white border-2 border-slate-500 text-slate-600 rounded-full font-medium hover:bg-slate-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-110">
+                    <i class="fas fa-arrow-up text-xl"></i>
+                </button>
+            </div>
+            ${renderDepartmentStatus(todaySubmissions, todayOutings)}
+        </div>
+
+        <!-- 잔류 현황 -->
+        ${renderStaySection(todaySubmissions)}
+        
+        <!-- 외박 현황 -->
+        ${renderOutSection(todaySubmissions)}
+        
+        <!-- 외출 현황 -->
+        ${renderOutingSection(todayOutings, todaySubmissions)}
+
+        <!-- 기존 외출 현황 (변경/기록용) -->
+        ${renderOutingStatus(todayOutings, outingHistory)}
+
+        <!-- 퇴사 신청 현황 -->
+        ${renderResignRequests()}
+
+        <!-- 미제출 현황 -->
+        ${stats.notSubmitted > 0 ? `
+            <div id="notSubmittedSection" class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 fade-in border border-gray-200">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold text-rose-600"><i class="fas fa-exclamation-triangle"></i> 미제출 현황 (${stats.notSubmitted}명)</h2>
+                    <button onclick="scrollToSection('statsCards')" class="group relative w-12 h-12 bg-white border-2 border-rose-500 text-rose-600 rounded-full font-medium hover:bg-rose-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-110">
+                        <i class="fas fa-arrow-up text-xl"></i>
+                    </button>
+                </div>
+                
+                <!-- 일괄 신청 기능 -->
+                <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border border-indigo-200">
+                    <h3 class="text-xl font-bold mb-4 text-indigo-700">
+                        <i class="fas fa-check-double"></i> 미제출자 일괄 신청
+                    </h3>
+                    <p class="text-sm text-gray-600 mb-4">
+                        💡 잔류 또는 외박을 선택하고, 체크박스로 학생을 선택한 후 확인 버튼을 누르세요!<br>
+                        <span class="font-bold">체크된 학생 → 선택한 것 / 나머지 학생 → 반대</span>로 자동 제출됩니다.
+                    </p>
+                    
+                    <!-- 현재 선택 상태 표시 -->
+                    ${adminBatchMode ? `
+                    <div class="mb-4 p-3 rounded-2xl ${adminBatchMode === 'stay' ? 'bg-gradient-to-r from-emerald-100 to-teal-100 border-emerald-300' : 'bg-gradient-to-r from-orange-100 to-amber-100 border-orange-300'} font-bold text-center shadow-lg border">
+                        <div class="flex items-center justify-center gap-2">
+                            <i class="fas ${adminBatchMode === 'stay' ? 'fa-home' : 'fa-bed'} text-2xl ${adminBatchMode === 'stay' ? 'text-emerald-600' : 'text-orange-600'} animate-bounce"></i>
+                            <div>
+                                <div class="text-lg font-black ${adminBatchMode === 'stay' ? 'text-emerald-700' : 'text-orange-700'}">${adminBatchMode === 'stay' ? '잔류 활성화' : '외박 활성화'}</div>
+                                <div class="text-xs mt-1 font-normal text-gray-600">👇 아래에서 학생들을 선택하고 확인 버튼을 누르세요</div>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="flex gap-3 mb-4">
+                        <button onclick="setAdminBatchMode('stay')" id="adminBatchStay" class="flex-1 px-4 py-4 rounded-xl font-bold transition-all bg-gray-100 text-gray-500 border-2 border-gray-200 hover:scale-105 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300">
+                            <i class="fas fa-home text-xl"></i>
+                            <div class="text-lg">잔류</div>
+                        </button>
+                        <button onclick="setAdminBatchMode('out')" id="adminBatchOut" class="flex-1 px-4 py-4 rounded-xl font-bold transition-all bg-gray-100 text-gray-500 border-2 border-gray-200 hover:scale-105 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300">
+                            <i class="fas fa-bed text-xl"></i>
+                            <div class="text-lg">외박</div>
+                        </button>
+                        <button onclick="setAdminBatchMode(null)" id="adminBatchOff" class="flex-1 px-4 py-4 rounded-xl font-bold transition-all bg-gradient-to-br from-slate-100 to-gray-100 text-gray-600 border-2 border-gray-300 shadow-md hover:scale-105 hover:bg-gradient-to-br hover:from-slate-200 hover:to-gray-200">
+                            <i class="fas fa-times-circle text-xl"></i>
+                            <div class="text-lg">끄기</div>
+                        </button>
+                    </div>
+                    
+                    ${(() => {
+                        const allNotSubmitted = [];
+                        departments.forEach(dept => {
+                            students[dept].filter(student => 
+                                !todaySubmissions.find(s => s.department === dept && s.name === student) &&
+                                !todayOutings.find(o => o.department === dept && o.name === student)
+                            ).forEach(name => allNotSubmitted.push({dept, name}));
+                        });
+                        
+                        // 호실번호 순으로 정렬
+                        allNotSubmitted.sort((a, b) => {
+                            const roomA = studentRoomNumbers[a.name] || '999';
+                            const roomB = studentRoomNumbers[b.name] || '999';
+                            return parseInt(roomA) - parseInt(roomB);
+                        });
+                        
+                        if (allNotSubmitted.length > 0 && adminBatchMode) {
+                            return `
+                            <div class="bg-white rounded-xl p-4 mb-3 border border-gray-200">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="font-bold text-gray-700">
+                                        <i class="fas fa-tasks"></i> 학생 선택 
+                                        <span class="text-indigo-600">(선택: <span id="adminBatchCount">0</span>명)</span>
+                                    </span>
+                                    <div class="flex gap-2">
+                                        <button onclick="selectAllAdminBatch()" class="px-3 py-1 bg-teal-500 text-white rounded-lg text-sm hover:bg-teal-600">
+                                            <i class="fas fa-check-double"></i> 전체선택
+                                        </button>
+                                        <button onclick="deselectAllAdminBatch()" class="px-3 py-1 bg-gray-400 text-white rounded-lg text-sm hover:bg-gray-500">
+                                            <i class="fas fa-times"></i> 전체해제
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="adminBatchCheckList" class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3 max-h-96 overflow-y-auto">
+                                    ${allNotSubmitted.map(s => `
+                                        <label class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-100 border border-slate-200">
+                                            <input type="checkbox" 
+                                                   class="admin-batch-check w-4 h-4" 
+                                                   value="${s.name}"
+                                                   data-dept="${s.dept}"
+                                                   onchange="updateAdminBatchCount()">
+                                            <span class="text-sm font-medium text-gray-700">${formatStudentName(s.name)}</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                                <button onclick="confirmAdminBatchSubmit()" class="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all hover:scale-105">
+                                    <i class="fas fa-check-circle"></i> 확인 - 일괄 제출하기
+                                </button>
+                            </div>
+                            `;
+                        }
+                        return '';
+                    })()}
+                </div>
+                
+                <div class="space-y-4">
+                    <h3 class="text-lg font-bold text-gray-700">
+                        <i class="fas fa-list"></i> 학과별 미제출 현황
+                        <span class="text-sm font-normal text-indigo-600 ml-2">※ 학생 이름을 클릭하면 잔류/외박 선택 가능</span>
+                    </h3>
+                    ${renderNotSubmitted(todaySubmissions, todayOutings)}
+                </div>
+            </div>
+        ` : ''}
+    `;
+}
+
+// 관리자 설정 탭 렌더링
+function renderAdminSettingsTab() {
+    return `
+        <!-- 공지사항 관리 -->
+        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
+            <h2 class="text-2xl font-bold mb-6 text-purple-700">
+                <i class="fas fa-bullhorn"></i> 공지사항 관리
+            </h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 font-medium mb-2">공지사항 내용</label>
+                <textarea 
+                    id="announcementInput" 
+                    class="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-400 focus:outline-none resize-vertical"
+                    rows="4"
+                    placeholder="교육생들에게 전달할 공지사항을 입력하세요..."
+                >${announcement}</textarea>
+                <div class="text-sm text-gray-500 mt-2">
+                    <i class="fas fa-info-circle"></i> 이 공지사항은 교육생 화면 상단에 표시됩니다.
+                </div>
+            </div>
+            <button onclick="saveAdminAnnouncement()" class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-4 rounded-xl font-bold text-lg hover:shadow-lg transition-all">
+                <i class="fas fa-save"></i> 공지사항 저장
+            </button>
+        </div>
+
+        <!-- 미제출자 알림 -->
+        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in border border-gray-200">
+            <h3 class="text-xl font-bold mb-4 text-gray-800"><i class="fas fa-bullhorn text-amber-500"></i> 미제출자 알림</h3>
+            <p class="text-sm text-gray-600 mb-4">
+                <i class="fas fa-info-circle"></i> 미제출 학생들의 명단을 카카오톡으로 전송할 수 있도록 텍스트를 복사합니다.
+            </p>
+            <button onclick="copyNotSubmittedMessage()" class="w-full bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 px-6 py-4 rounded-xl font-bold text-lg hover:shadow-lg transition-all border-2 border-amber-300">
+                <i class="fas fa-mobile-alt"></i> 미제출자 명단 복사
+            </button>
+        </div>
+
+        <!-- 학생/교육생 관리 -->
+        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 fade-in border border-gray-200">
+            <h2 class="text-2xl font-bold mb-6 text-indigo-700">
+                <i class="fas fa-users-cog"></i> 학생/교육생 관리
+            </h2>
+            
+            <!-- 탭 메뉴 -->
+            <div class="flex gap-2 mb-6 overflow-x-auto">
+                <button onclick="switchManageTab('students')" id="manageTabStudents" class="px-4 py-2 rounded-lg font-medium whitespace-nowrap bg-indigo-500 text-white">
+                    <i class="fas fa-user-graduate"></i> 교육생 관리
+                </button>
+                <button onclick="switchManageTab('departments')" id="manageTabDepts" class="px-4 py-2 rounded-lg font-medium whitespace-nowrap bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <i class="fas fa-building"></i> 학과 관리
+                </button>
+                <button onclick="switchManageTab('leaders')" id="manageTabLeaders" class="px-4 py-2 rounded-lg font-medium whitespace-nowrap bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    <i class="fas fa-user-tie"></i> 학과대표 관리
+                </button>
+            </div>
+
+            <!-- 교육생 관리 탭 -->
+            <div id="studentsManageTab">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 교육생 추가 -->
+                    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+                        <h3 class="text-xl font-bold mb-4 text-blue-700">
+                            <i class="fas fa-user-plus"></i> 교육생 추가
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
+                                <div class="manage-select">
+                                    <select id="addStudentDept" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200">
+                                        <option value="">학과 선택</option>
+                                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">이름</label>
+                                <input type="text" id="addStudentName" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200" placeholder="예: 홍길동 또는 김영희(여)">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">호실번호 (선택)</label>
+                                <input type="text" id="addStudentRoom" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200" placeholder="예: 301">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">비밀번호 (필수)</label>
+                                <input type="text" id="addStudentPassword" class="w-full px-4 py-3 rounded-xl border-2 border-blue-200" placeholder="예: 1234">
+                            </div>
+                            <button onclick="addStudent()" class="w-full bg-gradient-to-r from-blue-200 to-indigo-200 text-blue-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all hover:from-blue-300 hover:to-indigo-300">
+                                <i class="fas fa-plus-circle"></i> 교육생 추가
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 교육생 삭제 -->
+                    <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl p-6 border border-rose-200">
+                        <h3 class="text-xl font-bold mb-4 text-rose-700">
+                            <i class="fas fa-user-minus"></i> 교육생 삭제
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
+                                <div class="manage-select">
+                                    <select id="deleteStudentDept" class="w-full px-4 py-3 rounded-xl border-2 border-rose-200" onchange="updateDeleteStudentList()">
+                                        <option value="">학과 선택</option>
+                                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">교육생 선택</label>
+                                <div class="manage-select">
+                                    <select id="deleteStudentName" class="w-full px-4 py-3 rounded-xl border-2 border-rose-200">
+                                        <option value="">교육생 선택</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button onclick="deleteStudent()" class="w-full bg-gradient-to-r from-rose-200 to-pink-200 text-rose-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all hover:from-rose-300 hover:to-pink-300">
+                                <i class="fas fa-trash-alt"></i> 교육생 삭제
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 전체 교육생 목록 -->
+                <div class="mt-6 bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                    <h3 class="text-xl font-bold mb-4 text-gray-700">
+                        <i class="fas fa-list"></i> 전체 교육생 목록 (${Object.values(originalStudents).flat().filter(name => {
+                            const dept = departments.find(d => originalStudents[d] && originalStudents[d].includes(name));
+                            return !isResigned(dept, name);
+                        }).length}명)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+                        ${departments.map(dept => {
+                            const deptStudents = originalStudents[dept] || [];
+                            // 퇴사 승인된 학생 제외
+                            const activeStudents = deptStudents.filter(s => !isResigned(dept, s));
+                            // 호실번호 순서대로 정렬
+                            const sortedStudents = [...activeStudents].sort((a, b) => {
+                                const roomA = studentRoomNumbers[a] || '999';
+                                const roomB = studentRoomNumbers[b] || '999';
+                                return parseInt(roomA) - parseInt(roomB);
+                            });
+                            return `
+                            <div class="bg-white rounded-xl p-4 border border-gray-200">
+                                <div class="font-bold text-indigo-600 mb-2">${dept} (${sortedStudents.length}명)</div>
+                                <div class="space-y-1">
+                                    ${sortedStudents.map(s => {
+                                        const room = studentRoomNumbers[s] || '-';
+                                        const pw = studentPasswords[s] || '-';
+                                        return `<div class="flex items-center justify-between py-1 border-b border-gray-100">
+                                            <span class="font-medium">${formatStudentName(s)}</span>
+                                            <span class="text-sm text-gray-500">${room}호 / ${pw}</span>
+                                        </div>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 학과 관리 탭 -->
+            <div id="departmentsManageTab" style="display:none;">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 학과 추가 -->
+                    <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200">
+                        <h3 class="text-xl font-bold mb-4 text-green-700">
+                            <i class="fas fa-plus-square"></i> 학과 추가
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">학과명</label>
+                                <input type="text" id="addDeptName" class="w-full px-4 py-3 rounded-xl border-2 border-green-200" placeholder="예: 컴퓨터공학과">
+                            </div>
+                            <button onclick="addDepartment()" class="w-full bg-gradient-to-r from-green-200 to-emerald-200 text-green-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all hover:from-green-300 hover:to-emerald-300">
+                                <i class="fas fa-plus-circle"></i> 학과 추가
+                            </button>
+                            <div class="bg-green-100 border border-green-300 rounded-xl p-3 text-sm text-green-700">
+                                <i class="fas fa-info-circle"></i> 
+                                학과 추가 후, 교육생 등록 후 아래에서 학과대표를 지정할 수 있습니다.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 학과 삭제 -->
+                    <div class="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-6 border border-red-200">
+                        <h3 class="text-xl font-bold mb-4 text-red-700">
+                            <i class="fas fa-minus-square"></i> 학과 삭제
+                        </h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
+                                <div class="manage-select">
+                                    <select id="deleteDeptName" class="w-full px-4 py-3 rounded-xl border-2 border-red-200">
+                                        <option value="">학과 선택</option>
+                                        ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <button onclick="deleteDepartment()" class="w-full bg-gradient-to-r from-red-200 to-rose-200 text-red-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all hover:from-red-300 hover:to-rose-300">
+                                <i class="fas fa-trash-alt"></i> 학과 삭제
+                            </button>
+                            <div class="bg-red-100 border border-red-300 rounded-xl p-3 text-sm text-red-700">
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                학과 삭제 시 해당 학과의 모든 교육생과 데이터가 삭제됩니다!
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 학과 목록 -->
+                <div class="mt-6 bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                    <h3 class="text-xl font-bold mb-4 text-gray-700">
+                        <i class="fas fa-list"></i> 전체 학과 목록 (${departments.length}개)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        ${departments.map(dept => {
+                            const leader = DEPARTMENT_LEADERS[dept];
+                            const studentCount = originalStudents[dept] ? originalStudents[dept].length : 0;
+                            return `
+                                <div class="bg-white rounded-xl p-4 border border-gray-200">
+                                    <div class="font-bold text-lg text-gray-800">${dept}</div>
+                                    <div class="text-sm text-gray-600 mt-2">
+                                        <div>교육생: ${studentCount}명</div>
+                                        <div>학과대표: ${leader ? leader.name : '미설정'}</div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 학과대표 관리 탭 -->
+            <div id="leadersManageTab" style="display:none;">
+                <div class="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-200">
+                    <h3 class="text-xl font-bold mb-4 text-indigo-700">
+                        <i class="fas fa-user-tie"></i> 학과대표 지정
+                    </h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
+                            <div class="manage-select">
+                                <select id="setLeaderDept" class="w-full px-4 py-3 rounded-xl border-2 border-indigo-200" onchange="updateLeaderStudentList()">
+                                    <option value="">학과 선택</option>
+                                    ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">학과대표 선택</label>
+                            <div class="manage-select">
+                                <select id="setLeaderStudent" class="w-full px-4 py-3 rounded-xl border-2 border-indigo-200">
+                                    <option value="">교육생 선택</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">학과대표 비밀번호</label>
+                            <input type="text" id="setLeaderPassword" class="w-full px-4 py-3 rounded-xl border-2 border-indigo-200" placeholder="예: 1234">
+                        </div>
+                        <button onclick="setDepartmentLeader()" class="w-full bg-gradient-to-r from-indigo-200 to-purple-200 text-indigo-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all hover:from-indigo-300 hover:to-purple-300">
+                            <i class="fas fa-user-check"></i> 학과대표 지정
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 전체 데이터 초기화 -->
+        <div class="bg-gradient-to-br from-red-50 to-rose-100 rounded-3xl shadow-lg p-8 mt-6 fade-in border-2 border-red-300">
+            <h2 class="text-2xl font-bold mb-4 text-red-700">
+                <i class="fas fa-exclamation-triangle"></i> 위험 구역 - 전체 데이터 초기화
+            </h2>
+            <div class="bg-white rounded-2xl p-6 mb-4 border-2 border-red-200">
+                <div class="space-y-3">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-info-circle text-red-500 text-xl mt-1"></i>
+                        <div class="text-gray-700">
+                            <p class="font-bold text-red-700 mb-2">⚠️ 이 작업은 되돌릴 수 없습니다!</p>
+                            <p class="text-sm mb-2">다음 데이터가 <strong class="text-red-600">영구적으로 삭제</strong>됩니다:</p>
+                            <ul class="text-sm list-disc list-inside space-y-1 text-gray-600">
+                                <li>모든 학과 및 교육생 정보</li>
+                                <li>모든 학과대표 정보</li>
+                                <li>모든 잔류/외박 제출 기록</li>
+                                <li>모든 외출 신청 기록</li>
+                                <li>모든 퇴사 신청 기록</li>
+                                <li>호실번호 및 비밀번호 정보</li>
+                            </ul>
+                            <p class="text-sm mt-3 text-red-600 font-medium">※ 공지사항과 관리자 비밀번호는 유지됩니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="resetAllData()" class="w-full bg-gradient-to-r from-red-500 to-rose-600 text-white px-6 py-5 rounded-xl font-bold text-lg hover:shadow-xl transition-all hover:from-red-600 hover:to-rose-700 border-2 border-red-700">
+                <i class="fas fa-trash-alt"></i> 전체 데이터 초기화 (복구 불가능)
+            </button>
+        </div>
+    `;
+}
+
 </script>
 
 </body>
