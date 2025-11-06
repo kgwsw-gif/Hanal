@@ -1791,12 +1791,12 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
             <div class="bg-gray-50 rounded-2xl p-6 border border-gray-200 hover:shadow-md transition-all">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-2xl font-bold text-gray-800">${dept}</h3>
-                    <div class="text-base font-medium text-gray-600">
-                        전체 ${deptStudents.length}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${deptFemaleCount} | 
-                        <span class="text-teal-700">잔류 ${stayCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleStayCount}</span> | 
-                        <span class="text-amber-700">외박 ${outCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutCount}</span> | 
-                        <span class="text-sky-700">외출 ${outingCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutingCount}</span> | 
-                        <span class="text-rose-700">미제출 ${noneCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleNoneCount}</span>
+                    <div class="text-base font-bold text-gray-600">
+                        <span class="font-bold">전체</span> ${deptStudents.length}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${deptFemaleCount} | 
+                        <span class="text-teal-700"><span class="font-bold">잔류</span> ${stayCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleStayCount}</span> | 
+                        <span class="text-amber-700"><span class="font-bold">외박</span> ${outCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutCount}</span> | 
+                        <span class="text-sky-700"><span class="font-bold">외출</span> ${outingCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutingCount}</span> | 
+                        <span class="text-rose-700"><span class="font-bold">미제출</span> ${noneCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleNoneCount}</span>
                     </div>
                 </div>
                 
@@ -3904,6 +3904,144 @@ async function deleteStudent() {
     }
 }
 
+// 호실 변경용 교육생 목록 업데이트
+function updateChangeRoomStudentList() {
+    const dept = document.getElementById('changeRoomDept').value;
+    const selectElement = document.getElementById('changeRoomStudent');
+    const currentRoomInput = document.getElementById('currentRoomNumber');
+    const newRoomInput = document.getElementById('newRoomNumber');
+    
+    // 초기화
+    selectElement.innerHTML = '<option value="">교육생 선택</option>';
+    currentRoomInput.value = '';
+    newRoomInput.value = '';
+    
+    if (dept && students[dept]) {
+        // 호실번호 순서대로 정렬
+        const sortedStudents = [...students[dept]].sort((a, b) => {
+            const roomA = studentRoomNumbers[a] || '999';
+            const roomB = studentRoomNumbers[b] || '999';
+            return parseInt(roomA) - parseInt(roomB);
+        });
+        
+        sortedStudents.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            const room = studentRoomNumbers[name] || '미지정';
+            option.textContent = `${formatStudentName(name)} [${room}]`;
+            selectElement.appendChild(option);
+        });
+    }
+}
+
+// 현재 호실 표시
+function updateCurrentRoom() {
+    const studentName = document.getElementById('changeRoomStudent').value;
+    const currentRoomInput = document.getElementById('currentRoomNumber');
+    const newRoomInput = document.getElementById('newRoomNumber');
+    
+    if (studentName) {
+        const currentRoom = studentRoomNumbers[studentName] || '미지정';
+        currentRoomInput.value = currentRoom;
+        newRoomInput.value = '';
+        newRoomInput.focus();
+    } else {
+        currentRoomInput.value = '';
+        newRoomInput.value = '';
+    }
+}
+
+// 교육생 호실 변경
+async function changeStudentRoom() {
+    const dept = document.getElementById('changeRoomDept').value;
+    const studentName = document.getElementById('changeRoomStudent').value;
+    const newRoom = document.getElementById('newRoomNumber').value.trim();
+    
+    if (!dept) {
+        alert('학과를 선택해주세요.');
+        return;
+    }
+    
+    if (!studentName) {
+        alert('교육생을 선택해주세요.');
+        return;
+    }
+    
+    if (!newRoom) {
+        alert('새 호실번호를 입력해주세요.');
+        return;
+    }
+    
+    const currentRoom = studentRoomNumbers[studentName] || '미지정';
+    
+    if (currentRoom === newRoom) {
+        alert('현재 호실과 동일한 번호입니다.');
+        return;
+    }
+    
+    if (!confirm(`${formatStudentName(studentName)}의 호실을\n${currentRoom} → ${newRoom}로 변경하시겠습니까?`)) {
+        return;
+    }
+    
+    try {
+        console.log('호실 변경 시작:', studentName, currentRoom, '->', newRoom);
+        
+        // 1. Firestore에 새 호실번호 저장
+        await db.collection('roomNumbers').doc(studentName).set({
+            room: newRoom,
+            department: dept,
+            updatedAt: new Date().toISOString()
+        });
+        
+        // 2. 로컬 객체 업데이트
+        studentRoomNumbers[studentName] = newRoom;
+        
+        // 3. 해당 학과 학생 목록을 호실번호 순으로 재정렬
+        if (originalStudents[dept]) {
+            const sortedStudents = [...originalStudents[dept]].sort((a, b) => {
+                const roomA = studentRoomNumbers[a] || '999';
+                const roomB = studentRoomNumbers[b] || '999';
+                return parseInt(roomA) - parseInt(roomB);
+            });
+            
+            originalStudents[dept] = sortedStudents;
+            
+            // Firestore에 정렬된 순서로 저장
+            await db.collection('students').doc(dept).set({
+                students: sortedStudents,
+                updatedAt: new Date().toISOString()
+            });
+        }
+        
+        // 4. students 객체도 업데이트
+        if (students[dept]) {
+            const sortedStudents = [...students[dept]].sort((a, b) => {
+                const roomA = studentRoomNumbers[a] || '999';
+                const roomB = studentRoomNumbers[b] || '999';
+                return parseInt(roomA) - parseInt(roomB);
+            });
+            students[dept] = sortedStudents;
+        }
+        
+        console.log('✓ 호실 변경 완료:', studentName, newRoom);
+        
+        alert(`✓ ${formatStudentName(studentName)}의 호실이 변경되었습니다!\n\n${currentRoom} → ${newRoom}\n\n※ 호실번호 순으로 자동 정렬되었습니다.`);
+        
+        // 입력 필드 초기화
+        document.getElementById('changeRoomDept').value = '';
+        document.getElementById('changeRoomStudent').innerHTML = '<option value="">교육생 선택</option>';
+        document.getElementById('currentRoomNumber').value = '';
+        document.getElementById('newRoomNumber').value = '';
+        
+        // 즉시 UI 업데이트
+        render();
+        
+    } catch (error) {
+        console.error('호실 변경 실패:', error);
+        alert('× 호실 변경 실패: ' + error.message + '\n\n다시 시도해주세요.');
+    }
+}
+
 // 학과 추가
 async function addDepartment() {
     const deptName = document.getElementById('addDeptName').value.trim();
@@ -4320,27 +4458,27 @@ function renderAdminStatusTab(todaySubmissions, todayOutings, stats) {
         <div id="statsCards" class="grid grid-cols-2 md:grid-cols-5 gap-5 mb-6 fade-in">
             <div class="bg-gradient-to-br from-slate-100 to-zinc-100 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-gray-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('deptStatus')">
                 <div class="text-3xl sm:text-4xl md:text-5xl mb-2"><i class="fas fa-users text-slate-600"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.totalFemales}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.totalFemales}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-gray-600">전체</div>
             </div>
             <div class="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-teal-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('staySection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-check-circle text-teal-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleStayCount}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleStayCount}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-teal-600">잔류</div>
             </div>
             <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-amber-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-moon text-amber-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutCount}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutCount}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-amber-600">외박</div>
             </div>
             <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-sky-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outingSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-walking text-sky-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutingCount}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutingCount}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-sky-600">외출</div>
             </div>
             <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-rose-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('notSubmittedSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-exclamation-circle text-rose-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleNotSubmitted}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleNotSubmitted}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-rose-600">미제출</div>
             </div>
         </div>
@@ -4620,19 +4758,76 @@ function renderAdminSettingsTab() {
                     </div>
                 </div>
                 
+                <!-- 교육생 호실 변경 -->
+                <div class="mt-6 bg-gradient-to-br from-purple-50 to-violet-50 rounded-2xl p-6 border border-purple-200">
+                    <h3 class="text-xl font-bold mb-4 text-purple-700">
+                        <i class="fas fa-exchange-alt"></i> 교육생 호실 변경
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">학과 선택</label>
+                            <div class="manage-select">
+                                <select id="changeRoomDept" class="w-full px-4 py-3 rounded-xl border-2 border-purple-200" onchange="updateChangeRoomStudentList()">
+                                    <option value="">학과 선택</option>
+                                    ${departments.map(d => `<option value="${d}">${d}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">교육생 선택</label>
+                            <div class="manage-select">
+                                <select id="changeRoomStudent" class="w-full px-4 py-3 rounded-xl border-2 border-purple-200" onchange="updateCurrentRoom()">
+                                    <option value="">교육생 선택</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">현재 호실</label>
+                            <input type="text" id="currentRoomNumber" class="w-full px-4 py-3 rounded-xl border-2 border-gray-300 bg-gray-100" readonly placeholder="교육생을 선택하세요">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-medium mb-2">새 호실번호</label>
+                            <input type="text" id="newRoomNumber" class="w-full px-4 py-3 rounded-xl border-2 border-purple-200" placeholder="예: 305">
+                        </div>
+                    </div>
+                    <button onclick="changeStudentRoom()" class="w-full mt-4 bg-gradient-to-r from-purple-200 to-violet-200 text-purple-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all hover:from-purple-300 hover:to-violet-300">
+                        <i class="fas fa-sync-alt"></i> 호실 변경
+                    </button>
+                    <div class="bg-purple-100 border border-purple-300 rounded-xl p-3 text-sm text-purple-700 mt-3">
+                        <i class="fas fa-info-circle"></i> 
+                        호실 변경 시 교육생 목록이 새로운 호실 순서대로 자동 정렬됩니다.
+                    </div>
+                </div>
+                
                 <!-- 전체 교육생 목록 -->
                 <div class="mt-6 bg-gray-50 rounded-2xl p-6 border border-gray-200">
                     <h3 class="text-xl font-bold mb-4 text-gray-700">
                         <i class="fas fa-list"></i> 전체 교육생 목록 (${(() => {
-                            const totalCount = Object.values(students).flat().filter(name => {
-                                const dept = departments.find(d => students[d] && students[d].includes(name));
-                                return dept && !isResigned(dept, name);
-                            }).length;
-                            const femaleCount = Object.values(students).flat().filter(name => {
-                                const dept = departments.find(d => students[d] && students[d].includes(name));
-                                return dept && !isResigned(dept, name) && name.includes('(여)');
-                            }).length;
-                            return `${totalCount}/${femaleCount}`;
+                            // 모든 학과의 활성 학생 수 계산
+                            let totalActive = 0;
+                            let totalFemales = 0;
+                            
+                            departments.forEach(dept => {
+                                if (students[dept]) {
+                                    students[dept].forEach(name => {
+                                        if (!isResigned(dept, name)) {
+                                            totalActive++;
+                                            if (name.includes('(여)')) {
+                                                totalFemales++;
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                            
+                            console.log('=== 전체 교육생 목록 카운트 ===');
+                            console.log('학과 수:', departments.length);
+                            console.log('전체 활성 학생:', totalActive);
+                            console.log('여학생:', totalFemales);
+                            console.log('students 객체:', students);
+                            console.log('=============================');
+                            
+                            return `${totalActive}/${totalFemales}`;
                         })()})
                     </h3>
                     <div class="text-sm text-gray-500 mb-3">
