@@ -1066,9 +1066,13 @@ function getStats() {
     
     // 실제 존재하는 전체 학생 목록 생성
     const allStudentKeys = new Set();
+    const allFemaleStudentKeys = new Set();
     Object.keys(students).forEach(dept => {
         students[dept].forEach(name => {
             allStudentKeys.add(`${dept}_${name}`);
+            if (name.includes('(여)')) {
+                allFemaleStudentKeys.add(`${dept}_${name}`);
+            }
         });
     });
     
@@ -1093,6 +1097,14 @@ function getStats() {
     const stayCount = Array.from(uniqueSubmissions.values()).filter(status => status === 'stay').length;
     const outCount = Array.from(uniqueSubmissions.values()).filter(status => status === 'out').length;
     
+    // 여학생 잔류/외박 카운트
+    const femaleStayCount = Array.from(uniqueSubmissions.entries()).filter(([key, status]) => 
+        status === 'stay' && allFemaleStudentKeys.has(key)
+    ).length;
+    const femaleOutCount = Array.from(uniqueSubmissions.entries()).filter(([key, status]) => 
+        status === 'out' && allFemaleStudentKeys.has(key)
+    ).length;
+    
     console.log('잔류:', stayCount, '외박:', outCount);
     
     // 외출 카운트 - 잔류/외박이 있는 학생은 외출에서 제외, 실존 학생만
@@ -1102,7 +1114,14 @@ function getStats() {
         return allStudentKeys.has(key) && !uniqueSubmissionKeys.includes(key);
     }).length;
     
+    // 여학생 외출 카운트
+    const femaleOutingCount = todayOutings.filter(o => {
+        const key = `${o.department}_${o.name}`;
+        return allFemaleStudentKeys.has(key) && !uniqueSubmissionKeys.includes(key);
+    }).length;
+    
     const totalStudents = allStudentKeys.size;
+    const totalFemales = allFemaleStudentKeys.size;
     
     // 신청한 학생들의 고유 목록 (실존 학생만)
     const submittedStudentKeys = new Set();
@@ -1114,6 +1133,11 @@ function getStats() {
         }
     });
     
+    // 여학생 미제출 카운트
+    const femaleNotSubmitted = Array.from(allFemaleStudentKeys).filter(key => 
+        !submittedStudentKeys.has(key)
+    ).length;
+    
     console.log('전체 학생:', totalStudents);
     console.log('신청한 고유 학생:', submittedStudentKeys.size);
     console.log('미제출:', totalStudents - submittedStudentKeys.size);
@@ -1121,10 +1145,15 @@ function getStats() {
     
     return {
         totalStudents,
+        totalFemales,
         stayCount,
+        femaleStayCount,
         outCount,
+        femaleOutCount,
         outingCount,
-        notSubmitted: Math.max(0, totalStudents - submittedStudentKeys.size)
+        femaleOutingCount,
+        notSubmitted: Math.max(0, totalStudents - submittedStudentKeys.size),
+        femaleNotSubmitted
     };
 }
 
@@ -1256,13 +1285,13 @@ function render() {
                     })()})
                 </button>
                 ${currentMode === 'admin' ? `
-                <button onclick="changeDate(-1);" class="px-3 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm shadow-md" title="하루 전">
+                <button onclick="changeDate(-1);" class="px-3 py-2 bg-slate-400 text-white rounded-lg hover:bg-slate-500 transition-all text-sm shadow-md" title="하루 전">
                     <i class="fas fa-chevron-left"></i> -1day
                 </button>
-                <button onclick="changeDate(1);" class="px-3 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm shadow-md" title="하루 후">
+                <button onclick="changeDate(1);" class="px-3 py-2 bg-slate-400 text-white rounded-lg hover:bg-slate-500 transition-all text-sm shadow-md" title="하루 후">
                     +1day <i class="fas fa-chevron-right"></i>
                 </button>
-                <button onclick="changeDate(-7);" class="px-3 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-all text-sm shadow-md" title="일주일 전">
+                <button onclick="changeDate(-7);" class="px-3 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-all text-sm shadow-md" title="일주일 전">
                     <i class="fas fa-backward"></i> -7day
                 </button>
                 ` : ''}
@@ -1689,14 +1718,14 @@ function renderAdminView(todaySubmissions, todayOutings, stats) {
                 <button 
                     onclick="switchAdminTab('status')" 
                     id="adminTabStatus"
-                    class="flex-1 px-6 py-4 rounded-xl font-bold text-lg transition-all ${adminTab === 'status' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-600 hover:bg-gradient-to-br hover:from-slate-300 hover:to-zinc-300 border border-gray-300'}"
+                    class="flex-1 px-6 py-4 rounded-xl font-bold text-lg transition-all ${adminTab === 'status' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-500 hover:bg-gradient-to-br hover:from-slate-200 hover:to-zinc-200 border border-gray-300'}"
                 >
                     <i class="fas fa-chart-line"></i> 현황 보기
                 </button>
                 <button 
                     onclick="switchAdminTab('settings')" 
                     id="adminTabSettings"
-                    class="flex-1 px-6 py-4 rounded-xl font-bold text-lg transition-all ${adminTab === 'settings' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-600 hover:bg-gradient-to-br hover:from-slate-300 hover:to-zinc-300 border border-gray-300'}"
+                    class="flex-1 px-6 py-4 rounded-xl font-bold text-lg transition-all ${adminTab === 'settings' ? 'bg-indigo-500 text-white shadow-lg' : 'bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-500 hover:bg-gradient-to-br hover:from-slate-200 hover:to-zinc-200 border border-gray-300'}"
                 >
                     <i class="fas fa-cog"></i> 관리자 설정
                 </button>
@@ -1751,16 +1780,23 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
         const outingCount = studentStatus.filter(s => s.status === 'outing').length;
         const noneCount = studentStatus.filter(s => s.status === 'none').length;
         
+        // 여학생 수 계산
+        const deptFemaleCount = deptStudents.filter(s => s.includes('(여)')).length;
+        const femaleStayCount = studentStatus.filter(s => s.status === 'stay' && s.student.includes('(여)')).length;
+        const femaleOutCount = studentStatus.filter(s => s.status === 'out' && s.student.includes('(여)')).length;
+        const femaleOutingCount = studentStatus.filter(s => s.status === 'outing' && s.student.includes('(여)')).length;
+        const femaleNoneCount = studentStatus.filter(s => s.status === 'none' && s.student.includes('(여)')).length;
+        
         return `
             <div class="bg-gray-50 rounded-2xl p-6 border border-gray-200 hover:shadow-md transition-all">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-2xl font-bold text-gray-800">${dept}</h3>
-                    <div class="text-sm font-medium text-gray-600">
-                        전체 ${deptStudents.length}명 | 
-                        <span class="text-teal-700">잔류 ${stayCount}</span> | 
-                        <span class="text-amber-700">외박 ${outCount}</span> | 
-                        <span class="text-sky-700">외출 ${outingCount}</span> | 
-                        <span class="text-rose-700">미제출 ${noneCount}</span>
+                    <div class="text-base font-medium text-gray-600">
+                        전체 ${deptStudents.length}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${deptFemaleCount} | 
+                        <span class="text-teal-700">잔류 ${stayCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleStayCount}</span> | 
+                        <span class="text-amber-700">외박 ${outCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutCount}</span> | 
+                        <span class="text-sky-700">외출 ${outingCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutingCount}</span> | 
+                        <span class="text-rose-700">미제출 ${noneCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleNoneCount}</span>
                     </div>
                 </div>
                 
@@ -4284,37 +4320,37 @@ function renderAdminStatusTab(todaySubmissions, todayOutings, stats) {
         <div id="statsCards" class="grid grid-cols-2 md:grid-cols-5 gap-5 mb-6 fade-in">
             <div class="bg-gradient-to-br from-slate-100 to-zinc-100 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-gray-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('deptStatus')">
                 <div class="text-3xl sm:text-4xl md:text-5xl mb-2"><i class="fas fa-users text-slate-600"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.totalFemales}</div>
                 <div class="text-sm font-medium text-gray-600">전체</div>
             </div>
             <div class="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-teal-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('staySection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-check-circle text-teal-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleStayCount}</div>
                 <div class="text-sm font-medium text-teal-600">잔류</div>
             </div>
             <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-amber-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-moon text-amber-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutCount}</div>
                 <div class="text-sm font-medium text-amber-600">외박</div>
             </div>
             <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-sky-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outingSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-walking text-sky-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutingCount}</div>
                 <div class="text-sm font-medium text-sky-600">외출</div>
             </div>
             <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-rose-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('notSubmittedSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-exclamation-circle text-rose-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleNotSubmitted}</div>
                 <div class="text-sm font-medium text-rose-600">미제출</div>
             </div>
         </div>
 
         <!-- 다운로드 버튼 -->
         <div class="flex gap-3 mb-6 fade-in flex-wrap">
-            <button onclick="downloadExcel()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-300 hover:to-zinc-300">
+            <button onclick="downloadExcel()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-600 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-200 hover:to-zinc-200">
                 <i class="fas fa-download"></i> 선택 날짜 엑셀 다운로드
             </button>
-            <button onclick="downloadAllData()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-200 to-zinc-200 text-gray-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-300 hover:to-zinc-300">
+            <button onclick="downloadAllData()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-600 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-200 hover:to-zinc-200">
                 <i class="fas fa-chart-bar"></i> 전체 데이터 다운로드
             </button>
         </div>
@@ -4587,16 +4623,29 @@ function renderAdminSettingsTab() {
                 <!-- 전체 교육생 목록 -->
                 <div class="mt-6 bg-gray-50 rounded-2xl p-6 border border-gray-200">
                     <h3 class="text-xl font-bold mb-4 text-gray-700">
-                        <i class="fas fa-list"></i> 전체 교육생 목록 (${Object.values(originalStudents).flat().filter(name => {
-                            const dept = departments.find(d => originalStudents[d] && originalStudents[d].includes(name));
-                            return !isResigned(dept, name);
-                        }).length}명)
+                        <i class="fas fa-list"></i> 전체 교육생 목록 (${(() => {
+                            const totalCount = Object.values(students).flat().filter(name => {
+                                const dept = departments.find(d => students[d] && students[d].includes(name));
+                                return dept && !isResigned(dept, name);
+                            }).length;
+                            const femaleCount = Object.values(students).flat().filter(name => {
+                                const dept = departments.find(d => students[d] && students[d].includes(name));
+                                return dept && !isResigned(dept, name) && name.includes('(여)');
+                            }).length;
+                            return `${totalCount}/${femaleCount}`;
+                        })()})
                     </h3>
+                    <div class="text-sm text-gray-500 mb-3">
+                        <i class="fas fa-info-circle"></i> 
+                        학과 수: ${departments.length}개 | 
+                        퇴사 승인: ${resignRequests.filter(r => r.status === 'approved').length}명
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
                         ${departments.map(dept => {
-                            const deptStudents = originalStudents[dept] || [];
+                            const deptStudents = students[dept] || [];
                             // 퇴사 승인된 학생 제외
                             const activeStudents = deptStudents.filter(s => !isResigned(dept, s));
+                            const activeFemales = activeStudents.filter(s => s.includes('(여)')).length;
                             // 호실번호 순서대로 정렬
                             const sortedStudents = [...activeStudents].sort((a, b) => {
                                 const roomA = studentRoomNumbers[a] || '999';
@@ -4605,7 +4654,7 @@ function renderAdminSettingsTab() {
                             });
                             return `
                             <div class="bg-white rounded-xl p-4 border border-gray-200">
-                                <div class="font-bold text-indigo-600 mb-2">${dept} (${sortedStudents.length}명)</div>
+                                <div class="font-bold text-indigo-600 mb-2">${dept} (${sortedStudents.length}/${activeFemales})</div>
                                 <div class="space-y-1">
                                     ${sortedStudents.map(s => {
                                         const room = studentRoomNumbers[s] || '-';
@@ -4680,7 +4729,7 @@ function renderAdminSettingsTab() {
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         ${departments.map(dept => {
                             const leader = DEPARTMENT_LEADERS[dept];
-                            const studentCount = originalStudents[dept] ? originalStudents[dept].length : 0;
+                            const studentCount = students[dept] ? students[dept].length : 0;
                             return `
                                 <div class="bg-white rounded-xl p-4 border border-gray-200">
                                     <div class="font-bold text-lg text-gray-800">${dept}</div>
