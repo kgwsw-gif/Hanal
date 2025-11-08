@@ -1792,8 +1792,8 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-2xl font-bold text-gray-800">${dept}</h3>
                     <div class="text-base font-bold text-gray-600">
-                        <span class="font-bold">전체</span> ${deptStudents.length}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${deptFemaleCount} | 
-                        <span class="text-teal-700"><span class="font-bold">잔류</span> ${stayCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleStayCount}</span> | 
+                        <span class="font-bold">총원</span> ${deptStudents.length}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${deptFemaleCount} | 
+                        <span class="text-teal-700"><span class="font-bold">현재</span> ${stayCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleStayCount}</span> | 
                         <span class="text-amber-700"><span class="font-bold">외박</span> ${outCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutCount}</span> | 
                         <span class="text-sky-700"><span class="font-bold">외출</span> ${outingCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleOutingCount}</span> | 
                         <span class="text-rose-700"><span class="font-bold">미제출</span> ${noneCount}<span class="text-sm" style="vertical-align: 0.05em;">/</span>${femaleNoneCount}</span>
@@ -1809,7 +1809,7 @@ function renderDepartmentStatus(todaySubmissions, todayOutings) {
                             bgColor = 'bg-emerald-100 border-emerald-300';
                             textColor = 'text-emerald-800';
                             icon = '<i class="fas fa-check-circle"></i>';
-                            statusText = '잔류';
+                            statusText = '현재';
                             deleteBtn = `<button onclick="deleteSubmission('${id}', '${student}')" class="ml-2 text-red-600 hover:text-red-800" title="삭제"><i class="fas fa-times-circle"></i></button>`;
                             // 외출 신청 내역이 있으면 표시
                             if (outingRecord) {
@@ -1878,7 +1878,7 @@ function renderStaySection(todaySubmissions) {
         <div id="staySection" class="bg-white/80 backdrop-blur-md rounded-3xl shadow-lg p-8 mb-6 fade-in">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-2xl font-bold text-emerald-700">
-                    <i class="fas fa-check-circle"></i> 잔류 현황 (${stayStudents.length}명)
+                    <i class="fas fa-check-circle"></i> 현재 현황 (${stayStudents.length}명)
                 </h2>
                 <button onclick="scrollToSection('statsCards')" class="group relative w-12 h-12 bg-white border-2 border-teal-500 text-teal-600 rounded-full font-medium hover:bg-teal-500 hover:text-white transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-xl hover:scale-110">
                     <i class="fas fa-arrow-up text-xl"></i>
@@ -2081,7 +2081,7 @@ function renderFemaleStatus(todaySubmissions, todayOutings) {
                 <!-- 잔류 -->
                 <div class="bg-white/80 rounded-2xl p-5 border border-emerald-200">
                     <div class="font-bold text-emerald-700 mb-3 text-lg flex items-center gap-2">
-                        <i class="fas fa-check-circle"></i> 잔류 (${femaleStay.length}명)
+                        <i class="fas fa-check-circle"></i> 현재 (${femaleStay.length}명)
                     </div>
                     ${femaleStay.length > 0 ? `
                         <div class="space-y-2">
@@ -4459,12 +4459,12 @@ function renderAdminStatusTab(todaySubmissions, todayOutings, stats) {
             <div class="bg-gradient-to-br from-slate-100 to-zinc-100 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-gray-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('deptStatus')">
                 <div class="text-3xl sm:text-4xl md:text-5xl mb-2"><i class="fas fa-users text-slate-600"></i></div>
                 <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.totalFemales}<span class="text-sm font-medium">명</span></div>
-                <div class="text-sm font-medium text-gray-600">전체</div>
+                <div class="text-sm font-medium text-gray-600">총원</div>
             </div>
             <div class="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-teal-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('staySection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-check-circle text-teal-500"></i></div>
                 <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleStayCount}<span class="text-sm font-medium">명</span></div>
-                <div class="text-sm font-medium text-teal-600">잔류</div>
+                <div class="text-sm font-medium text-teal-600">현재</div>
             </div>
             <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-amber-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-moon text-amber-500"></i></div>
