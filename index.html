@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>화성(캠) 행복관 인원관리 v2.1</title>
+    <title>화성(캠) 행복관 인원관리 v2.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -354,8 +355,7 @@ let originalStudents = {
     '스마트기계과': ['장지후', '김용래', '이호찬', '장윤호', '박정현'],
     '신중년(장)설비과': ['이상훈', '유승준', '김기철', '김재수', '박동한', '강석원', '조덕만', '이윤상', '윤진균', '김연국', '박종선', '김영길', '임규태', '유부열', '백영준', '김동진', '이용수'],
     '신중년(단)목공예제작': ['홍순명', '김현용', '우진하', '이문환', '서우호', '박재환'],
-    '여성재취업(바리스타)과정': ['김지현(여)', '남혜성(여)', '류소현(여)', '황지원(여)'],
-    '신중년(단)지게차': ['서철식', '최창호', '김현수', '이윤욱', '서재출', '양웅석']
+    '여성재취업(바리스타)과정': ['김지현(여)', '남혜성(여)', '류소현(여)', '황지원(여)']
 };
 
 let departments = Object.keys(originalStudents);
@@ -394,6 +394,667 @@ function sortStudentsByRoom(students) {
         const roomB = studentRoomNumbers[b] || '999';
         return parseInt(roomA) - parseInt(roomB);
     });
+}
+
+// ============ 엑셀 생성 관련 함수 ============
+// 근무일지 생성 (날짜 입력 포함)
+function generateWorkLogWithPrompt() {
+    const today = new Date().toISOString().split('T')[0];
+    const inputDate = prompt('근무일지 생성 날짜를 입력하세요 (YYYY-MM-DD 형식)\n예: 2025-10-14', today);
+    
+    if (!inputDate) {
+        console.log('날짜 입력 취소됨');
+        return;
+    }
+    
+    // 날짜 형식 검증
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(inputDate)) {
+        alert('날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.\n예: 2025-10-14');
+        return;
+    }
+    
+    console.log('입력된 날짜:', inputDate);
+    generateWorkLog(inputDate);
+}
+
+// 인원현황 생성 (날짜 입력 포함)
+function generateStatusReportWithPrompt() {
+    const today = new Date().toISOString().split('T')[0];
+    const inputDate = prompt('인원현황 생성 날짜를 입력하세요 (YYYY-MM-DD 형식)\n예: 2025-10-14', today);
+    
+    if (!inputDate) {
+        console.log('날짜 입력 취소됨');
+        return;
+    }
+    
+    // 날짜 형식 검증
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(inputDate)) {
+        alert('날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.\n예: 2025-10-14');
+        return;
+    }
+    
+    console.log('입력된 날짜:', inputDate);
+    generateStatusReport(inputDate);
+}
+
+// 현재 날짜 기준으로 인원 데이터 수집 (날짜 파라미터 추가)
+function collectCurrentData(targetDate) {
+    console.log('--- collectCurrentData 시작 ---');
+    console.log('현재 departments 배열:', departments);
+    console.log('현재 departments 수:', departments.length);
+    console.log('현재 originalStudents 학과 수:', Object.keys(originalStudents).length);
+    console.log('현재 students 학과 수:', Object.keys(students).length);
+    
+    const today = targetDate || new Date().toISOString().split('T')[0];
+    console.log('대상 날짜:', today);
+    console.log('전체 submissions:', submissions.length);
+    
+    // 전체 submissions 샘플 출력 (처음 3개)
+    if (submissions.length > 0) {
+        console.log('submissions 샘플 (처음 3개):');
+        submissions.slice(0, 3).forEach((s, idx) => {
+            console.log(`  [${idx}]`, JSON.stringify(s));
+        });
+    }
+    
+    const todaySubmissions = submissions.filter(s => s.date === today);
+    console.log(`${today}의 submissions:`, todaySubmissions.length);
+    
+    // 외박 신청만 필터링해서 확인
+    const allOvernightSubmissions = submissions.filter(s => s.status === 'out');
+    console.log('전체 외박 신청:', allOvernightSubmissions.length);
+    if (allOvernightSubmissions.length > 0) {
+        console.log('외박 신청 샘플:');
+        allOvernightSubmissions.slice(0, 5).forEach((s, idx) => {
+            console.log(`  [${idx}] 날짜:${s.date}, 이름:${s.name}, 학과:${s.department}, status:${s.status}`);
+        });
+    }
+    
+    const todayOvernightSubmissions = todaySubmissions.filter(s => s.status === 'out');
+    console.log(`${today}의 외박 신청:`, todayOvernightSubmissions.length);
+    
+    // 학과별 데이터 수집
+    const deptData = {};
+    
+    console.log('처리할 학과 목록:', departments);
+    
+    departments.forEach(dept => {
+        console.log(`\n처리 중: ${dept}`);
+        const activeStudents = (students[dept] || []).filter(s => !isResigned(dept, s));
+        console.log(`  활성 학생 수: ${activeStudents.length}`);
+        
+        const totalCount = activeStudents.length;
+        const femaleCount = activeStudents.filter(s => s.includes('(여)')).length;
+        console.log(`  총원: ${totalCount}, 여: ${femaleCount}`);
+        
+        // 해당 날짜의 제출 데이터
+        const deptSubmissions = todaySubmissions.filter(s => s.department === dept);
+        console.log(`  ${today}의 제출: ${deptSubmissions.length}건`);
+        
+        // 외박자 (status가 'out'인 경우)
+        const overnightSubmissions = deptSubmissions.filter(s => s.status === 'out');
+        console.log(`  외박 제출: ${overnightSubmissions.length}건`);
+        
+        const overnightStudents = overnightSubmissions.map(s => s.name);
+        console.log(`  외박자:`, overnightStudents);
+        
+        const overnightCount = overnightStudents.length;
+        const overnightFemaleCount = overnightStudents.filter(s => s.includes('(여)')).length;
+        
+        // 현재 인원 (총원 - 외박) - 사고 칸에도 외박자 수 표시
+        const currentCount = totalCount - overnightCount;
+        const currentFemaleCount = femaleCount - overnightFemaleCount;
+        
+        deptData[dept] = {
+            total: totalCount,
+            totalFemale: femaleCount,
+            accident: overnightCount,  // 사고 = 외박자 수
+            accidentFemale: overnightFemaleCount,  // 사고(여) = 외박자(여) 수
+            current: currentCount,
+            currentFemale: currentFemaleCount,
+            overnight: overnightCount,
+            overnightFemale: overnightFemaleCount,
+            overnightStudents: overnightStudents
+        };
+        
+        console.log(`  결과: 총${totalCount}/${femaleCount}, 사고${overnightCount}/${overnightFemaleCount}, 현재${currentCount}/${currentFemaleCount}`);
+    });
+    
+    console.log('--- collectCurrentData 완료 ---');
+    console.log('최종 deptData:', deptData);
+    return deptData;
+}
+
+// 스마트전기과 합산 (전기 + 소방)
+function mergeSmartelec(deptData) {
+    console.log('--- 스마트전기 합산 ---');
+    const elec = deptData['스마트전기(전기)과'] || {total:0, totalFemale:0, accident:0, accidentFemale:0, current:0, currentFemale:0, overnight:0, overnightFemale:0, overnightStudents:[]};
+    const fire = deptData['스마트전기(소방)과'] || {total:0, totalFemale:0, accident:0, accidentFemale:0, current:0, currentFemale:0, overnight:0, overnightFemale:0, overnightStudents:[]};
+    
+    console.log('전기과:', elec);
+    console.log('소방과:', fire);
+    
+    const merged = {
+        total: elec.total + fire.total,
+        totalFemale: elec.totalFemale + fire.totalFemale,
+        accident: elec.accident + fire.accident,
+        accidentFemale: elec.accidentFemale + fire.accidentFemale,
+        current: elec.current + fire.current,
+        currentFemale: elec.currentFemale + fire.currentFemale,
+        overnight: elec.overnight + fire.overnight,
+        overnightFemale: elec.overnightFemale + fire.overnightFemale,
+        overnightStudents: [...elec.overnightStudents, ...fire.overnightStudents]
+    };
+    
+    console.log('합산 결과:', merged);
+    return merged;
+}
+
+// 근무일지 엑셀 생성
+async function generateWorkLog(targetDate) {
+    try {
+        console.log('=== 근무일지 생성 시작 ===');
+        console.log('생성 날짜:', targetDate);
+        
+        // ExcelJS 라이브러리 확인
+        if (typeof ExcelJS === 'undefined') {
+            alert('엑셀 라이브러리가 로드되지 않았습니다. 페이지를 새로고침해주세요.');
+            console.error('ExcelJS 라이브러리 없음');
+            return;
+        }
+        console.log('✓ ExcelJS 라이브러리 로드 확인');
+        
+        // 토스트 메시지 표시
+        if (typeof showToast === 'function') {
+            showToast('근무일지 생성 중...', 'info');
+        }
+        
+        console.log('데이터 수집 시작...');
+        const deptData = collectCurrentData(targetDate);
+        console.log('수집된 학과 데이터:', deptData);
+        
+        // 워크북 생성
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Table 1');
+        console.log('✓ 워크북 생성 완료');
+        
+        // 기본 스타일 정의
+        const borderStyle = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+        };
+        
+        const baseStyle = {
+            font: { name: '맑은 고딕', size: 12 },
+            alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+            border: borderStyle
+        };
+        
+        const boldStyle = {
+            font: { name: '맑은 고딕', size: 12, bold: true },
+            alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+            border: borderStyle
+        };
+        
+        // 1행: 제목
+        worksheet.addRow(['행 복 관  근 무 일 지']);
+        worksheet.mergeCells('A1:F1');
+        worksheet.getCell('A1').style = baseStyle;
+        
+        // 2행: 빈 행
+        worksheet.addRow([]);
+        
+        // 3행: 부제목
+        worksheet.addRow(['인    원    현    황    (  현 원  /  여  )']);
+        worksheet.mergeCells('A3:F3');
+        worksheet.getCell('A3').style = baseStyle;
+        
+        // 4행: 헤더
+        const headerRow = worksheet.addRow(['학 과 별', '총원', '사고', '현재', '외박', '비   고']);
+        headerRow.eachCell((cell) => {
+            cell.style = baseStyle;
+        });
+        
+        // 합계 데이터 계산
+        const totalData = Object.values(deptData).reduce((acc, d) => ({
+            total: acc.total + d.total,
+            totalFemale: acc.totalFemale + d.totalFemale,
+            accident: acc.accident + d.accident,
+            accidentFemale: acc.accidentFemale + d.accidentFemale,
+            current: acc.current + d.current,
+            currentFemale: acc.currentFemale + d.currentFemale,
+            overnight: acc.overnight + d.overnight,
+            overnightFemale: acc.overnightFemale + d.overnightFemale
+        }), {total:0, totalFemale:0, accident:0, accidentFemale:0, current:0, currentFemale:0, overnight:0, overnightFemale:0});
+        
+        // 5행: 계 (굵게)
+        const totalRow = worksheet.addRow([
+            '계',
+            `${totalData.total}/${totalData.totalFemale}`,
+            `${totalData.accident}/${totalData.accidentFemale}`,
+            `${totalData.current}/${totalData.currentFemale}`,
+            `${totalData.overnight}/${totalData.overnightFemale}`,
+            ''
+        ]);
+        totalRow.eachCell((cell) => {
+            cell.style = boldStyle;
+        });
+        
+        // 학과별 데이터
+        // 학과 순서: 스마트전기를 4번째 위치에 배치
+        const filteredDepts = departments.filter(d => d !== '스마트전기(전기)과' && d !== '스마트전기(소방)과');
+        const deptOrder = [
+            ...filteredDepts.slice(0, 3),  // 첫 3개 학과
+            'MERGED_SMARTELEC',             // 4번째: 스마트전기
+            ...filteredDepts.slice(3)       // 나머지 학과
+        ];
+        
+        deptOrder.forEach(deptKey => {
+            let deptName, data;
+            
+            if (deptKey === 'MERGED_SMARTELEC') {
+                deptName = '스마트전기';
+                data = mergeSmartelec(deptData);
+            } else {
+                deptName = deptKey.replace('과', '').replace('과정', '');
+                data = deptData[deptKey] || {total:0, totalFemale:0, accident:0, accidentFemale:0, current:0, currentFemale:0, overnight:0, overnightFemale:0};
+            }
+            
+            const row = worksheet.addRow([
+                deptName,
+                `${data.total}/${data.totalFemale}`,
+                `${data.accident}/${data.accidentFemale}`,
+                `${data.current}/${data.currentFemale}`,
+                `${data.overnight}/${data.overnightFemale}`,
+                ''
+            ]);
+            
+            // 각 셀에 스타일 적용
+            row.eachCell((cell, colNum) => {
+                // 총원 열(B, 2) 또는 현재 열(D, 4)은 굵게
+                if (colNum === 2 || colNum === 4) {
+                    cell.style = boldStyle;
+                } else {
+                    cell.style = baseStyle;
+                }
+            });
+        });
+        
+        // 열 너비 설정
+        worksheet.columns = [
+            { width: 20 }, // A: 학과명
+            { width: 12 }, // B: 총원
+            { width: 12 }, // C: 사고
+            { width: 12 }, // D: 현재
+            { width: 12 }, // E: 외박
+            { width: 20 }  // F: 비고
+        ];
+        
+        console.log('✓ 워크시트 데이터 생성 완료');
+        
+        // 파일 저장
+        const dateObj = targetDate ? new Date(targetDate + 'T00:00:00') : new Date();
+        const fileName = `근무일지_${dateObj.getFullYear()}_${String(dateObj.getMonth()+1).padStart(2,'0')}_${String(dateObj.getDate()).padStart(2,'0')}.xlsx`;
+        
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        console.log('✓ 파일 다운로드 시작');
+        
+        // 성공 메시지
+        if (typeof showToast === 'function') {
+            showToast('근무일지 다운로드 완료!', 'success');
+        } else {
+            alert('근무일지 다운로드 완료!');
+        }
+        console.log('=== 근무일지 생성 완료 ===');
+    } catch (error) {
+        console.error('❌ 근무일지 생성 오류:', error);
+        console.error('오류 스택:', error.stack);
+        alert('근무일지 생성 실패: ' + error.message);
+    }
+}
+
+// 인원현황 엑셀 생성
+async function generateStatusReport(targetDate) {
+    try {
+        console.log('=== 인원현황 생성 시작 ===');
+        console.log('생성 날짜:', targetDate);
+        
+        // ExcelJS 라이브러리 확인
+        if (typeof ExcelJS === 'undefined') {
+            alert('엑셀 라이브러리가 로드되지 않았습니다. 페이지를 새로고침해주세요.');
+            console.error('ExcelJS 라이브러리 없음');
+            return;
+        }
+        console.log('✓ ExcelJS 라이브러리 로드 확인');
+        
+        // 토스트 메시지 표시
+        if (typeof showToast === 'function') {
+            showToast('인원현황 생성 중...', 'info');
+        }
+        
+        console.log('데이터 수집 시작...');
+        const deptData = collectCurrentData(targetDate);
+        console.log('수집된 학과 데이터:', deptData);
+        
+        // 워크북 생성
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Table 1');
+        console.log('✓ 워크북 생성 완료');
+        
+        // 학과 순서: 스마트전기를 4번째 위치에 배치
+        const filteredDepts = departments
+            .filter(d => d !== '스마트전기(전기)과' && d !== '스마트전기(소방)과')
+            .map(dept => ({
+                key: dept,
+                name: dept.replace('과', '').replace('과정', '')
+            }));
+        const deptOrder = [
+            ...filteredDepts.slice(0, 3),  // 첫 3개 학과
+            { key: 'MERGED_SMARTELEC', name: '스마트전기' },  // 4번째: 스마트전기
+            ...filteredDepts.slice(3)       // 나머지 학과
+        ];
+        
+        // 기본 스타일
+        const borderStyle = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+        };
+        
+        const baseStyle = {
+            font: { name: '맑은 고딕', size: 11 },
+            alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+            border: borderStyle
+        };
+        
+        const boldStyle = {
+            font: { name: '맑은 고딕', size: 11, bold: true },
+            alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+            border: borderStyle
+        };
+        
+        // 1행: 제목
+        const titleRow = worksheet.addRow(['행  복  관  인  원  현  황']);
+        worksheet.mergeCells(1, 1, 1, 3 + deptOrder.length);
+        worksheet.getCell('A1').style = baseStyle;
+        
+        // 2행: 빈 행
+        worksheet.addRow([]);
+        
+        // 3행: 헤더 (굵게)
+        const headerData = ['구분', '', '총원'];
+        deptOrder.forEach(d => headerData.push(d.name));
+        const headerRow = worksheet.addRow(headerData);
+        headerRow.eachCell((cell) => {
+            cell.style = boldStyle;
+        });
+        worksheet.mergeCells(3, 1, 3, 2); // A3:B3 병합
+        
+        // 합계 계산 함수
+        const calculateTotals = (field, femaleField) => {
+            let total = 0, totalFemale = 0;
+            deptOrder.forEach(d => {
+                const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {});
+                total += data[field] || 0;
+                totalFemale += data[femaleField] || 0;
+            });
+            return { total, totalFemale };
+        };
+        
+        // 4행: 입사
+        const admissionData = ['입사', ''];
+        const admissionTotals = calculateTotals('total', 'totalFemale');
+        admissionData.push(`${admissionTotals.total}/${admissionTotals.totalFemale}`);
+        deptOrder.forEach(d => {
+            const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {total:0, totalFemale:0});
+            admissionData.push(`${data.total}/${data.totalFemale}`);
+        });
+        const admissionRow = worksheet.addRow(admissionData);
+        admissionRow.eachCell((cell) => {
+            cell.style = boldStyle; // 입사 행 전체 굵게
+        });
+        worksheet.mergeCells(4, 1, 4, 2);
+        
+        // 5행: 사고
+        const accidentData = ['사고', ''];
+        const accidentTotals = calculateTotals('accident', 'accidentFemale');
+        accidentData.push(`${accidentTotals.total}/${accidentTotals.totalFemale}`);
+        deptOrder.forEach(d => {
+            const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {accident:0, accidentFemale:0});
+            accidentData.push(`${data.accident}/${data.accidentFemale}`);
+        });
+        const accidentRow = worksheet.addRow(accidentData);
+        accidentRow.eachCell((cell, colNum) => {
+            cell.style = colNum === 3 ? boldStyle : baseStyle;
+        });
+        worksheet.mergeCells(5, 1, 5, 2);
+        
+        // 6행: 현재 (전체 행 굵게)
+        const currentData = ['현재', ''];
+        const currentTotals = calculateTotals('current', 'currentFemale');
+        currentData.push(`${currentTotals.total}/${currentTotals.totalFemale}`);
+        deptOrder.forEach(d => {
+            const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {current:0, currentFemale:0});
+            currentData.push(`${data.current}/${data.currentFemale}`);
+        });
+        const currentRow = worksheet.addRow(currentData);
+        currentRow.eachCell((cell) => {
+            cell.style = boldStyle; // 현재 행 전체 굵게
+        });
+        worksheet.mergeCells(6, 1, 6, 2);
+        
+        // 7행: 외박
+        const overnightData = ['외박', ''];
+        const overnightTotals = calculateTotals('overnight', 'overnightFemale');
+        overnightData.push(`${overnightTotals.total}/${overnightTotals.totalFemale}`);
+        deptOrder.forEach(d => {
+            const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {overnight:0, overnightFemale:0});
+            overnightData.push(`${data.overnight}/${data.overnightFemale}`);
+        });
+        const overnightRow = worksheet.addRow(overnightData);
+        overnightRow.eachCell((cell, colNum) => {
+            cell.style = colNum === 3 ? boldStyle : baseStyle;
+        });
+        worksheet.mergeCells(7, 1, 7, 2);
+        
+        // 8행: 외박자명단 헤더
+        const nameListHeaderData = ['외박자명단', '', ''];
+        deptOrder.forEach(() => nameListHeaderData.push(''));
+        const nameListHeader = worksheet.addRow(nameListHeaderData);
+        
+        // 외박자 명단 최대 행 수 계산
+        let maxOvernightCount = 0;
+        deptOrder.forEach(d => {
+            const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {overnightStudents:[]});
+            const maleCount = data.overnightStudents.filter(s => !s.includes('(여)')).length;
+            const femaleCount = data.overnightStudents.filter(s => s.includes('(여)')).length;
+            const totalNeeded = maleCount + (femaleCount > 0 ? 2 + femaleCount : 0);
+            maxOvernightCount = Math.max(maxOvernightCount, totalNeeded);
+        });
+        
+        // 외박자 명단 행 추가 (최소 5줄)
+        const nameListRowCount = Math.max(maxOvernightCount, 5);
+        for (let i = 0; i < nameListRowCount; i++) {
+            const rowData = ['', '', ''];
+            deptOrder.forEach(d => {
+                const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {overnightStudents:[]});
+                const students = data.overnightStudents;
+                const maleStudents = students.filter(s => !s.includes('(여)'));
+                const femaleStudents = students.filter(s => s.includes('(여)'));
+                
+                let cellValue = '';
+                if (maleStudents.length > 0 && femaleStudents.length === 0) {
+                    if (i < maleStudents.length) cellValue = maleStudents[i];
+                } else if (maleStudents.length === 0 && femaleStudents.length > 0) {
+                    if (i === 0) cellValue = '(여학생)';
+                    else if (i - 1 < femaleStudents.length) cellValue = femaleStudents[i - 1].replace('(여)', '');
+                } else if (maleStudents.length > 0 && femaleStudents.length > 0) {
+                    if (i < maleStudents.length) cellValue = maleStudents[i];
+                    else if (i === maleStudents.length) cellValue = '';
+                    else if (i === maleStudents.length + 1) cellValue = '(여학생)';
+                    else {
+                        const femaleIdx = i - maleStudents.length - 2;
+                        if (femaleIdx < femaleStudents.length) cellValue = femaleStudents[femaleIdx].replace('(여)', '');
+                    }
+                }
+                rowData.push(cellValue);
+            });
+            worksheet.addRow(rowData);
+        }
+        
+        // 모든 셀에 스타일 적용
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber >= 8) { // 외박자명단 영역
+                row.eachCell((cell, colNumber) => {
+                    // 외박자명단 영역 전체(A, B, C열 이후 모두) 테두리 제거
+                    cell.style = {
+                        font: { name: '맑은 고딕', size: 11 },
+                        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true }
+                        // border 없음
+                    };
+                });
+            }
+        });
+        
+        // 외박자명단 A:B 병합
+        const nameListEndRow = 8 + nameListRowCount - 1;
+        worksheet.mergeCells(8, 1, nameListEndRow, 2);
+        
+        // 열 너비 설정
+        worksheet.getColumn(1).width = 6;
+        worksheet.getColumn(2).width = 6;
+        worksheet.getColumn(3).width = 8;
+        for (let i = 0; i < deptOrder.length; i++) {
+            worksheet.getColumn(4 + i).width = 12;
+        }
+        
+        console.log('✓ 워크시트 데이터 생성 완료');
+        
+        // 파일 저장
+        const dateObj = targetDate ? new Date(targetDate + 'T00:00:00') : new Date();
+        const fileName = `인원현황_${dateObj.getFullYear()}_${String(dateObj.getMonth()+1).padStart(2,'0')}_${String(dateObj.getDate()).padStart(2,'0')}.xlsx`;
+        
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        console.log('✓ 파일 다운로드 시작');
+        
+        if (typeof showToast === 'function') {
+            showToast('인원현황 다운로드 완료!', 'success');
+        } else {
+            alert('인원현황 다운로드 완료!');
+        }
+        console.log('=== 인원현황 생성 완료 ===');
+    } catch (error) {
+        console.error('❌ 인원현황 생성 오류:', error);
+        console.error('오류 스택:', error.stack);
+        alert('인원현황 생성 실패: ' + error.message);
+    }
+}
+
+// 토스트 메시지 표시 함수
+function showToast(message, type = 'info') {
+    // 기존 토스트가 있으면 제거
+    const existingToast = document.getElementById('toast-message');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
+    // 토스트 요소 생성
+    const toast = document.createElement('div');
+    toast.id = 'toast-message';
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 16px;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideInRight 0.3s ease-out;
+        max-width: 400px;
+    `;
+    
+    // 타입별 스타일
+    if (type === 'success') {
+        toast.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        toast.style.color = 'white';
+        toast.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+    } else if (type === 'error') {
+        toast.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+        toast.style.color = 'white';
+        toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+    } else if (type === 'warning') {
+        toast.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+        toast.style.color = 'white';
+        toast.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
+    } else { // info
+        toast.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+        toast.style.color = 'white';
+        toast.innerHTML = `<i class="fas fa-info-circle"></i> ${message}`;
+    }
+    
+    // 애니메이션 스타일 추가
+    if (!document.getElementById('toast-animation-style')) {
+        const style = document.createElement('style');
+        style.id = 'toast-animation-style';
+        style.textContent = `
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideOutRight {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(toast);
+    
+    // 3초 후 자동 제거
+    setTimeout(() => {
+        toast.style.animation = 'slideOutRight 0.3s ease-out';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 300);
+    }, 3000);
 }
 
 // 섹션으로 부드럽게 스크롤하는 함수
@@ -3714,6 +4375,9 @@ async function addStudent() {
         }
         students[dept] = [...updatedStudents]; // 배열 복사로 확실히 업데이트
         
+        // 퇴사자 필터링 적용
+        updateStudentsList();
+        
         console.log('✓ 교육생 추가 완료:', dept, name, '현재 인원:', students[dept].length);
         
         alert(`✓ ${name} 교육생이 ${dept}에 추가되었습니다!\n호실: ${room || '미지정'}\n비밀번호: ${password}\n\n※ 호실번호 순으로 자동 정렬되었습니다.`);
@@ -3883,6 +4547,9 @@ async function deleteStudent() {
         if (students[dept]) {
             students[dept] = students[dept].filter(s => s !== name);
         }
+        
+        // 퇴사자 필터링 적용
+        updateStudentsList();
         
         console.log('✓ 교육생 삭제 완료:', name);
         
@@ -4089,6 +4756,9 @@ async function addDepartment() {
             departments.push(deptName);
         }
         students[deptName] = [];
+        
+        // 퇴사자 필터링 적용
+        updateStudentsList();
         
         console.log('✓ 학과 추가 완료:', deptName, '현재 학과 수:', departments.length);
         
@@ -4313,6 +4983,9 @@ async function deleteDepartment() {
         }
         delete students[deptName];
         
+        // 퇴사자 필터링 적용
+        updateStudentsList();
+        
         console.log('✓ 학과 삭제 완료:', deptName);
         
         alert(`✓ ${deptName} 학과가 삭제되었습니다.`);
@@ -4458,38 +5131,44 @@ function renderAdminStatusTab(todaySubmissions, todayOutings, stats) {
         <div id="statsCards" class="grid grid-cols-2 md:grid-cols-5 gap-5 mb-6 fade-in">
             <div class="bg-gradient-to-br from-slate-100 to-zinc-100 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-gray-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('deptStatus')">
                 <div class="text-3xl sm:text-4xl md:text-5xl mb-2"><i class="fas fa-users text-slate-600"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.totalFemales}<span class="text-sm font-medium">명</span></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800">${stats.totalStudents}<span class="text-lg sm:text-xl md:text-2xl" style="vertical-align: 0.1em;">/</span>${stats.totalFemales}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-gray-600">총원</div>
             </div>
             <div class="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-teal-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('staySection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-check-circle text-teal-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleStayCount}<span class="text-sm font-medium">명</span></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-teal-700">${stats.stayCount}<span class="text-lg sm:text-xl md:text-2xl" style="vertical-align: 0.1em;">/</span>${stats.femaleStayCount}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-teal-600">현재</div>
             </div>
             <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-amber-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-moon text-amber-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutCount}<span class="text-sm font-medium">명</span></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-amber-700">${stats.outCount}<span class="text-lg sm:text-xl md:text-2xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutCount}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-amber-600">외박</div>
             </div>
             <div class="bg-gradient-to-br from-sky-50 to-blue-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-sky-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('outingSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-walking text-sky-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutingCount}<span class="text-sm font-medium">명</span></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-sky-700">${stats.outingCount}<span class="text-lg sm:text-xl md:text-2xl" style="vertical-align: 0.1em;">/</span>${stats.femaleOutingCount}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-sky-600">외출</div>
             </div>
             <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-3xl p-4 sm:p-6 md:p-7 text-center shadow-md border border-rose-200 cursor-pointer hover:shadow-xl transition-all hover:scale-105" onclick="scrollToSection('notSubmittedSection')">
                 <div class="text-3xl sm:text-2xl sm:text-3xl md:text-4xl md:text-5xl mb-2"><i class="fas fa-exclamation-circle text-rose-500"></i></div>
-                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}<span class="text-xl sm:text-2xl md:text-3xl" style="vertical-align: 0.1em;">/</span>${stats.femaleNotSubmitted}<span class="text-sm font-medium">명</span></div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-bold text-rose-700">${stats.notSubmitted}<span class="text-lg sm:text-xl md:text-2xl" style="vertical-align: 0.1em;">/</span>${stats.femaleNotSubmitted}<span class="text-sm font-medium">명</span></div>
                 <div class="text-sm font-medium text-rose-600">미제출</div>
             </div>
         </div>
 
         <!-- 다운로드 버튼 -->
-        <div class="flex gap-3 mb-6 fade-in flex-wrap">
-            <button onclick="downloadExcel()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-600 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-200 hover:to-zinc-200">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 fade-in">
+            <button onclick="downloadExcel()" class="bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-600 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-200 hover:to-zinc-200">
                 <i class="fas fa-download"></i> 선택 날짜 엑셀 다운로드
             </button>
-            <button onclick="downloadAllData()" class="flex-1 min-w-[200px] bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-600 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-200 hover:to-zinc-200">
+            <button onclick="downloadAllData()" class="bg-gradient-to-br from-slate-100 to-zinc-100 text-gray-600 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-gray-300 hover:from-slate-200 hover:to-zinc-200">
                 <i class="fas fa-chart-bar"></i> 전체 데이터 다운로드
+            </button>
+            <button onclick="generateWorkLogWithPrompt()" class="bg-gradient-to-br from-blue-100 to-indigo-100 text-indigo-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-indigo-300 hover:from-blue-200 hover:to-indigo-200">
+                <i class="fas fa-file-excel"></i> 근무일지 생성
+            </button>
+            <button onclick="generateStatusReportWithPrompt()" class="bg-gradient-to-br from-green-100 to-emerald-100 text-emerald-700 px-4 sm:px-6 md:px-8 py-3 sm:py-4 md:py-5 rounded-2xl font-bold text-sm sm:text-base md:text-lg hover:shadow-lg transition-all flex items-center justify-center gap-3 border border-emerald-300 hover:from-green-200 hover:to-emerald-200">
+                <i class="fas fa-file-excel"></i> 인원현황 생성
             </button>
         </div>
 
