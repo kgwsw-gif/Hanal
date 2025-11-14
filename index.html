@@ -400,8 +400,10 @@ function sortStudentsByRoom(students) {
 // ============ 엑셀 생성 관련 함수 ============
 // 근무일지 생성 (날짜 입력 포함)
 function generateWorkLogWithPrompt() {
-    const today = new Date().toISOString().split('T')[0];
-    const inputDate = prompt('근무일지 생성 날짜를 입력하세요 (YYYY-MM-DD 형식)\n예: 2025-10-14', today);
+    // 로컬 시간대 기준 오늘 날짜
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const inputDate = prompt('근무일지 생성 날짜를 입력하세요 (YYYY-MM-DD 형식)\n예: ' + today, today);
     
     if (!inputDate) {
         console.log('날짜 입력 취소됨');
@@ -411,7 +413,7 @@ function generateWorkLogWithPrompt() {
     // 날짜 형식 검증
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(inputDate)) {
-        alert('날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.\n예: 2025-10-14');
+        alert('날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.\n예: ' + today);
         return;
     }
     
@@ -477,8 +479,10 @@ function getDayName(dateString) {
 
 // 인원현황 생성 (날짜 입력 포함)
 function generateStatusReportWithPrompt() {
-    const today = new Date().toISOString().split('T')[0];
-    const inputDate = prompt('인원현황 생성 날짜를 입력하세요 (YYYY-MM-DD 형식)\n예: 2025-10-14', today);
+    // 로컬 시간대 기준 오늘 날짜
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const inputDate = prompt('인원현황 생성 날짜를 입력하세요 (YYYY-MM-DD 형식)\n예: ' + today, today);
     
     if (!inputDate) {
         console.log('날짜 입력 취소됨');
@@ -488,7 +492,7 @@ function generateStatusReportWithPrompt() {
     // 날짜 형식 검증
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(inputDate)) {
-        alert('날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.\n예: 2025-10-14');
+        alert('날짜 형식이 올바르지 않습니다. YYYY-MM-DD 형식으로 입력해주세요.\n예: ' + today);
         return;
     }
     
@@ -534,7 +538,12 @@ function collectCurrentData(targetDate, listType = 'overnight') {
     console.log('현재 originalStudents 학과 수:', Object.keys(originalStudents).length);
     console.log('현재 students 학과 수:', Object.keys(students).length);
     
-    const today = targetDate || new Date().toISOString().split('T')[0];
+    // 로컬 시간대 기준 오늘 날짜
+    let today = targetDate;
+    if (!targetDate) {
+        const now = new Date();
+        today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
     console.log('대상 날짜:', today);
     console.log('전체 submissions:', submissions.length);
     
@@ -598,15 +607,9 @@ function collectCurrentData(targetDate, listType = 'overnight') {
         const stayCount = stayStudents.length;
         const stayFemaleCount = stayStudents.filter(s => s.includes('(여)')).length;
         
-        // 현재 인원 계산 - 제출이 없는 학과는 0으로 표시
-        let currentCount = 0;
-        let currentFemaleCount = 0;
-        
-        if (deptSubmissions.length > 0) {
-            // 제출이 있는 학과만 (총원 - 외박)으로 계산
-            currentCount = totalCount - overnightCount;
-            currentFemaleCount = femaleCount - overnightFemaleCount;
-        }
+        // 현재 인원 = 잔류 신청자만 표시 (기본값 0)
+        const currentCount = stayCount;
+        const currentFemaleCount = stayFemaleCount;
         
         // listType에 따라 표시할 학생 목록 결정
         let displayStudents = [];
@@ -987,19 +990,18 @@ async function generateStatusReport(targetDate, listType = 'overnight') {
         });
         worksheet.mergeCells(7, 1, 7, 2);
         
-        // 8행: 명단 헤더 (외박자명단 또는 잔류자명단, 아래 가로선 추가)
-        const listTitle = listType === 'stay' ? '잔류자명단' : '외박자명단';
-        const nameListHeaderData = [listTitle, '', ''];
-        deptOrder.forEach(() => nameListHeaderData.push(''));
-        const nameListHeader = worksheet.addRow(nameListHeaderData);
-        nameListHeader.eachCell((cell, colNumber) => {
+        // 8행: 빈 행 (A8:B8 병합 예정)
+        const emptyHeaderData = ['', '', ''];
+        deptOrder.forEach(() => emptyHeaderData.push(''));
+        const emptyHeader = worksheet.addRow(emptyHeaderData);
+        emptyHeader.eachCell((cell, colNumber) => {
             const isColumnA = colNumber === 1;
             const isColumnB = colNumber === 2;
             
             let borderStyle = {
                 left: { style: 'thin' },
                 right: { style: 'thin' },
-                bottom: { style: 'thin' } // 명단 헤더 아래 가로선
+                bottom: { style: 'thin' }
             };
             
             // A열: 오른쪽 세로선 제거 (A-B 사이)
@@ -1025,107 +1027,81 @@ async function generateStatusReport(targetDate, listType = 'overnight') {
             };
         });
         
-        // 명단 최대 행 수 계산 (잔류자/외박자 모두 적용)
-        let maxListCount = 0;
+        // A8:B8 병합
+        worksheet.mergeCells(8, 1, 8, 2);
+        
+        // 9행: 명단 헤더 (외박자명단 또는 잔류자명단) + 학생 명단 데이터
+        const listTitle = listType === 'stay' ? '잔류자명단' : '외박자명단';
+        const nameListData = [listTitle, '', ''];
         deptOrder.forEach(d => {
             const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {overnightStudents:[]});
-            const maleCount = data.overnightStudents.filter(s => !s.includes('(여)')).length;
-            const femaleCount = data.overnightStudents.filter(s => s.includes('(여)')).length;
-            const totalNeeded = maleCount + (femaleCount > 0 ? 2 + femaleCount : 0);
-            maxListCount = Math.max(maxListCount, totalNeeded);
-        });
-        
-        // 명단 행 추가 (최소 5줄, 잔류자/외박자 모두 적용)
-        const nameListRowCount = Math.max(maxListCount, 5);
-        for (let i = 0; i < nameListRowCount; i++) {
-            const rowData = ['', '', ''];
-            deptOrder.forEach(d => {
-                const data = d.key === 'MERGED_SMARTELEC' ? mergeSmartelec(deptData) : (deptData[d.key] || {overnightStudents:[]});
-                const students = data.overnightStudents;
-                const maleStudents = students.filter(s => !s.includes('(여)'));
-                const femaleStudents = students.filter(s => s.includes('(여)'));
-                
-                let cellValue = '';
-                if (maleStudents.length > 0 && femaleStudents.length === 0) {
-                    if (i < maleStudents.length) cellValue = maleStudents[i];
-                } else if (maleStudents.length === 0 && femaleStudents.length > 0) {
-                    if (i === 0) cellValue = '(여학생)';
-                    else if (i - 1 < femaleStudents.length) cellValue = femaleStudents[i - 1].replace('(여)', '');
-                } else if (maleStudents.length > 0 && femaleStudents.length > 0) {
-                    if (i < maleStudents.length) cellValue = maleStudents[i];
-                    else if (i === maleStudents.length) cellValue = '';
-                    else if (i === maleStudents.length + 1) cellValue = '(여학생)';
-                    else {
-                        const femaleIdx = i - maleStudents.length - 2;
-                        if (femaleIdx < femaleStudents.length) cellValue = femaleStudents[femaleIdx].replace('(여)', '');
-                    }
-                }
-                rowData.push(cellValue);
-            });
-            worksheet.addRow(rowData);
-        }
-        
-        // 명단 행 계산
-        const nameListEndRow = 8 + nameListRowCount - 1;
-        const actualLastStudentRow = 8 + maxListCount; // 실제 학생(잔류/외박)이 끝나는 행
-        
-        // 모든 셀에 스타일 적용 (9행 이후 학생 명단 영역)
-        worksheet.eachRow((row, rowNumber) => {
-            if (rowNumber >= 9) { // 9행 이후 명단 영역 (잔류자/외박자)
-                row.eachCell((cell, colNumber) => {
-                    const isActualLastRow = rowNumber === actualLastStudentRow;
-                    const isAfterLastRow = rowNumber > actualLastStudentRow; // 마지막 행 이후
-                    const isColumnA = colNumber === 1;
-                    const isColumnB = colNumber === 2;
-                    
-                    // 마지막 행 이후: 세로선 없음 (빈 영역)
-                    if (isAfterLastRow) {
-                        cell.style = {
-                            font: { name: '맑은 고딕', size: 11 },
-                            alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
-                            border: {} // 테두리 없음
-                        };
-                        return;
-                    }
-                    
-                    // 기본 세로선 설정 (마지막 행까지만)
-                    let borderStyle = {
-                        left: { style: 'thin' },
-                        right: { style: 'thin' }
-                    };
-                    
-                    // A열: 오른쪽 세로선 제거 (A-B 사이)
-                    if (isColumnA) {
-                        borderStyle = {
-                            left: { style: 'thin' }
-                            // right 없음
-                        };
-                    }
-                    
-                    // B열: 왼쪽 세로선 제거 (A-B 사이)
-                    if (isColumnB) {
-                        borderStyle = {
-                            right: { style: 'thin' }
-                            // left 없음
-                        };
-                    }
-                    
-                    // 실제 학생(잔류/외박)이 끝나는 줄: 가로선 추가 (제일 긴 마지막 행 기준 1줄)
-                    if (isActualLastRow) {
-                        borderStyle.bottom = { style: 'thin' };
-                    }
-                    
-                    cell.style = {
-                        font: { name: '맑은 고딕', size: 11 },
-                        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
-                        border: borderStyle
-                    };
-                });
+            const students = data.overnightStudents;
+            const maleStudents = students.filter(s => !s.includes('(여)'));
+            const femaleStudents = students.filter(s => s.includes('(여)'));
+            
+            // 학과별 학생 명단을 한 셀에 모두 표시 (개행으로 구분)
+            let studentList = [];
+            
+            if (maleStudents.length > 0) {
+                studentList = [...maleStudents];
             }
+            
+            if (femaleStudents.length > 0) {
+                if (maleStudents.length > 0) {
+                    studentList.push(''); // 남학생과 여학생 사이 빈 줄
+                }
+                studentList.push('(여학생)');
+                studentList.push(...femaleStudents.map(s => s.replace('(여)', '')));
+            }
+            
+            nameListData.push(studentList.join('\n'));
         });
         
-        // 명단 A:B 병합 (잔류자/외박자) - 실제 학생이 있는 마지막 행까지만 병합
-        worksheet.mergeCells(8, 1, actualLastStudentRow, 2);
+        // 9행: 명단 행 추가 (A9에 명단 제목, C9부터 학생 명단)
+        const nameListRow = worksheet.addRow(nameListData);
+        
+        // 명단 행 스타일 적용
+        nameListRow.eachCell((cell, colNumber) => {
+            const isColumnA = colNumber === 1;
+            const isColumnB = colNumber === 2;
+            const isColumnC = colNumber === 3;
+            
+            let borderStyle = {
+                left: { style: 'thin' },
+                right: { style: 'thin' },
+                bottom: { style: 'thin' }
+            };
+            
+            // A열: 오른쪽 세로선 제거 (A-B 사이)
+            if (isColumnA) {
+                borderStyle = {
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' }
+                };
+            }
+            
+            // B열: 왼쪽 세로선 제거 (A-B 사이)
+            if (isColumnB) {
+                borderStyle = {
+                    right: { style: 'thin' },
+                    bottom: { style: 'thin' }
+                };
+            }
+            
+            // A-B: 가운데 정렬 (명단 제목), C열 이후: 왼쪽 정렬 (학생 명단)
+            const alignment = (isColumnC || colNumber > 3) 
+                ? { horizontal: 'left', vertical: 'top', wrapText: true }
+                : { horizontal: 'center', vertical: 'middle', wrapText: true };
+            
+            cell.style = {
+                font: { name: '맑은 고딕', size: 11 },
+                alignment: alignment,
+                border: borderStyle
+            };
+        });
+        
+        // A9:B9 병합 (명단 제목)
+        worksheet.mergeCells(9, 1, 9, 2);
         
         // 열 너비 설정
         worksheet.getColumn(1).width = 6;
@@ -1854,7 +1830,9 @@ async function approveResign(docId, name) {
     }
     
     const dept = resignRequest.department;
-    const approvedDate = new Date().toISOString().split('T')[0];
+    // 로컬 시간대 기준 오늘 날짜
+    const now = new Date();
+    const approvedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     
     if (!confirm(`${name} 교육생의 퇴사를 승인하시겠습니까?\n\n승인 시:\n- 학과 인원에서 제외됩니다\n- 전체 인원수가 감소합니다\n- 오늘(${approvedDate}) 이후의 제출 기록만 삭제됩니다\n- 이전 데이터는 통계를 위해 보존됩니다`)) {
         return;
@@ -4519,7 +4497,10 @@ function downloadAllData() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `기숙사관리_전체데이터_${new Date().toISOString().split('T')[0]}.csv`);
+    // 로컬 시간대 기준 오늘 날짜
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    link.setAttribute('download', `기숙사관리_전체데이터_${today}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
