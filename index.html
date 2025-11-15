@@ -498,37 +498,29 @@ function generateStatusReportWithPrompt() {
     
     console.log('입력된 날짜:', inputDate);
     
-    // 요일 체크 및 명단 유형 자동 제안
+    // 요일 정보 표시
     const dayName = getDayName(inputDate);
-    const shouldStay = shouldShowStayList(inputDate);
+    const beforeHoliday = isBeforeHoliday(inputDate);
     
-    let listType = 'overnight'; // 기본값: 외박자명단
+    let message = `${inputDate} (${dayName})`;
     
-    if (shouldStay) {
-        const beforeHoliday = isBeforeHoliday(inputDate);
-        let message = `${inputDate} (${dayName})`;
-        
-        if (beforeHoliday) {
-            message += '\n\n⚠️ 공휴일 전날입니다.';
-        } else if (dayName === '금요일') {
-            message += '\n\n⚠️ 금요일입니다.';
-        } else if (dayName === '토요일') {
-            message += '\n\n⚠️ 토요일입니다.';
-        }
-        
-        message += '\n\n어떤 명단을 생성하시겠습니까?';
-        
-        // 확인 다이얼로그로 선택
-        const useStayList = confirm(message + '\n\n[확인] = 잔류자명단\n[취소] = 외박자명단');
-        
-        if (useStayList) {
-            listType = 'stay';
-        }
+    if (beforeHoliday) {
+        message += '\n\n⚠️ 공휴일 전날입니다.';
+    } else if (dayName === '금요일') {
+        message += '\n\n⚠️ 금요일입니다.';
+    } else if (dayName === '토요일') {
+        message += '\n\n⚠️ 토요일입니다.';
     }
+    
+    message += '\n\n어떤 명단을 생성하시겠습니까?';
+    
+    // 확인 다이얼로그로 선택 (평일도 포함)
+    const useStayList = confirm(message + '\n\n[확인] = 잔류자명단\n[취소] = 외박자명단');
+    
+    const listType = useStayList ? 'stay' : 'overnight';
     
     generateStatusReport(inputDate, listType);
 }
-
 // 현재 날짜 기준으로 인원 데이터 수집 (날짜 파라미터 추가)
 function collectCurrentData(targetDate, listType = 'overnight') {
     console.log('--- collectCurrentData 시작 ---');
