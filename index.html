@@ -4481,6 +4481,228 @@ function downloadExcel() {
 }
 
 function downloadAllData() {
+// 엑셀 파일로 학생 일괄 등록
+async function uploadStudentsExcel() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx, .xls';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+            showToast('엑셀 파일 읽는 중...', 'info');
+            
+            const data = await file.arrayBuffer();
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(data);
+            
+            const worksheet = workbook.worksheets[0];
+            
+            if (!worksheet) {
+                alert('❌ 엑셀 파일에 시트가 없습니다.');
+                return;
+            }
+            
+            // 헤더 확인
+            const headerRow = worksheet.getRow(1);
+            const headers = [];
+            headerRow.eachCell((cell, colNumber) => {
+                headers[colNumber] = cell.value;
+            });
+            
+            const deptCol = headers.findIndex(h => h && h.toString().includes('학과'));
+            const nameCol = headers.findIndex(h => h && h.toString().includes('이름'));
+            const roomCol = headers.findIndex(h => h && h.toString().includes('호실'));
+            const pwCol = headers.findIndex(h => h && h.toString().includes('비밀번호'));
+            
+            if (deptCol === -1 || nameCol === -1 || pwCol === -1) {
+                alert('❌ 필수 컬럼이 없습니다.\n\n필수: 학과, 이름, 비밀번호');
+                return;
+            }
+            
+            // 데이터 읽기
+            const studentsData = [];
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) return;
+                
+                const dept = row.getCell(deptCol).value?.toString().trim();
+                const name = row.getCell(nameCol).value?.toString().trim();
+                const room = row.getCell(roomCol).value?.toString().trim() || '';
+                const password = row.getCell(pwCol).value?.toString().trim();
+                
+                if (dept && name && password) {
+                    studentsData.push({ dept, name, room, password });
+                }
+            });
+            
+            if (studentsData.length === 0) {
+                alert('❌ 등록할 학생 데이터가 없습니다.');
+                return;
+            }
+            
+            const depts = [...new Set(studentsData.map(s => s.dept))];
+            if (!confirm(`총 ${studentsData.length}명의 학생을 등록하시겠습니까?\n\n학과 수: ${depts.length}개`)) return;
+            
+            showToast('학생 데이터 업로드 중...', 'info');
+            
+            let successCount = 0;
+            
+            // 학과별로 그룹화
+            const studentsByDept = {};
+            studentsData.forEach(s => {
+                if (!studentsByDept[s.dept]) {
+                    studentsByDept[s.dept] = [];
+                }
+                studentsByDept[s.dept].push(s);
+            });
+            
+            // 각 학과별로 처리
+            for (const [dept, deptStudents] of Object.entries(studentsByDept)) {
+                // 학과가 없으면 생성
+                if (!departments.includes(dept)) {
+                    departments.push(dept);
+                    await db.collection('config').doc('departments').set({
+                        list: departments,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+                
+                const existingStudents = originalStudents[dept] || [];
+                
+                for (const student of deptStudents) {
+                    // 호실번호 저장
+                    if (student.room) {
+                        await db.collection('roomNumbers').doc(student.name).set({
+                            room: student.room,
+                            department: dept,
+                            updatedAt: new Date().toISOString()
+                        });
+                        studentRoomNumbers[student.name] = student.room;
+                    }
+                    
+                    // 비밀번호 저장
+                    await db.collection('passwords').doc(student.name).set({
+                        password: student.password,
+                        department: dept,
+                        updatedAt: new Date().toISOString()
+                    });
+                    studentPasswords[student.name] = student.password;
+                    
+                    if (!existingStudents.includes(student.name)) {
+                        existingStudents.push(student.name);
+                    }
+                    
+                    successCount++;
+                }
+                
+                // 호실 순으로 정렬
+                const sortedStudents = existingStudents.sort((a, b) => {
+                    const roomA = studentRoomNumbers[a] || '999';
+                    const roomB = studentRoomNumbers[b] || '999';
+                    return parseInt(roomA) - parseInt(roomB);
+                });
+                
+                originalStudents[dept] = sortedStudents;
+                await db.collection('students').doc(dept).set({
+                    students: sortedStudents,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+            
+            updateStudentsList();
+            alert(`✅ 업로드 완료!\n\n성공: ${successCount}명`);
+            showToast('학생 데이터 업로드 완료!', 'success');
+            render();
+            
+        } catch (error) {
+            console.error('엑셀 파일 처리 오류:', error);
+            alert('❌ 엑셀 파일 처리 실패: ' + error.message);
+        }
+    };
+    
+    input.click();
+}
+
+// 학생 명단 템플릿 다운로드
+async function downloadStudentTemplate() {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('학생명단');
+        
+        const headerStyle = {
+            font: { name: '맑은 고딕', size: 11, bold: true, color: { argb: 'FFFFFFFF' } },
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } },
+            alignment: { horizontal: 'center', vertical: 'middle' },
+            border: {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+            }
+        };
+        
+        worksheet.columns = [
+            { header: '학과', key: 'dept', width: 25 },
+            { header: '이름', key: 'name', width: 15 },
+            { header: '호실', key: 'room', width: 10 },
+            { header: '비밀번호', key: 'password', width: 15 }
+        ];
+        
+        worksheet.getRow(1).eachCell(cell => {
+            cell.style = headerStyle;
+        });
+        worksheet.getRow(1).height = 25;
+        
+        const examples = [
+            { dept: '반도체표면처리과', name: '홍길동', room: '301', password: '970101' },
+            { dept: '반도체표면처리과', name: '김영희(여)', room: '101', password: '980215' },
+            { dept: '산업설비과', name: '이철수', room: '302', password: '960320' },
+        ];
+        
+        examples.forEach(ex => {
+            worksheet.addRow(ex);
+        });
+        
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.eachCell(cell => {
+                    cell.border = {
+                        top: { style: 'thin' },
+                        left: { style: 'thin' },
+                        bottom: { style: 'thin' },
+                        right: { style: 'thin' }
+                    };
+                });
+            }
+        });
+        
+        worksheet.addRow([]);
+        const infoRow = worksheet.addRow(['※ 작성 안내']);
+        infoRow.getCell(1).font = { bold: true, color: { argb: 'FFFF0000' } };
+        worksheet.addRow(['1. 학과: 정확한 학과명 입력']);
+        worksheet.addRow(['2. 이름: 여학생은 (여) 붙이기 예) 김영희(여)']);
+        worksheet.addRow(['3. 호실: 숫자만 입력 예) 301']);
+        worksheet.addRow(['4. 비밀번호: 생년월일 6자리 권장 예) 970101']);
+        
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '학생명단_템플릿.xlsx';
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        alert('✅ 템플릿 다운로드 완료!');
+        
+    } catch (error) {
+        console.error('템플릿 다운로드 오류:', error);
+        alert('❌ 템플릿 다운로드 실패: ' + error.message);
+    }
+}
+   
     // CSV 헤더
     let csv = '\uFEFF날짜,학과,이름,구분,상세정보,제출시간\n';
     
@@ -5371,6 +5593,205 @@ async function deleteDepartment() {
 }
 
 // 전체 데이터 초기화
+// 템플릿 다운로드
+function downloadStudentTemplate() {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('학생명단');
+        
+        worksheet.columns = [
+            { header: '학과', key: 'dept', width: 25 },
+            { header: '이름', key: 'name', width: 15 },
+            { header: '호실', key: 'room', width: 10 },
+            { header: '비밀번호', key: 'password', width: 15 }
+        ];
+        
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4472C4' }
+        };
+        worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        
+        worksheet.addRow({ dept: '반도체표면처리과', name: '홍길동', room: '301', password: '970101' });
+        worksheet.addRow({ dept: '반도체표면처리과', name: '김영희(여)', room: '101', password: '980215' });
+        worksheet.addRow({ dept: '산업설비과', name: '이철수', room: '302', password: '960320' });
+        
+        worksheet.addRow([]);
+        worksheet.addRow(['※ 작성 안내']);
+        worksheet.addRow(['1. 여학생은 이름 뒤에 (여)를 붙이세요']);
+        worksheet.addRow(['2. 호실은 숫자만 입력하세요']);
+        worksheet.addRow(['3. 위 예시는 삭제하고 실제 데이터를 입력하세요']);
+        
+        workbook.xlsx.writeBuffer().then(function(buffer) {
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '학생명단_템플릿.xlsx';
+            a.click();
+            window.URL.revokeObjectURL(url);
+            alert('✅ 템플릿 다운로드 완료!');
+        });
+    } catch (error) {
+        console.error('템플릿 다운로드 오류:', error);
+        alert('❌ 템플릿 다운로드 실패: ' + error.message);
+    }
+}
+
+// 엑셀 업로드
+function uploadStudentsExcel() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx, .xls';
+    
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                alert('엑셀 파일 읽는 중...');
+                
+                const data = new Uint8Array(e.target.result);
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(data);
+                
+                const worksheet = workbook.worksheets[0];
+                if (!worksheet) {
+                    alert('❌ 엑셀 파일에 시트가 없습니다.');
+                    return;
+                }
+                
+                const headers = [];
+                worksheet.getRow(1).eachCell(function(cell, colNumber) {
+                    headers[colNumber] = cell.value;
+                });
+                
+                const deptCol = headers.findIndex(function(h) { return h && h.toString().includes('학과'); });
+                const nameCol = headers.findIndex(function(h) { return h && h.toString().includes('이름'); });
+                const roomCol = headers.findIndex(function(h) { return h && h.toString().includes('호실'); });
+                const pwCol = headers.findIndex(function(h) { return h && h.toString().includes('비밀번호'); });
+                
+                if (deptCol === -1 || nameCol === -1 || pwCol === -1) {
+                    alert('❌ 필수 컬럼이 없습니다.\n\n필수: 학과, 이름, 비밀번호');
+                    return;
+                }
+                
+                const studentsData = [];
+                worksheet.eachRow(function(row, rowNumber) {
+                    if (rowNumber === 1) return;
+                    
+                    const deptVal = row.getCell(deptCol).value;
+                    const nameVal = row.getCell(nameCol).value;
+                    const roomVal = roomCol !== -1 ? row.getCell(roomCol).value : '';
+                    const pwVal = row.getCell(pwCol).value;
+                    
+                    const dept = deptVal ? deptVal.toString().trim() : '';
+                    const name = nameVal ? nameVal.toString().trim() : '';
+                    const room = roomVal ? roomVal.toString().trim() : '';
+                    const password = pwVal ? pwVal.toString().trim() : '';
+                    
+                    if (dept && name && password) {
+                        studentsData.push({ dept: dept, name: name, room: room, password: password });
+                    }
+                });
+                
+                if (studentsData.length === 0) {
+                    alert('❌ 등록할 학생 데이터가 없습니다.');
+                    return;
+                }
+                
+                const depts = [];
+                studentsData.forEach(function(s) {
+                    if (depts.indexOf(s.dept) === -1) {
+                        depts.push(s.dept);
+                    }
+                });
+                
+                if (!confirm('총 ' + studentsData.length + '명의 학생을 등록하시겠습니까?\n\n학과 수: ' + depts.length + '개')) {
+                    return;
+                }
+                
+                alert('업로드 중... 잠시만 기다려주세요.');
+                
+                let successCount = 0;
+                const studentsByDept = {};
+                
+                studentsData.forEach(function(s) {
+                    if (!studentsByDept[s.dept]) {
+                        studentsByDept[s.dept] = [];
+                    }
+                    studentsByDept[s.dept].push(s);
+                });
+                
+                for (const dept in studentsByDept) {
+                    if (!departments.includes(dept)) {
+                        departments.push(dept);
+                        await db.collection('config').doc('departments').set({
+                            list: departments,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                    
+                    const existingStudents = originalStudents[dept] || [];
+                    const deptStudents = studentsByDept[dept];
+                    
+                    for (let i = 0; i < deptStudents.length; i++) {
+                        const student = deptStudents[i];
+                        
+                        if (student.room) {
+                            await db.collection('roomNumbers').doc(student.name).set({
+                                room: student.room,
+                                department: dept,
+                                updatedAt: new Date().toISOString()
+                            });
+                            studentRoomNumbers[student.name] = student.room;
+                        }
+                        
+                        await db.collection('passwords').doc(student.name).set({
+                            password: student.password,
+                            department: dept,
+                            updatedAt: new Date().toISOString()
+                        });
+                        studentPasswords[student.name] = student.password;
+                        
+                        if (existingStudents.indexOf(student.name) === -1) {
+                            existingStudents.push(student.name);
+                        }
+                        successCount++;
+                    }
+                    
+                    existingStudents.sort(function(a, b) {
+                        const roomA = studentRoomNumbers[a] || '999';
+                        const roomB = studentRoomNumbers[b] || '999';
+                        return parseInt(roomA) - parseInt(roomB);
+                    });
+                    
+                    originalStudents[dept] = existingStudents;
+                    await db.collection('students').doc(dept).set({
+                        students: existingStudents,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+                
+                updateStudentsList();
+                alert('✅ 업로드 완료!\n\n성공: ' + successCount + '명');
+                render();
+                
+            } catch (error) {
+                console.error('엑셀 파일 처리 오류:', error);
+                alert('❌ 엑셀 파일 처리 실패: ' + error.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+    
+    input.click();
+}
+
 async function resetAllData() {
     // 1단계: 경고 확인
     if (!confirm('⚠️⚠️⚠️ 경고 ⚠️⚠️⚠️\n\n모든 학과, 교육생, 제출 기록이 영구적으로 삭제됩니다.\n\n이 작업은 되돌릴 수 없습니다!\n\n정말로 초기화하시겠습니까?')) {
@@ -5820,8 +6241,26 @@ function renderAdminSettingsTab() {
             </div>
 
             <!-- 교육생 관리 탭 -->
-            <div id="studentsManageTab">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div id="studentsManageTab">
+    <!-- 엑셀 일괄 업로드 -->
+    <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200 mb-6">
+        <h3 class="text-xl font-bold mb-4 text-green-700">
+            <i class="fas fa-file-excel"></i> 엑셀로 학생 일괄 등록
+        </h3>
+        <p class="text-sm text-gray-600 mb-4">
+            엑셀 파일로 여러 학생을 한번에 등록할 수 있습니다.
+        </p>
+        <div class="flex gap-3">
+            <button onclick="downloadStudentTemplate()" class="flex-1 bg-white text-green-700 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all border-2 border-green-300">
+                <i class="fas fa-download"></i> 템플릿 다운로드
+            </button>
+            <button onclick="uploadStudentsExcel()" class="flex-1 bg-gradient-to-r from-green-200 to-emerald-200 text-green-800 px-6 py-4 rounded-xl font-bold hover:shadow-lg transition-all">
+                <i class="fas fa-upload"></i> 엑셀 파일 업로드
+            </button>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- 교육생 추가 -->
                     <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
                         <h3 class="text-xl font-bold mb-4 text-blue-700">
