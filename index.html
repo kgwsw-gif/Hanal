@@ -1451,17 +1451,30 @@ if (db) {
         debouncedRender();
     });
 
-    // departmentLeaders 데이터 로드
+    // departmentLeaders 데이터 로드 - 우선순위 높임
     db.collection('departmentLeaders').onSnapshot(snapshot => {
+        console.log('=== departmentLeaders 리스너 실행 ===');
+        console.log('문서 수:', snapshot.docs.length);
+        
+        // 먼저 전체 초기화
+        const newLeaders = {};
+        
         snapshot.docs.forEach(doc => {
             const dept = doc.id;
             if (doc.data().name && doc.data().password) {
-                DEPARTMENT_LEADERS[dept] = {
+                newLeaders[dept] = {
                     name: doc.data().name,
                     password: doc.data().password
                 };
+                console.log('학과대표 로드:', dept, doc.data().name);
             }
         });
+        
+        // 한번에 교체
+        Object.keys(DEPARTMENT_LEADERS).forEach(key => delete DEPARTMENT_LEADERS[key]);
+        Object.assign(DEPARTMENT_LEADERS, newLeaders);
+        
+        console.log('최종 DEPARTMENT_LEADERS:', DEPARTMENT_LEADERS);
         debouncedRender();
     });
 
@@ -1827,7 +1840,16 @@ async function approveResign(docId, name) {
     const now = new Date();
     const approvedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     
-    if (!confirm(`${name} 교육생의 퇴사를 승인하시겠습니까?\n\n승인 시:\n- 학과 인원에서 제외됩니다\n- 전체 인원수가 감소합니다\n- 오늘(${approvedDate}) 이후의 제출 기록만 삭제됩니다\n- 이전 데이터는 통계를 위해 보존됩니다`)) {
+    // 학과대표인지 확인
+    const isLeader = DEPARTMENT_LEADERS[dept] && DEPARTMENT_LEADERS[dept].name === name;
+    
+    let confirmMessage = `${name} 교육생의 퇴사를 승인하시겠습니까?\n\n승인 시:\n- 학과 인원에서 제외됩니다\n- 전체 인원수가 감소합니다\n- 오늘(${approvedDate}) 이후의 제출 기록만 삭제됩니다\n- 이전 데이터는 통계를 위해 보존됩니다`;
+    
+    if (isLeader) {
+        confirmMessage += `\n\n⚠️ ${name} 교육생은 ${dept}의 학과대표입니다!\n학과대표 정보도 함께 삭제됩니다.`;
+    }
+    
+    if (!confirm(confirmMessage)) {
         return;
     }
     
@@ -1838,7 +1860,14 @@ async function approveResign(docId, name) {
             approvedDate: approvedDate
         });
         
-        // 2. 승인일 이후의 제출 기록만 삭제 (submissions)
+        // 2. 학과대표인 경우 학과대표 정보 삭제
+        if (isLeader) {
+            await db.collection('departmentLeaders').doc(dept).delete();
+            delete DEPARTMENT_LEADERS[dept];
+            console.log('✓ 학과대표 정보 삭제 완료:', dept);
+        }
+        
+        // 3. 승인일 이후의 제출 기록만 삭제 (submissions)
         const studentSubmissions = await db.collection('submissions')
             .where('department', '==', dept)
             .where('name', '==', name)
@@ -1854,7 +1883,7 @@ async function approveResign(docId, name) {
             }
         }
         
-        // 3. 승인일 이후의 외출 기록만 삭제 (outings)
+        // 4. 승인일 이후의 외출 기록만 삭제 (outings)
         const studentOutings = await db.collection('outings')
             .where('department', '==', dept)
             .where('name', '==', name)
@@ -1870,10 +1899,18 @@ async function approveResign(docId, name) {
             }
         }
         
-        alert(`✓ ${name} 교육생의 퇴사가 승인되었습니다.\n\n- ${dept}에서 제외되었습니다\n- ${approvedDate} 이후 제출 기록 ${deletedSubmissions}건 삭제\n- ${approvedDate} 이후 외출 기록 ${deletedOutings}건 삭제\n- 이전 데이터는 보존되었습니다`);
+        const message = isLeader 
+            ? `✓ ${name} 교육생의 퇴사가 승인되었습니다.\n\n- ${dept}에서 제외되었습니다\n- 학과대표 정보가 삭제되었습니다\n- ${approvedDate} 이후 제출 기록 ${deletedSubmissions}건 삭제\n- ${approvedDate} 이후 외출 기록 ${deletedOutings}건 삭제\n- 이전 데이터는 보존되었습니다\n\n⚠️ 새로운 학과대표를 지정해주세요.`
+            : `✓ ${name} 교육생의 퇴사가 승인되었습니다.\n\n- ${dept}에서 제외되었습니다\n- ${approvedDate} 이후 제출 기록 ${deletedSubmissions}건 삭제\n- ${approvedDate} 이후 외출 기록 ${deletedOutings}건 삭제\n- 이전 데이터는 보존되었습니다`;
+        
+        alert(message);
         
         // students 목록 업데이트는 onSnapshot에서 자동으로 처리됨
+        // 즉시 UI 업데이트
+        render();
+        
     } catch (error) {
+        console.error('퇴사 승인 실패:', error);
         alert('× 승인 실패: ' + error.message);
     }
 }
@@ -5414,6 +5451,8 @@ async function setDepartmentLeader() {
     }
     
     try {
+        console.log('학과대표 지정 시작:', dept, studentName, password);
+        
         // 학과대표 정보 저장
         await db.collection('departmentLeaders').doc(dept).set({
             name: studentName,
@@ -5421,11 +5460,15 @@ async function setDepartmentLeader() {
             updatedAt: new Date().toISOString()
         });
         
-        // 로컬 DEPARTMENT_LEADERS도 즉시 업데이트
+        console.log('✓ Firebase 저장 완료');
+        
+        // 로컬 DEPARTMENT_LEADERS 즉시 업데이트
         DEPARTMENT_LEADERS[dept] = {
             name: studentName,
             password: password
         };
+        
+        console.log('✓ 로컬 업데이트 완료:', DEPARTMENT_LEADERS[dept]);
         
         alert(`✓ ${dept}의 학과대표가 ${formatStudentName(studentName)}(으)로 지정되었습니다!`);
         
