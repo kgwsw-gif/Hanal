@@ -157,6 +157,13 @@
         </h3>
         <p class="text-gray-600 mb-4 text-center">비밀번호를 입력하세요</p>
         <input 
+            type="email" 
+            id="adminEmailInput" 
+            class="w-full px-4 py-3 rounded-xl border-2 border-indigo-300 mb-3 text-lg text-center bg-white focus:border-indigo-500 focus:outline-none"
+            placeholder="이메일 (예: kimyp@hwaseong.com)"
+            autocomplete="email"
+        >
+        <input 
             type="password" 
             id="adminPasswordInput" 
             class="w-full px-4 py-3 rounded-xl border-2 border-indigo-300 mb-4 text-lg text-center bg-white focus:border-indigo-500 focus:outline-none"
@@ -230,6 +237,8 @@
 <!-- Firebase SDK v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+
 
 <script>
 // Firebase 설정
@@ -283,8 +292,6 @@ setTimeout(() => {
 }
 
 // 관리자 비밀번호
-const ADMIN_PASSWORD = '3503133';
-const SUPER_ADMIN_PASSWORD = '700328'; // 슈퍼 관리자 비밀번호
 
 // 학과대표 정보 (학과: {대표이름, 비밀번호-주민등록번호})
 let DEPARTMENT_LEADERS = {
@@ -399,7 +406,7 @@ function sortStudentsByRoom(students) {
 
 // ============ 엑셀 생성 관련 함수 ============
 // 근무일지 생성 (날짜 입력 포함)
-function generateWorkLogWithPrompt() {
+async function generateWorkLogWithPrompt() {
     // 로컬 시간대 기준 오늘 날짜
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -418,7 +425,7 @@ function generateWorkLogWithPrompt() {
     }
     
     console.log('입력된 날짜:', inputDate);
-    generateWorkLog(inputDate);
+    await generateWorkLog(inputDate);
 }
 
 // ============ 한국 공휴일 체크 함수 ============
@@ -478,7 +485,7 @@ function getDayName(dateString) {
 }
 
 // 인원현황 생성 (날짜 입력 포함)
-function generateStatusReportWithPrompt() {
+async function generateStatusReportWithPrompt() {
     // 로컬 시간대 기준 오늘 날짜
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -519,7 +526,7 @@ function generateStatusReportWithPrompt() {
     
     const listType = useStayList ? 'stay' : 'overnight';
     
-    generateStatusReport(inputDate, listType);
+    await generateStatusReport(inputDate, listType);
 }
 // 현재 날짜 기준으로 인원 데이터 수집 (날짜 파라미터 추가)
 function collectCurrentData(targetDate, listType = 'overnight') {
@@ -3380,58 +3387,94 @@ async function saveLoginLog(success, adminType = null) {
     }
 }
 
-function confirmAdminLogin() {
-    const input = document.getElementById('adminPasswordInput');
-    const pw = input.value.trim(); // 공백 제거
-    
-    console.log('=== 관리자 로그인 시도 ===');
-    console.log('입력된 비밀번호:', pw);
-    console.log('비밀번호 길이:', pw.length);
-    console.log('SUPER_ADMIN_PASSWORD:', SUPER_ADMIN_PASSWORD);
-    console.log('SUPER_ADMIN_PASSWORD 길이:', SUPER_ADMIN_PASSWORD.length);
-    console.log('ADMIN_PASSWORD:', ADMIN_PASSWORD);
-    console.log('pw === SUPER_ADMIN_PASSWORD:', pw === SUPER_ADMIN_PASSWORD);
-    console.log('pw === ADMIN_PASSWORD:', pw === ADMIN_PASSWORD);
-    
-    if (pw === SUPER_ADMIN_PASSWORD) {
-        // 슈퍼 관리자 로그인
-        console.log('🎯 슈퍼 관리자 로그인 성공!');
-        isAdminLoggedIn = true;
-        isSuperAdmin = true;
-        currentMode = 'admin';
-        console.log('슈퍼 관리자 로그인 성공! isSuperAdmin:', isSuperAdmin);
+async function confirmAdminLogin() {
+    const emailInput = document.getElementById('adminEmailInput');
+    const passwordInput = document.getElementById('adminPasswordInput');
+    const email = emailInput ? emailInput.value.trim() : '';
+    const password = passwordInput.value;
+
+    if (!email) {
+        alert('이메일을 입력해주세요.');
+        if (emailInput) emailInput.focus();
+        return;
+    }
+
+    if (!password) {
+        alert('비밀번호를 입력해주세요.');
+        passwordInput.focus();
+        return;
+    }
+
+    try {
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        if (email === 'super@hwaseong.com') {
+            isSuperAdmin = true;
+            isAdminLoggedIn = true;
+            currentMode = 'admin';
+            saveLoginLog('슈퍼관리자', true);
+            alert('슈퍼관리자 로그인 성공! 🎉');
+        } else if (email.includes('@hwaseong.com')) {
+            isAdminLoggedIn = true;
+            isSuperAdmin = false;
+            currentMode = 'admin';
+            saveLoginLog('일반관리자 (' + email + ')', true);
+            alert('관리자 로그인 성공!');
+        } else {
+            isAdminLoggedIn = false;
+            isSuperAdmin = false;
+            saveLoginLog('일반사용자 (' + email + ')', true);
+            alert('로그인 성공!');
+        }
+        
         cancelAdminLogin();
-        saveLoginLog(true, 'super');
-        alert('✓ 슈퍼 관리자로 로그인되었습니다!');
         render();
-    } else if (pw === ADMIN_PASSWORD) {
-        // 일반 관리자 로그인
-        console.log('✓ 일반 관리자 로그인 성공!');
-        isAdminLoggedIn = true;
-        isSuperAdmin = false;
-        currentMode = 'admin';
-        console.log('일반 관리자 로그인 성공! isSuperAdmin:', isSuperAdmin);
-        cancelAdminLogin();
-        saveLoginLog(true, 'normal');
-        alert('✓ 환영합니다!');
-        render();
-    } else {
-        // 로그인 실패
-        console.log('❌ 로그인 실패! 잘못된 비밀번호');
-        saveLoginLog(false, null);
-        alert('× 비밀번호가 올바르지 않습니다.');
-        input.value = '';
-        input.focus();
+    } catch (error) {
+        console.error('로그인 실패:', error);
+        saveLoginLog(email, false);
+        
+        let errorMessage = '로그인 실패: ';
+        if (error.code === 'auth/user-not-found') {
+            errorMessage = '계정이 없습니다. Firebase에서 계정을 만들어주세요.';
+        } else if (error.code === 'auth/wrong-password') {
+            errorMessage = '비밀번호가 틀렸습니다.';
+        } else if (error.code === 'auth/invalid-email') {
+            errorMessage = '올바른 이메일 형식이 아닙니다.';
+        } else if (error.code === 'auth/too-many-requests') {
+            errorMessage = '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        alert(errorMessage);
+        passwordInput.value = '';
+        if (emailInput) emailInput.focus();
+        else passwordInput.focus();
     }
 }
 
-function logout() {
-    isAdminLoggedIn = false;
-    isSuperAdmin = false; // 슈퍼 관리자 상태 초기화
-    isLeaderLoggedIn = false;
-    leaderDepartment = null;
-    currentMode = 'student';
-    render();
+
+async function logout() {
+    try {
+        const user = firebase.auth().currentUser;
+        const userEmail = user ? user.email : '알 수 없음';
+        
+        await firebase.auth().signOut();
+        
+        isAdminLoggedIn = false;
+        isSuperAdmin = false;
+        isLeaderLoggedIn = false;
+        currentDepartment = null;
+        currentMode = 'normal';
+        
+        saveLoginLog(userEmail + ' (로그아웃)', true);
+        render();
+        alert('로그아웃되었습니다.');
+    } catch (error) {
+        console.error('로그아웃 실패:', error);
+        alert('로그아웃 실패: ' + error.message);
+    }
 }
 
 // 학과대표 로그인 함수들
