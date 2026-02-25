@@ -486,7 +486,10 @@ function refreshHvacListener() {
     _lastHvacDate = today;
     if (_hvacUnsubscribe) _hvacUnsubscribe();
     _hvacUnsubscribe = db.collection('hvacRequests').where('date','==',today).onSnapshot(function(snap){
+        var oldData=JSON.stringify(hvacRequests);
         hvacRequests = snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()) });
+        var newData=JSON.stringify(hvacRequests);
+        if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isOfficeLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}
         if(document.getElementById('app') && document.getElementById('app').style.display!=='none') debouncedRender();
     });
 }
