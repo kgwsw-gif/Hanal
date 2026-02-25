@@ -1057,7 +1057,7 @@ setInterval(function(){
 },5000);}
 
 function render(){
-    initIntervals();checkNewNotifications();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
+    initIntervals();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
     var stats=getStats(),todaySubs=submissions.filter(function(s){return s.date===currentDate&&s.status!=='cancelled'}),todayOuts=outings.filter(function(o){return o.date===currentDate&&(!o.status||o.status!=='cancelled')});
     if(isOfficeLoggedIn){app.innerHTML=renderOfficeView();return}if(!currentMode){app.innerHTML=renderLanding();return}
     if(currentMode==='student')app.innerHTML=renderStudentView();
