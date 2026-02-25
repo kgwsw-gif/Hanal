@@ -746,20 +746,59 @@ if(facilityProgress.length>0){
 async function saveHvacMode(mode){try{await db.collection('settings').doc('hvacControl').set({mode:mode,updatedAt:new Date().toISOString()},{merge:true});hvacMode=mode;showToast(mode==='heating'?'난방 모드로 변경':'냉방 모드로 변경','success');render()}catch(e){showToast('저장 실패','error')}}
 
 async function submitHvacRequest(){
-    var now=new Date();if(now.getHours()>=23){showToast('신청 시간이 마감되었습니다 (23시 이전)','warning');return}
-    var student=currentStudent;if(!student){showToast('로그인 정보 없음','error');return}
-    var roomNum=window._secureData.getRoomNumber(student);if(!roomNum){showToast('호실 정보를 확인할 수 없습니다','error');return}
-    var today=new Date().toISOString().split('T')[0];
-    try{var existing=await db.collection('hvacRequests').where('room','==',roomNum).where('date','==',today).get();if(!existing.empty){showToast('오늘 이미 신청된 호실입니다','warning');return}
-    await db.collection('hvacRequests').add({room:roomNum,type:hvacMode,requestedBy:student,department:currentStudentDept(),date:today,createdAt:new Date().toISOString(),status:'pending'});
-    showToast(roomNum+'호 '+(hvacMode==='heating'?'난방':'냉방')+' 신청 완료','success');showSuccessAnimation((hvacMode==='heating'?'난방':'냉방')+' 신청 완료',currentStudent+' · '+new Date().toLocaleTimeString('ko-KR'));render()}catch(e){showToast('신청 실패','error')}
-}
-async function cancelHvacRequest(docId){if(!confirm('신청을 취소하시겠습니까?'))return;try{await db.collection('hvacRequests').doc(docId).update({status:'cancel_requested',cancelRequestedBy:currentStudent||'unknown',cancelRequestedAt:new Date().toISOString()});showToast('취소 요청 완료','success');render()}catch(e){showToast('취소 요청 실패','error')}}
-async function confirmCancelHvac(docId){if(!confirm('취소 요청을 승인하시겠습니까?'))return;try{await db.collection('hvacRequests').doc(docId).delete();showToast('취소 승인 완료','success');render()}catch(e){showToast('처리 실패','error')}}
-async function rejectCancelHvac(docId){if(!confirm('취소 요청을 거부하시겠습니까?'))return;try{await db.collection('hvacRequests').doc(docId).update({status:'confirmed',cancelRequestedBy:'',cancelRequestedAt:''});showToast('취소 요청 거부','success');render()}catch(e){showToast('처리 실패','error')}}
-async function confirmHvacRequest(docId){try{await db.collection('hvacRequests').doc(docId).update({status:'confirmed',confirmedAt:new Date().toISOString()});showToast('승인 완료','success');render()}catch(e){showToast('승인 실패','error')}}
-async function confirmAllHvac(){try{var today=new Date().toISOString().split('T')[0];var snap=await db.collection('hvacRequests').where('date','==',today).where('status','==','pending').get();if(snap.empty){showToast('대기 중인 신청이 없습니다','warning');return}var batch=db.batch();snap.docs.forEach(function(d){batch.update(d.ref,{status:'confirmed',confirmedAt:new Date().toISOString()})});await batch.commit();showToast(snap.size+'건 일괄 승인 완료','success');render()}catch(e){showToast('일괄 승인 실패','error')}}
+    var now=new Date();
 
+    // 23시 넘으면 마감
+    if(now.getHours()>=23){
+        showToast('신청 시간이 마감되었습니다 (23시 이전)','warning');
+        return;
+    }
+
+    // 오늘 날짜 구하기
+    var todayStr=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    var dayOfWeek=now.getDay(); // 0=일 1=월 2=화 3=수 4=목 5=금 6=토
+    var isHolidayToday=!!HOLIDAYS[todayStr]; // 공휴일이면 true
+    var isWeekend=(dayOfWeek===0||dayOfWeek===6); // 토일이면 true
+
+    // 공휴일, 토, 일이 아닌 평일만 시간 체크
+    if(!isHolidayToday && !isWeekend){
+        var currentMinutes=now.getHours()*60+now.getMinutes();
+
+        // 월(1), 수(3), 금(5) → 17시30분 이후
+        if(dayOfWeek===1||dayOfWeek===3||dayOfWeek===5){
+            if(currentMinutes<17*60+30){
+                var rH=Math.floor((17*60+30-currentMinutes)/60);
+                var rM=(17*60+30-currentMinutes)%60;
+                showToast('월·수·금은 오후 5:30 이후 신청 가능 ('+rH+'시간 '+rM+'분 후)','warning');
+                return;
+            }
+        }
+
+        // 화(2), 목(4) → 15시30분 이후
+        if(dayOfWeek===2||dayOfWeek===4){
+            if(currentMinutes<15*60+30){
+                var rH2=Math.floor((15*60+30-currentMinutes)/60);
+                var rM2=(15*60+30-currentMinutes)%60;
+                showToast('화·목은 오후 3:30 이후 신청 가능 ('+rH2+'시간 '+rM2+'분 후)','warning');
+                return;
+            }
+        }
+    }
+
+    var student=currentStudent;
+    if(!student){showToast('로그인 정보 없음','error');return}
+    var roomNum=window._secureData.getRoomNumber(student);
+    if(!roomNum){showToast('호실 정보를 확인할 수 없습니다','error');return}
+    var today=new Date().toISOString().split('T')[0];
+    try{
+        var existing=await db.collection('hvacRequests').where('room','==',roomNum).where('date','==',today).get();
+        if(!existing.empty){showToast('오늘 이미 신청된 호실입니다','warning');return}
+        await db.collection('hvacRequests').add({room:roomNum,type:hvacMode,requestedBy:student,department:currentStudentDept(),date:today,createdAt:new Date().toISOString(),status:'pending'});
+        showToast(roomNum+'호 '+(hvacMode==='heating'?'난방':'냉방')+' 신청 완료','success');
+        showSuccessAnimation((hvacMode==='heating'?'난방':'냉방')+' 신청 완료',currentStudent+' · '+new Date().toLocaleTimeString('ko-KR'));
+        render();
+    }catch(e){showToast('신청 실패','error')}
+}
 // ============ 시설 민원 함수 ============
 function showFacilityRequestModal(){
     var student=currentStudent;if(!student){showToast('로그인 정보 없음','error');return}
@@ -1236,10 +1275,29 @@ if(isAdminLoggedIn) {
             html += '<button onclick="cancelHvacRequest(\''+safeAttr(roommateHvac.id)+'\')" class="mt-3 px-4 py-2 bg-danger-50 text-danger-600 rounded-xl text-sm font-bold btn-press border border-danger-200"><i class="fas fa-times mr-1"></i>취소 요청</button>';
             html += '</div>';
         } else {
-            html += '<button onclick="submitHvacRequest()" class="w-full py-4 bg-gradient-to-r '+(hvacMode==='heating'?'from-orange-400 to-orange-500':'from-cyan-400 to-cyan-500')+' text-white rounded-2xl font-bold text-lg btn-press shadow-button">';
-            html += '<i class="fas '+(hvacMode==='heating'?'fa-fire':'fa-snowflake')+' mr-2"></i>';
-            html += (room?escapeHtml(room)+'호 ':'')+(hvacMode==='heating'?'난방':'냉방')+' 신청하기</button>';
+            var _hvacNow=new Date();
+            var _hvacDow=_hvacNow.getDay();
+            var _hvacTodayStr=_hvacNow.getFullYear()+'-'+String(_hvacNow.getMonth()+1).padStart(2,'0')+'-'+String(_hvacNow.getDate()).padStart(2,'0');
+            var _hvacIsHoliday=!!HOLIDAYS[_hvacTodayStr];
+            var _hvacIsWeekend=(_hvacDow===0||_hvacDow===6);
+            var _hvacCurrentMin=_hvacNow.getHours()*60+_hvacNow.getMinutes();
+            var _hvacBlocked=false;
+            var _hvacTimeMsg='';
+            if(!_hvacIsHoliday && !_hvacIsWeekend){
+                if(_hvacDow===1||_hvacDow===3||_hvacDow===5){
+                    if(_hvacCurrentMin<17*60+30){_hvacBlocked=true;var _rH=Math.floor((17*60+30-_hvacCurrentMin)/60);var _rM=(17*60+30-_hvacCurrentMin)%60;_hvacTimeMsg='월·수·금요일은 <b>오후 5:30</b> 이후 신청 가능 ('+_rH+'시간 '+_rM+'분 후)';}
+                } else if(_hvacDow===2||_hvacDow===4){
+                    if(_hvacCurrentMin<15*60+30){_hvacBlocked=true;var _rH2=Math.floor((15*60+30-_hvacCurrentMin)/60);var _rM2=(15*60+30-_hvacCurrentMin)%60;_hvacTimeMsg='화·목요일은 <b>오후 3:30</b> 이후 신청 가능 ('+_rH2+'시간 '+_rM2+'분 후)';}
+                }
+            }
+            if(_hvacBlocked){
+                html += '<div class="text-center py-4"><i class="fas fa-clock text-gray-300 text-3xl mb-2"></i><div class="font-bold text-gray-500 text-base mb-1">아직 신청 시간이 아닙니다</div><div class="text-sm text-warning-600">'+_hvacTimeMsg+'</div></div>';
+            } else {
+                html += '<button onclick="submitHvacRequest()" class="w-full py-4 bg-gradient-to-r '+(hvacMode==='heating'?'from-orange-400 to-orange-500':'from-cyan-400 to-cyan-500')+' text-white rounded-2xl font-bold text-lg btn-press shadow-button">';
+                html += '<i class="fas '+(hvacMode==='heating'?'fa-fire':'fa-snowflake')+' mr-2"></i>';
+                html += (room?escapeHtml(room)+'호 ':'')+(hvacMode==='heating'?'난방':'냉방')+' 신청하기</button>';
         }
+      }
         html += '</div>';
     }
 
