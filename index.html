@@ -1478,11 +1478,11 @@ function renderLanding(){
     var _c=isSubmitAllowed();
     var isDark=document.documentElement.classList.contains('dark');
     var titleColor=isDark?'color:#f1f5f9':'color:#111827';
-    var subColor=isDark?'color:#e2e8f0':'color:#9ca3af';
+    var subColor=isDark?'color:#e2e8f0':'color:#6b7280';
     var headColor=isDark?'color:#e2e8f0':'color:#111827';
-    var headSubColor=isDark?'color:#94a3b8':'color:#9ca3af';
+    var headSubColor=isDark?'color:#94a3b8':'color:#6b7280';
     var annoColor=isDark?'color:#e2e8f0':'color:#1f2937';
-    var verColor=isDark?'color:#64748b':'color:#d1d5db';
+    var verColor=isDark?'color:#64748b':'color:#9ca3af';
 
     function clay3d(c1,c2,icon,shadow){
         return '<div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(145deg,'+c1+','+c2+');box-shadow:inset -3px -3px 7px rgba(0,0,0,0.15),inset 3px 3px 7px rgba(255,255,255,0.35),6px 6px 14px '+shadow+';display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;flex-shrink:0;transition:transform .2s ease;opacity:0.8"><div style="position:absolute;top:4px;left:6px;width:60%;height:40%;border-radius:50%;background:radial-gradient(ellipse,rgba(255,255,255,0.5),transparent);pointer-events:none"></div><i class="fas '+icon+'" style="font-size:24px;color:#fff;filter:drop-shadow(1px 2px 2px rgba(0,0,0,0.25));position:relative;z-index:1"></i></div>';
