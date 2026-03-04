@@ -774,9 +774,11 @@ h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-4"><d
         }
         h+='</div>';
     }
+    if(menuControlSettings.showFacilityRequest===false){h+='</div>';return h;}
+if(menuControlSettings.showFacilityRequest!==false){
     h+='<div class="mt-6 mb-4"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center"><i class="fas fa-tools text-purple-500 text-2xl"></i></div><div><h2 class="text-xl font-bold text-gray-800">시설 민원</h2><div class="text-sm text-gray-500">교육생 시설 민원 접수 현황</div></div></div></div>';
 
-    h+='<div class="flex items-center gap-2 mb-4"><input type="date" id="officeFacilityDate" value="'+facilityDate+'" onchange="window._officeFacilityDate=this.value;render()" class="flex-1 px-4 py-2.5 bg-surface-50 border-2 border-surface-200 rounded-xl text-sm font-medium" style="font-size:14px"><button onclick="window._officeFacilityDate=getCurrentDate();render()" class="px-4 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press">Today</button></div>';
+    h+='<div class="flex items-center gap-2 mb-4"><input type="date" id="officeFacilityDate" value="'+facilityDate+'"onchange="window._officeFacilityDate=this.value;render()" class="flex-1 px-4 py-2.5 bg-surface-50 border-2 border-surface-200 rounded-xl text-sm font-medium" style="font-size:14px"><button onclick="window._officeFacilityDate=getCurrentDate();render()" class="px-4 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press">Today</button></div>';
 
     var dayFacility=facilityRequests.filter(function(r){return r.createdAt&&r.createdAt.substring(0,10)===facilityDate});
     var facilityPending=dayFacility.filter(function(r){return r.status==='pending'});
@@ -808,6 +810,7 @@ if(facilityProgress.length>0){
     }
     if(facilityPending.length===0&&facilityReplied.length===0&&facilityProgress.length===0&&facilityResolved.length===0){h+='<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-4xl mb-3"></i><div class="text-base">'+(facilityDate===getCurrentDate()?'오늘 시설 민원이 없습니다':'해당 날짜에 시설 민원이 없습니다')+'</div></div>'}
     h+='</div>';
+    }
     return h;
 }
 async function saveHvacMode(mode){try{await db.collection('settings').doc('hvacControl').set({mode:mode,updatedAt:new Date().toISOString()},{merge:true});hvacMode=mode;showToast(mode==='heating'?'난방 모드로 변경':'냉방 모드로 변경','success');render()}catch(e){showToast('저장 실패','error')}}
