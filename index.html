@@ -1587,7 +1587,7 @@ function renderStudentView(){
     var ad = getAvailableDates(), av = ad.map(function(d){return d.date});
     if(av.indexOf(currentDate)===-1 && ad.length>0) currentDate = ad[0].date;
 
-   var dateOpts=ad.map(function(d){var dd=new Date(d.date+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[dd.getDay()];var h=getHolidayName(d.date);var isWeekend=dd.getDay()===0||dd.getDay()===6;var label=h?d.date+' · ('+day+') 🔴 '+h:isWeekend?d.date+' · ('+day+') 🔵':d.date+'  \u2003\u2003  ('+day+')';return'<option value="'+d.date+'" '+(d.date===currentDate?'selected':'')+' style="color:'+(h||dd.getDay()===0?'#dc2626':dd.getDay()===6?'#2563eb':'#374151')+'">'+label+'</option>'}).join('');
+   var dateOpts=ad.map(function(d){var dd=new Date(d.date+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[dd.getDay()];var h=getHolidayName(d.date);var isWeekend=dd.getDay()===0||dd.getDay()===6;var label=h?d.date+' ('+day+') 🔴 '+h:isWeekend?d.date+' ('+day+') 🔵':d.date+' ('+day+')';return'<option value="'+d.date+'" '+(d.date===currentDate?'selected':'')+' style="color:'+(h||dd.getDay()===0?'#dc2626':dd.getDay()===6?'#2563eb':'#374151')+'">'+label+'</option>'}).join('');
 
     var todaySubs = submissions.filter(function(s){return s.date===currentDate && s.status!=='cancelled'});
     var todayOuts = outings.filter(function(o){return o.date===currentDate && (!o.status||o.status!=='cancelled')});
@@ -1657,17 +1657,17 @@ if(isAdminLoggedIn) {
     }
     // 날짜 선택
     html += '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-4 mb-4 animate-fade-up stagger-1">';
-    html += '<select id="submitDateSelect" class="w-full px-4 py-3.5 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-semibold" onchange="currentDate=this.value;render()" style="font-size:16px;word-spacing:12px">' + dateOpts + '</select>';
+    html += '<select id="submitDateSelect" class="w-full px-4 py-3.5 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-semibold" onchange="currentDate=this.value;render()" style="font-size:16px;text-align:center">' + dateOpts + '</select>';
     html += '</div>';
 // [수정] 오후 9시 안내 메시지 (1줄로)
     var _nowHour = new Date().getHours();
     if(canSubmit && !mySub && !myOuting){
         if(isWeekendOrHoliday(currentDate)){
-            html += '<div class="bg-success-50 border border-success-200 rounded-2xl p-4 mb-4 flex items-center gap-3 animate-fade-up stagger-2"><i class="fas fa-info-circle text-success-500 text-xl"></i><div class="font-bold text-success-700 text-sm">주말/공휴일입니다. 기숙사에 잔류하시는 분만 잔류 확인 버튼을 눌러주세요.</div></div>';
+            html += '<div class="bg-success-50 border border-success-200 rounded-2xl p-4 mb-4 flex items-center gap-3 animate-fade-up stagger-2"><i class="fas fa-info-circle text-success-500 text-xl"></i><div class="font-bold text-success-700 text-sm">주말/공휴일입니다. 기숙사에 잔류하시는 교육생만 잔류 확인 버튼을 눌러주세요.</div></div>';
         } else if(_nowHour < 21){
-            html += '<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-4 flex items-center gap-3 animate-fade-up stagger-2"><i class="fas fa-clock text-warning-500 text-xl"></i><div class="font-bold text-warning-700 text-sm">잔류/외박 신청을 21:00전까지 제출하시기 바랍니다.</div></div>';
+            html += '<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-4 flex items-center justify-center gap-3 animate-fade-up stagger-2"><i class="fas fa-clock text-warning-500 text-xl"></i><div class="font-bold text-warning-700 text-sm">잔류/외박 신청을 21:00전까지 제출하시기 바랍니다.</div></div>';
         } else {
-            html += '<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-4 flex items-center gap-3 animate-pulse-soft"><i class="fas fa-exclamation-triangle text-danger-500 text-xl"></i><div class="font-bold text-danger-700 text-sm">제출 시간이 지났습니다! 지금 바로 제출해주세요.</div></div>';
+            html += '<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-4 flex items-center justify-center gap-3 animate-pulse-soft"><i class="fas fa-exclamation-triangle text-danger-500 text-xl"></i><div class="font-bold text-danger-700 text-sm">제출 시간이 지났습니다! 지금 바로 제출해주세요.</div></div>';
         }
     }
   
@@ -1679,7 +1679,7 @@ if(isAdminLoggedIn) {
         if(!mySub && !myOuting){
             if(isWeekendOrHoliday(currentDate)){
             html += '<button onclick="handleStudentStay()" class="w-full py-5 bg-success-500 text-white rounded-2xl font-bold text-xl btn-press shadow-button mb-3"><i class="fas fa-check-circle mr-2"></i> 잔류 확인</button>';
-            html += '<div class="text-center text-sm text-gray-400">주말/공휴일은 기숙사에 잔류하는 분만 신청합니다<br>미신청 시 외박으로 자동 처리됩니다</div>';
+            html += '<div class="text-center text-sm text-gray-400">주말/공휴일은 기숙사에 잔류하는 교육생만 신청합니다<br>미신청 시 외박으로 자동 처리됩니다</div>';
             } else {
             html += '<div class="grid grid-cols-2 gap-3 mb-3">';
             html += '<button onclick="handleStudentStay()" class="py-4 bg-success-500 text-white rounded-2xl font-bold text-lg btn-press shadow-button"><i class="fas fa-check-circle mr-1"></i> 잔류(Stay)</button>';
@@ -1907,7 +1907,7 @@ function renderLeaderView(todaySubs,todayOuts){
     var outing=todayOuts.filter(function(o){return o.department===leaderDepartment&&subN.indexOf(o.name)===-1&&ds.indexOf(o.name)!==-1});
     var notSub=ds.filter(function(s){return !todaySubs.find(function(sub){return sub.department===leaderDepartment&&sub.name===s})&&!todayOuts.find(function(o){return o.department===leaderDepartment&&o.name===s})});
 
-    var dateOpts=ad.map(function(d){var dd=new Date(d.date+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[dd.getDay()];var h=getHolidayName(d.date);var isWeekend=dd.getDay()===0||dd.getDay()===6;var label=h?d.date+' · ('+day+') 🔴 '+h:isWeekend?d.date+' · ('+day+') 🔵':d.date+'  \u2003\u2003  ('+day+')';return'<option value="'+d.date+'" '+(d.date===currentDate?'selected':'')+' style="color:'+(h||dd.getDay()===0?'#dc2626':dd.getDay()===6?'#2563eb':'#374151')+'">'+label+'</option>'}).join('');
+    var dateOpts=ad.map(function(d){var dd=new Date(d.date+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[dd.getDay()];var h=getHolidayName(d.date);var isWeekend=dd.getDay()===0||dd.getDay()===6;var label=h?d.date+' ('+day+') 🔴 '+h:isWeekend?d.date+' ('+day+') 🔵':d.date+' ('+day+')';return'<option value="'+d.date+'" '+(d.date===currentDate?'selected':'')+' style="color:'+(h||dd.getDay()===0?'#dc2626':dd.getDay()===6?'#2563eb':'#374151')+'">'+label+'</option>'}).join('');
 
     var html='<div class="max-w-2xl mx-auto"><div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up"><div class="flex items-center justify-between mb-5"><div><div class="text-sm text-gray-400 font-medium">학과대표</div><h2 class="text-2xl font-black text-gray-900">'+escapeHtml(leaderDepartment)+'</h2></div><div class="flex items-center gap-2"><button onclick="changeLeaderPassword()" class="px-3 py-2.5 bg-primary-50 text-primary-500 rounded-xl text-sm font-bold btn-press" title="비밀번호 변경"><i class="fas fa-key"></i></button>'+(isAdminLoggedIn?'<button onclick="isLeaderLoggedIn=false;leaderDepartment=null;currentMode=\'admin\';render()" class="px-3 py-2.5 bg-info-50 text-info-600 rounded-xl text-sm font-bold btn-press" title="관리자로 돌아가기"><i class="fas fa-shield-alt"></i></button>':'')+'<button onclick="logout()" class="px-3 py-2.5 bg-surface-100 text-gray-500 rounded-xl text-sm font-bold btn-press" title="로그아웃"><i class="fas fa-sign-out-alt"></i></button></div></div>'+(function(){if(menuControlSettings.showUnsubmittedAlert===false)return'';var now=new Date();var hour=now.getHours();var ns2=ds.filter(function(s){return!todaySubs.find(function(sub){return sub.department===leaderDepartment&&sub.name===s})&&!todayOuts.find(function(o){return o.department===leaderDepartment&&o.name===s})});if(ns2.length===0||hour<21)return'';return'<div class="bg-danger-50 border-2 border-danger-300 rounded-2xl p-4 mb-4 animate-pulse-soft"><div class="flex items-center gap-3"><i class="fas fa-exclamation-triangle text-danger-500 text-2xl"></i><div class="flex-1"><div class="font-bold text-danger-700 text-base">미제출자 '+ns2.length+'명!</div><div class="text-sm text-danger-600">21시가 지났습니다. 미제출 교육생의 인원보고를 완료해 주세요.</div></div></div></div>'})()+'<div class="grid grid-cols-4 gap-3"><div class="text-center p-3 bg-success-50 rounded-xl"><div class="text-2xl font-black text-success-600">'+stay.length+'</div><div class="text-xs text-success-600 font-bold mt-1">잔류</div></div><div class="text-center p-3 bg-warning-50 rounded-xl"><div class="text-2xl font-black text-warning-600">'+out.length+'</div><div class="text-xs text-warning-600 font-bold mt-1">외박</div></div><div class="text-center p-3 bg-info-50 rounded-xl"><div class="text-2xl font-black text-info-600">'+outing.length+'</div><div class="text-xs text-info-600 font-bold mt-1">외출</div></div><div class="text-center p-3 '+(notSub.length>0?'bg-danger-50':'bg-surface-50')+' rounded-xl"><div class="text-2xl font-black '+(notSub.length>0?'text-danger-600':'text-gray-400')+'">'+notSub.length+'</div><div class="text-xs '+(notSub.length>0?'text-danger-600':'text-gray-400')+' font-bold mt-1">미제출</div></div></div></div>';
   
@@ -1920,12 +1920,12 @@ function renderLeaderView(todaySubs,todayOuts){
     var _leaderNowHour=new Date().getHours();
     if(notSub.length>0){
         if(_leaderNowHour<21){
-            html+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-4 flex items-center gap-3 animate-fade-up"><i class="fas fa-clock text-warning-500 text-xl"></i><div class="font-bold text-warning-700 text-sm">잔류/외박 신청을 21:00전까지 제출하시기 바랍니다.</div></div>';
+            html+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-4 flex items-center justify-center gap-3 animate-fade-up"><i class="fas fa-clock text-warning-500 text-xl"></i><div class="font-bold text-warning-700 text-sm">잔류/외박 신청을 21:00전까지 제출하시기 바랍니다.</div></div>';
         } else {
-            html+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-4 flex items-center gap-3 animate-pulse-soft"><i class="fas fa-exclamation-triangle text-danger-500 text-xl"></i><div class="font-bold text-danger-700 text-sm">제출 시간이 지났습니다! 미제출 '+notSub.length+'명 - 지금 바로 제출해주세요.</div></div>';
+            html+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-4 flex items-center justify-center gap-3 animate-pulse-soft"><i class="fas fa-exclamation-triangle text-danger-500 text-xl"></i><div class="font-bold text-danger-700 text-sm">제출 시간이 지났습니다! 미제출 '+notSub.length+'명 - 지금 바로 제출해주세요.</div></div>';
         }
     }  
-html+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-2 mb-4 animate-fade-up stagger-1"><select id="leaderDateSelect" class="w-full px-4 py-3.5 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-semibold" onchange="currentDate=this.value;render()" style="font-size:16px">'+dateOpts+'</select></div>';
+html+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-2 mb-4 animate-fade-up stagger-1"><select id="leaderDateSelect" class="w-full px-4 py-3.5 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-semibold" onchange="currentDate=this.value;render()" style="font-size:16px;text-align:center">'+dateOpts+'</select></div>';
 
     if(notSub.length>0){
         if(isWeekendOrHoliday(currentDate)){
@@ -1965,7 +1965,7 @@ function renderAdminView(todaySubs,todayOuts,stats){
     var dateInfo=(function(){var d=new Date(currentDate+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[d.getDay()];var h=getHolidayName(currentDate);return h?'('+day+') '+h:'('+day+')'})();
     var dateClass=(function(){var _d=new Date(currentDate+'T00:00:00');var _day=_d.getDay();return formatDateWithDay(currentDate).isHoliday?'text-danger-600':_day===0?'text-danger-600':_day===6?'text-info-600':'text-gray-600'})();
 
-    return'<div class="max-w-5xl mx-auto"><div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-xl '+(isSuperAdmin?'bg-gradient-to-br from-amber-400 to-orange-500':'bg-primary-500')+' flex items-center justify-center"><i class="fas '+(isSuperAdmin?'fa-crown':'fa-shield-alt')+' text-white text-xl"></i></div><div><div class="font-bold text-gray-900 text-lg">'+(isSuperAdmin?'슈퍼 관리자':'관리자')+'</div><div class="text-sm text-gray-400"><span id="clockDisplay">'+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+'</span></div></div></div><div class="flex items-center gap-2"><button onclick="showStudentLoginFromAdmin()" class="flex items-center gap-2 px-4 py-2.5 bg-success-50 text-success-600 rounded-xl text-sm font-bold btn-press border border-success-200" title="교육생"><i class="fas fa-user-graduate"></i><span>교육생</span></button><button onclick="showLeaderLogin()" class="flex items-center gap-2 px-4 py-2.5 bg-info-100 text-info-700 rounded-xl text-sm font-bold btn-press border border-info-300" title="학과대표"><i class="fas fa-user-tie"></i><span>대표</span></button><button onclick="isOfficeLoggedIn=true;render()" class="flex items-center gap-2 px-4 py-2.5 bg-warning-50 text-warning-700 rounded-xl text-sm font-bold btn-press border border-warning-300" title="운영사무실"><i class="fas fa-building"></i><span>BTL</span></button><button onclick="logout()" class="flex items-center justify-center px-3 py-2.5 bg-danger-50 text-danger-600 rounded-xl text-sm font-bold btn-press border border-danger-300 self-stretch" title="로그아웃"><i class="fas fa-power-off"></i></button></div></div><div class="mt-4 bg-surface-50 rounded-2xl p-3 border border-surface-200"><div class="flex items-center justify-between"><div class="flex items-center gap-2 flex-1 min-w-0"><button onclick="changeDate(-7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-7일"><i class="fas fa-angle-double-left"></i></button><button onclick="changeDate(-1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-1일"><i class="fas fa-chevron-left"></i></button><div class="flex items-center flex-1 justify-center" style="gap:0;margin:0"><input type="date" id="mainDateInput" value="'+currentDate+'" onchange="currentDate=this.value;render()" class="py-2 text-base font-bold border-none outline-none text-right rounded-xl" style="background:transparent!important;backdrop-filter:none!important;max-width:165px;padding-right:0;margin-right:4px"><span class="text-base font-bold whitespace-nowrap '+dateClass+'">'+dateInfo+'</span></div><button onclick="changeDate(1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+1일"><i class="fas fa-chevron-right"></i></button><button onclick="changeDate(7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+7일"><i class="fas fa-angle-double-right"></i></button></div><button onclick="currentDate=getCurrentDate();render()" class="ml-2 px-5 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press shadow-button flex-shrink-0">오늘</button></div></div></div>'+dateWarn+'<div class="rounded-3xl shadow-card border border-surface-200 p-2 mb-4 animate-fade-up stagger-1" style="background:rgba(255,255,255,0.3);backdrop-filter:blur(10px)"><div class="flex gap-2 px-4 py-7"><button onclick="switchAdminTab(\'status\')" class="flex-1 py-3.5 rounded-2xl font-bold text-base btn-press transition-all '+(adminTab==='status'?'bg-primary-500 text-white shadow-button':'bg-white text-gray-600 border border-surface-200')+'"><i class="fas fa-chart-bar mr-1"></i> 현황</button><button onclick="switchAdminTab(\'settings\')" class="flex-1 py-3.5 rounded-2xl font-bold text-base btn-press transition-all '+(adminTab==='settings'?'bg-primary-500 text-white shadow-button':'bg-white text-gray-600 border border-surface-200')+'"><i class="fas fa-cog mr-1"></i> 설정</button></div></div><div style="display:'+(adminTab==='status'?'block':'none')+'" id="adminStatusTab">'+renderAdminStatus(todaySubs,todayOuts,stats)+'</div><div style="display:'+(adminTab==='settings'?'block':'none')+'" id="adminSettingsTab">'+renderAdminSettings()+'</div></div>';
+    return'<div class="max-w-5xl mx-auto"><div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-xl '+(isSuperAdmin?'bg-gradient-to-br from-amber-400 to-orange-500':'bg-primary-500')+' flex items-center justify-center"><i class="fas '+(isSuperAdmin?'fa-crown':'fa-shield-alt')+' text-white text-xl"></i></div><div><div class="font-bold text-gray-900 text-lg">'+(isSuperAdmin?'슈퍼 관리자':'관리자')+'</div><div class="text-sm text-gray-400"><span id="clockDisplay">'+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+'</span></div></div></div><div class="flex items-center gap-2"><button onclick="showStudentLoginFromAdmin()" class="flex items-center gap-2 px-4 py-2.5 bg-success-50 text-success-600 rounded-xl text-sm font-bold btn-press border border-success-200" title="교육생"><i class="fas fa-user-graduate"></i><span>교육생</span></button><button onclick="showLeaderLogin()" class="flex items-center gap-2 px-4 py-2.5 bg-info-100 text-info-700 rounded-xl text-sm font-bold btn-press border border-info-300" title="학과대표"><i class="fas fa-user-tie"></i><span>대표</span></button><button onclick="isOfficeLoggedIn=true;render()" class="flex items-center gap-2 px-4 py-2.5 bg-warning-50 text-warning-700 rounded-xl text-sm font-bold btn-press border border-warning-300" title="운영사무실"><i class="fas fa-building"></i><span>BTL</span></button><button onclick="logout()" class="flex items-center justify-center px-3 py-2.5 bg-danger-50 text-danger-600 rounded-xl text-sm font-bold btn-press border border-danger-300 self-stretch" title="로그아웃"><i class="fas fa-power-off"></i></button></div></div><div class="mt-4 bg-surface-50 rounded-2xl p-3 border border-surface-200"><div class="flex items-center justify-between"><div class="flex items-center gap-2 flex-1 min-w-0"><button onclick="changeDate(-7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-7일"><i class="fas fa-angle-double-left"></i></button><button onclick="changeDate(-1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-1일"><i class="fas fa-chevron-left"></i></button><div class="flex items-center flex-1 justify-center" style="gap:0;margin:0"><input type="date" id="mainDateInput" value="'+currentDate+'" onchange="currentDate=this.value;render()" class="py-2 text-base font-bold border-none outline-none text-right rounded-xl" style="background:transparent!important;backdrop-filter:none!important;max-width:165px;padding-right:0;margin-right:4px"><span class="text-base font-bold whitespace-nowrap '+dateClass+'" >'+dateInfo+'</span></div><button onclick="changeDate(1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+1일"><i class="fas fa-chevron-right"></i></button><button onclick="changeDate(7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+7일"><i class="fas fa-angle-double-right"></i></button></div><button onclick="currentDate=getCurrentDate();render()" class="ml-2 px-5 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press shadow-button flex-shrink-0">오늘</button></div></div></div>'+dateWarn+'<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-4 mb-4 animate-fade-up stagger-1"><div class="grid grid-cols-2 gap-3"><button onclick="switchAdminTab(\'status\')" class="rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(adminTab==='status'?'bg-primary-50 border border-primary-200':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-chart-bar '+(adminTab==='status'?'text-primary-500':'text-gray-500')+' text-2xl mb-1"></i><div class="text-sm font-bold '+(adminTab==='status'?'text-primary-600':'text-gray-500')+'">현황</div></button><button onclick="switchAdminTab(\'settings\')" class="rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(adminTab==='settings'?'bg-primary-50 border border-primary-200':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-cog '+(adminTab==='settings'?'text-primary-500':'text-gray-500')+' text-2xl mb-1"></i><div class="text-sm font-bold '+(adminTab==='settings'?'text-primary-600':'text-gray-500')+'">설정</div></button></div></div><div style="display:'+(adminTab==='status'?'block':'none')+'" id="adminStatusTab">'+renderAdminStatus(todaySubs,todayOuts,stats)+'</div><div style="display:'+(adminTab==='settings'?'block':'none')+'" id="adminSettingsTab">'+renderAdminSettings()+'</div></div>';
 }
 
 // ============ 관리자 현황 ============
@@ -2034,30 +2034,50 @@ Object.keys(floors).forEach(function(fk){var fl=floors[fk];fl.rooms.forEach(func
     femaleTotal:female.total,femaleEmpty:female.empty,femaleSingle:female.single,femaleDouble:female.doubleUp,
     maleTotal:male.total,maleEmpty:male.empty,maleSingle:male.single,maleDouble:male.doubleUp};
 }
-
+function roomCardFilter(keyword){
+  roomSearchKeyword=keyword;
+  window._roomFloorOpen={'1':true,'2':true,'3':true,'4':true};
+  render();
+  setTimeout(function(){
+    var firstMatch=document.querySelector('.room-card-match');
+    if(firstMatch){firstMatch.scrollIntoView({behavior:'smooth',block:'center'});}
+    setTimeout(function(){roomSearchKeyword='';var el=document.getElementById('roomSearchInput');if(el)el.value='';},5000);
+  },100);
+}
 function renderRoomStatus(){
   if(!window._roomStatusOpen)window._roomStatusOpen=false;
   if(!window._roomFloorOpen)window._roomFloorOpen={};
   var rs=getRoomStatus();
-  var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 px-6 py-4 mb-4 animate-fade-up">';
-  h+='<div class="flex items-center justify-between cursor-pointer" onclick="window._roomStatusOpen=!window._roomStatusOpen;render()">';
-  h+='<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-building text-primary-500"></i> 호실 현황 <span class="text-base font-medium text-gray-500">(총 '+(rs.totalRooms+rs.staffRooms)+'실)</span></h2>';
-  h+='<i class="fas '+(window._roomStatusOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>';
+  var _allRooms=rs.totalRooms+rs.staffRooms;
+  var _studentRooms=rs.totalRooms;
+  var _staffPct=_allRooms>0?Math.round(rs.staffRooms/_allRooms*100):0;
+  var _emptyPct=_studentRooms>0?Math.round(rs.emptyRooms/_studentRooms*100):0;
+  var _singlePct=_studentRooms>0?Math.round(rs.singleRooms/_studentRooms*100):0;
+  var _doublePct=_studentRooms>0?Math.round(rs.doubleRooms/_studentRooms*100):0;
+  var _occupyPct=_studentRooms>0?Math.round((rs.singleRooms+rs.doubleRooms)/_studentRooms*100):0;
+  var h='<div class="bg-white rounded-3xl shadow-card border border-surface-200 mb-4 animate-fade-up" style="transition:box-shadow 0.2s ease">';
+  h+='<div class="p-4 text-center cursor-pointer rounded-3xl" onclick="window._roomStatusOpen=!window._roomStatusOpen;render()" style="transition:background 0.2s ease" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'white\'">';
+  h+='<i class="fas fa-building text-primary-500 text-3xl mb-2"></i>';
+  h+='<div class="text-lg font-bold text-gray-700">호실 현황</div>';
+  h+='<div class="text-sm font-bold text-gray-500">(총 '+_allRooms+'실, 입실률 '+_occupyPct+'%)</div>';
+  h+='<i class="fas '+(window._roomStatusOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400 mt-1" style="font-size:10px"></i></div>';
   if(window._roomStatusOpen){
     h+='<div class="mt-4 mb-3">';
-h+='<div class="flex items-center gap-2 mb-2">';
-h+='<div class="flex items-center bg-surface-50 border border-surface-200 rounded-xl px-3 py-2" style="width:500px;max-width:100%"><i class="fas fa-search text-gray-400 mr-2"></i><input type="text" id="roomSearchInput" placeholder="검색 (이름, 호실, 공실, 1인실, 2인실)" value="'+escapeHtml(roomSearchKeyword)+'" onkeydown="if(event.key===\'Enter\'){var _kw=this.value.trim();if(_kw){roomSearchKeyword=_kw;window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render();setTimeout(function(){roomSearchKeyword=\'\';var el=document.getElementById(\'roomSearchInput\');if(el)el.value=\'\'},3000)}}" class="bg-transparent border-none outline-none text-sm font-medium flex-1" style="min-width:0;height:32px"></div>';
-h+=(roomSearchKeyword?'<button onclick="roomSearchKeyword=\'\';render()" class="px-3 py-2 bg-danger-50 text-danger-500 rounded-xl text-xs font-bold btn-press border border-danger-200"><i class="fas fa-times"></i></button>':'');
-h+='</div><div class="flex gap-2">';
-h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render()" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button>';
-h+='<button onclick="window._roomFloorOpen={};render()" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button>';
-h+='</div></div>';
-    h+='<div class="grid grid-cols-5 gap-3 mb-4" style="font-size:1.1em">';
-h+='<div class="text-center p-4 bg-primary-50 rounded-2xl"><div class="text-2xl font-black text-primary-600">'+rs.totalRooms+'</div><div class="text-sm font-bold text-primary-500">총호실</div></div>';
-h+='<div class="text-center p-4 bg-purple-50 rounded-2xl"><div class="text-2xl font-black text-purple-600">'+rs.staffRooms+'</div><div class="text-sm font-bold text-purple-500">교직원</div></div>';
-    h+='<div class="text-center p-4 bg-gray-100 rounded-2xl"><div class="text-2xl font-black text-gray-700">'+rs.emptyRooms+'</div><div class="text-sm font-bold text-gray-600">공실</div></div>';
-    h+='<div class="text-center p-4 bg-warning-50 rounded-2xl"><div class="text-2xl font-black text-warning-600">'+rs.singleRooms+'</div><div class="text-sm font-bold text-warning-600">1인실</div></div>';
-    h+='<div class="text-center p-4 bg-success-50 rounded-2xl"><div class="text-2xl font-black text-success-600">'+rs.doubleRooms+'</div><div class="text-sm font-bold text-success-600">2인실</div></div>';
+    h+='<div class="flex items-center gap-2 mb-2">';
+    h+='<div class="flex items-center bg-surface-50 border border-surface-200 rounded-xl px-3 py-2" style="width:500px;max-width:100%"><i class="fas fa-search text-gray-400 mr-3 ml-2"></i><input type="text" id="roomSearchInput" placeholder="검색 (이름, 호실, 공실, 1인실, 2인실)" value="'+escapeHtml(roomSearchKeyword)+'" onkeydown="if(event.key===\'Enter\'){var _kw=this.value.trim();if(_kw){roomSearchKeyword=_kw;window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render();setTimeout(function(){roomSearchKeyword=\'\';var el=document.getElementById(\'roomSearchInput\');if(el)el.value=\'\'},3000)}}" class="bg-transparent border-none outline-none text-sm font-medium flex-1" style="min-width:0;height:32px"></div>';
+    h+=(roomSearchKeyword?'<button onclick="roomSearchKeyword=\'\';render()" class="px-3 py-2 bg-danger-50 text-danger-500 rounded-xl text-xs font-bold btn-press border border-danger-200"><i class="fas fa-times"></i></button>':'');
+    h+='</div>';
+    h+='<div class="flex gap-2">';
+    h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render()" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button>';
+    h+='<button onclick="window._roomFloorOpen={};render()" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button>';
+    h+='</div>';
+    h+='</div>';
+    h+='<div class="grid grid-cols-5 gap-3 mb-5 animate-fade-up">';
+    h+='<div class="bg-primary-50 border border-primary-200 rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press" onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render();setTimeout(function(){var el=document.querySelector(\'.mb-3\');if(el)el.scrollIntoView({behavior:\'smooth\',block:\'start\'})},100)"><i class="fas fa-building text-primary-500 text-2xl mb-1"></i><div class="text-2xl font-black text-primary-600">'+_allRooms+'</div><div class="text-sm font-bold text-primary-500">총호실</div><div class="text-xs font-bold text-gray-500">(100%)</div></div>';
+    h+='<div class="bg-purple-50 border border-purple-200 rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press" onclick="roomCardFilter(\'교직원\')"><i class="fas fa-user-tie text-purple-500 text-2xl mb-1"></i><div class="text-2xl font-black text-purple-600">'+rs.staffRooms+'</div><div class="text-sm font-bold text-purple-500">교직원</div><div class="text-xs font-bold text-gray-500">('+_staffPct+'%)</div></div>';
+    h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press" onclick="roomCardFilter(\'공실\')"><i class="fas fa-door-open text-gray-500 text-2xl mb-1"></i><div class="text-2xl font-black text-gray-700">'+rs.emptyRooms+'</div><div class="text-sm font-bold text-gray-600">공실</div><div class="text-xs font-bold text-gray-500">('+_emptyPct+'%)</div></div>';
+    h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press" onclick="roomCardFilter(\'1인실\')"><i class="fas fa-user text-warning-500 text-2xl mb-1"></i><div class="text-2xl font-black text-warning-600">'+rs.singleRooms+'</div><div class="text-sm font-bold text-warning-600">1인실</div><div class="text-xs font-bold text-gray-500">('+_singlePct+'%)</div></div>';
+    h+='<div class="bg-success-50 border border-success-200 rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press" onclick="roomCardFilter(\'2인실\')"><i class="fas fa-user-friends text-success-500 text-2xl mb-1"></i><div class="text-2xl font-black text-success-600">'+rs.doubleRooms+'</div><div class="text-sm font-bold text-success-600">2인실</div><div class="text-xs font-bold text-gray-500">('+_doublePct+'%)</div></div>';
     h+='</div>';
     h+='<div class="grid grid-cols-2 gap-3 mb-4">';
     h+='<div class="p-4 bg-pink-50 rounded-2xl"><div class="font-bold text-pink-700 mb-2"><i class="fas fa-female"></i> 여학생 ('+rs.femaleTotal+'실)</div>';
@@ -2070,12 +2090,12 @@ h+='<div class="text-center p-4 bg-purple-50 rounded-2xl"><div class="text-2xl f
       var f=floorKeys[fi];
       var fl=rs.floors[f];
       var flEmpty=0,flSingle=0,flDouble=0,flStaff=0;
-for(var ri=0;ri<fl.rooms.length;ri++){
-  if(fl.rooms[ri].isStaff)flStaff++;
-  else if(fl.rooms[ri].count===0)flEmpty++;
-  else if(fl.rooms[ri].count===1)flSingle++;
-  else flDouble++;
-}
+      for(var ri=0;ri<fl.rooms.length;ri++){
+        if(fl.rooms[ri].isStaff)flStaff++;
+        else if(fl.rooms[ri].count===0)flEmpty++;
+        else if(fl.rooms[ri].count===1)flSingle++;
+        else flDouble++;
+      }
       var open=window._roomFloorOpen[f]||false;
       h+='<div class="mb-3">';
       h+='<div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl cursor-pointer" onclick="window._roomFloorOpen[\''+f+'\']=!window._roomFloorOpen[\''+f+'\'];render()">';
@@ -2084,26 +2104,38 @@ for(var ri=0;ri<fl.rooms.length;ri++){
       h+='<span class="text-sm text-gray-700 font-bold">공실'+flEmpty+'</span>';
       h+='<span class="text-sm text-warning-700 font-bold">1인'+flSingle+'</span>';
       h+='<span class="text-sm text-success-700 font-bold">2인'+flDouble+'</span>';
-h+=(flStaff>0?'<span class="text-sm text-purple-700 font-bold">교직원'+flStaff+'</span>':'');
-h+='<span class="text-sm text-gray-600 font-medium">'+fl.rooms.length+'실</span>';
+      h+=(flStaff>0?'<span class="text-sm text-purple-700 font-bold">교직원'+flStaff+'</span>':'');
+      h+='<span class="text-sm text-gray-600 font-medium">'+fl.rooms.length+'실</span>';
       h+='<i class="fas '+(open?'fa-chevron-up':'fa-chevron-down')+' text-gray-400 ml-1"></i>';
       h+='</div></div>';
       if(open){
         h+='<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">';
         for(var rj=0;rj<fl.rooms.length;rj++){
           var r=fl.rooms[rj];
-          if(roomSearchKeyword){var _found=false;var _kw=roomSearchKeyword.toLowerCase();if(_kw==='공실'){if(r.count===0&&!r.isStaff)_found=true;}else if(_kw==='1인실'||_kw==='1인'){if(r.count===1)_found=true;}else if(_kw==='2인실'||_kw==='2인'){if(r.count>=2)_found=true;}else if(_kw==='교직원'){if(r.isStaff)_found=true;}else if(_kw==='메모'){if(roomMemos[r.room])_found=true;}else{for(var si=0;si<r.members.length;si++){if(r.members[si].name.toLowerCase().indexOf(_kw)!==-1){_found=true;break;}}if(r.room.indexOf(roomSearchKeyword)!==-1)_found=true;}if(!_found)continue;}
+          if(roomSearchKeyword){
+            var _found=false;var _kw=roomSearchKeyword.toLowerCase();
+            if(_kw==='공실'){if(r.count===0&&!r.isStaff)_found=true;}
+            else if(_kw==='1인실'||_kw==='1인'){if(r.count===1)_found=true;}
+            else if(_kw==='2인실'||_kw==='2인'){if(r.count>=2)_found=true;}
+            else if(_kw==='교직원'){if(r.isStaff)_found=true;}
+            else if(_kw==='메모'){if(roomMemos[r.room])_found=true;}
+            else{
+              for(var si=0;si<r.members.length;si++){if(r.members[si].name.toLowerCase().indexOf(_kw)!==-1){_found=true;break;}}
+              if(r.room.indexOf(roomSearchKeyword)!==-1)_found=true;
+            }
+            if(!_found)continue;
+          }
           var bg='bg-gray-100 border-gray-300',status='공실',color='text-gray-600';
-if(r.isStaff){bg='bg-purple-50 border-purple-300';status='교직원';color='text-purple-700';}
-else if(r.count===1){bg='bg-warning-50 border-warning-200';status='1인실';color='text-warning-700';}
-else if(r.count>=2){bg='bg-success-50 border-success-200';status='2인실';color='text-success-700';}
-          h+='<div class="'+bg+' border rounded-xl p-3">';
+          if(r.isStaff){bg='bg-purple-50 border-purple-300';status='교직원';color='text-purple-700';}
+          else if(r.count===1){bg='bg-warning-50 border-warning-200';status='1인실';color='text-warning-700';}
+          else if(r.count>=2){bg='bg-success-50 border-success-200';status='2인실';color='text-success-700';}
+          h+='<div class="'+bg+' border rounded-xl p-3 room-card-match">';
           h+='<div class="flex items-center justify-between mb-1"><span class="font-bold text-gray-800 text-base">'+r.room+'호</span><div class="flex items-center gap-1"><button onclick="saveRoomMemo(\''+r.room+'\')" class="text-gray-400 hover:text-primary-500" style="font-size:12px" title="메모"><i class="fas fa-sticky-note"></i></button><span class="text-sm font-bold '+color+'">'+status+'</span></div></div>';
-h+=(roomMemos[r.room]?'<div class="text-xs text-purple-600 font-medium bg-purple-50 rounded-lg px-2 py-1 mb-1"><i class="fas fa-sticky-note mr-1"></i>'+escapeHtml(roomMemos[r.room])+'</div>':'');
+          h+=(roomMemos[r.room]?'<div class="text-xs text-purple-600 font-medium bg-purple-50 rounded-lg px-2 py-1 mb-1"><i class="fas fa-sticky-note mr-1"></i>'+escapeHtml(roomMemos[r.room])+'</div>':'');
           if(r.count>0){
             for(var mi=0;mi<r.members.length;mi++){
               var m=r.members[mi];
-              h+='<div class="text-sm text-gray-700 font-medium truncate">'+escapeHtml(m.name)+' <span class="text-gray-500 font-normal">['+escapeHtml(m.dept)+']</span></div>';
+              h+='<div class="text-sm text-gray-700 font-semibold truncate">'+escapeHtml(m.name)+' <span class="text-gray-600 font-medium">['+escapeHtml(m.dept)+']</span></div>';
             }
           }else{
             h+='<div class="text-sm text-gray-500 italic">비어있음</div>';
@@ -2118,6 +2150,7 @@ h+=(roomMemos[r.room]?'<div class="text-xs text-purple-600 font-medium bg-purple
   h+='</div>';
   return h;
 }
+
 function renderAdminStatus(todaySubs,todayOuts,stats){
   var accessHtml='';
     if(menuControlSettings.showAccessRequest!==false){
