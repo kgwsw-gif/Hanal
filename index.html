@@ -205,14 +205,13 @@ html.dark button[onclick*="deleteStudentAction"],html.dark button[onclick*="dele
 #loading .load-step{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;position:relative;transition:all 0.6s cubic-bezier(0.34,1.56,0.64,1);opacity:0;animation:stepIn 0.4s ease both}
 #loading .load-step::before{content:'';position:absolute;inset:0;border-radius:11px;background:rgba(255,255,255,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.5);transition:all 0.6s ease;z-index:0}
 #loading .load-step i{position:relative;z-index:1;font-size:13px;transition:all 0.5s cubic-bezier(0.34,1.56,0.64,1)}
-#loading .load-step .tool-icon{opacity:0.4}
-#loading .load-step .check-icon{position:absolute;opacity:0;transform:scale(0);color:#10b981;font-size:13px;z-index:2;transition:all 0.5s cubic-bezier(0.34,1.56,0.64,1)}
+#loading .load-step .check-icon{position:absolute;opacity:0.4;transform:scale(1);color:#10b981;font-size:13px;z-index:2;transition:all 0.5s cubic-bezier(0.34,1.56,0.64,1)}
+#loading .load-step .tool-icon{opacity:0;transform:scale(0);transition:all 0.5s cubic-bezier(0.34,1.56,0.64,1)}
 #loading .load-step.active::before{border-color:rgba(99,102,241,0.25);box-shadow:0 0 16px rgba(99,102,241,0.1)}
-#loading .load-step.active .tool-icon{opacity:1;transform:scale(1.1)}
+#loading .load-step.active .check-icon{opacity:1;transform:scale(1.1)}
 #loading .load-step.done::before{background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.2)}
-#loading .load-step.done .tool-icon{opacity:0;transform:scale(0)}
-#loading .load-step.done .check-icon{opacity:1;transform:scale(1)}
-#loading .step-line{width:6px;height:2px;border-radius:1px;background:rgba(99,102,241,0.08);align-self:center;transition:background 0.4s ease}
+#loading .load-step.done .check-icon{opacity:0;transform:scale(0)}
+#loading .load-step.done .tool-icon{opacity:1;transform:scale(1)}#loading .step-line{width:6px;height:2px;border-radius:1px;background:rgba(99,102,241,0.08);align-self:center;transition:background 0.4s ease}
 #loading .step-line.done{background:rgba(16,185,129,0.2)}
 @keyframes loadTitleIn{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
 #loading .title-area{margin-bottom:24px}
