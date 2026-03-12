@@ -2962,15 +2962,10 @@ function renderAdminSettings(){
 }
 </script>
 <script>
-// ============ 후처리: 아코디언 접기/펼치기 + 섹션 재배치 ============
-var _origRender2=render;render=function(){_origRender2();setTimeout(function(){
-    // 날짜별 이력, 기간별 통계에 접기/펼치기 아코디언 추가
-    var sections=[{title:'날짜별 이력 조회',contentId:'historyDateInput'},{title:'기간별 통계',contentId:'statStartDate'}];
-    sections.forEach(function(sec){var span=null;var allSpans=document.querySelectorAll('span.font-bold.text-gray-700');allSpans.forEach(function(s){if(s.textContent.trim()===sec.title)span=s});if(!span)return;var header=span.closest('.flex.items-center.justify-between');if(!header||header.querySelector('.section-chevron'))return;var chevron=document.createElement('i');chevron.className='fas fa-chevron-down text-gray-400 transition-transform section-chevron';chevron.style.cssText='cursor:pointer;transition:transform 0.3s';header.appendChild(chevron);var parent=header.parentElement;var siblings=[];var started=false;for(var k=0;k<parent.children.length;k++){if(parent.children[k]===header){started=true;continue}if(started)siblings.push(parent.children[k])}var wrapper=document.createElement('div');wrapper.className='section-content';wrapper.style.cssText='transition:max-height 0.3s ease,opacity 0.3s ease;overflow:hidden';siblings.forEach(function(s){wrapper.appendChild(s)});parent.appendChild(wrapper);header.style.cursor='pointer';wrapper.style.maxHeight='none';wrapper.style.opacity='1';var collapsed=false;chevron.addEventListener('click',function(e){e.stopPropagation();var isOpen=wrapper.style.opacity!=='0';if(isOpen){wrapper.style.maxHeight=wrapper.scrollHeight+'px';wrapper.offsetHeight;wrapper.style.maxHeight='0px';wrapper.style.opacity='0';chevron.style.transform='rotate(-180deg)'}else{wrapper.style.maxHeight='none';wrapper.style.opacity='1';chevron.style.transform='rotate(0deg)'}});var obs=new MutationObserver(function(){if(!collapsed){wrapper.style.maxHeight='none'}});obs.observe(wrapper,{childList:true,subtree:true})})},200)};
+// ============ 통합 후처리 (기존 3중 래핑 → 단일 함수) ============
+var menuControlSettings={showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true,showUnsubmittedAlert:true,showOutingRequest:true};
 
-// ============ 메뉴 제어 (슈퍼관리자 전용) ============
-var menuControlSettings={showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true};
-async function loadMenuControl(){try{var doc=await db.collection('settings').doc('menuControl').get();if(doc.exists){menuControlSettings=Object.assign({showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true},doc.data())}applyMenuControl()}catch(e){}}
+async function loadMenuControl(){try{var doc=await db.collection('settings').doc('menuControl').get();if(doc.exists){menuControlSettings=Object.assign({showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true,showUnsubmittedAlert:true,showOutingRequest:true},doc.data())}applyMenuControl()}catch(e){}}
 
 function applyMenuControl(){
     var officeBtn=document.querySelector('button[onclick="showOfficeLogin()"]');if(officeBtn)officeBtn.style.display=menuControlSettings.showOfficeMenu?'':'none';
@@ -2978,56 +2973,171 @@ function applyMenuControl(){
     var leaderMsgSec=document.getElementById('leaderMessageSection');if(leaderMsgSec)leaderMsgSec.style.display=menuControlSettings.showLeaderMessage!==false?'':'none';
     var adminMsgToggle=document.querySelector('[onclick="toggleManageSection(\'sec-messages-status\')"]');if(adminMsgToggle){var adminMsgWrapper=adminMsgToggle.closest('.bg-white.rounded-2xl');if(adminMsgWrapper)adminMsgWrapper.style.display=menuControlSettings.showLeaderMessage!==false?'':'none'}
     var t1=document.getElementById('toggleOfficeMenu'),t2=document.getElementById('toggleHvacTab'),t3=document.getElementById('toggleLeaderMessage'),t4=document.getElementById('toggleFacilityRequest');
-    if(t1)t1.checked=menuControlSettings.showOfficeMenu;if(t2)t2.checked=menuControlSettings.showHvacTab;if(t3)t3.checked=menuControlSettings.showLeaderMessage!==false;if(t4)t4.checked=menuControlSettings.showFacilityRequest!==false;var t5=document.getElementById('toggleUnsubmittedAlert');if(t5)t5.checked=menuControlSettings.showUnsubmittedAlert!==false;var t6=document.getElementById('toggleOutingRequest');if(t6)t6.checked=menuControlSettings.showOutingRequest!==false;
- var t7=document.getElementById('toggleAccessRequest');if(t7)t7.checked=menuControlSettings.showAccessRequest!==false;var t8=document.getElementById('toggleLotteryEvent');if(t8)t8.checked=menuControlSettings.showLotteryEvent!==false;
+    if(t1)t1.checked=menuControlSettings.showOfficeMenu;if(t2)t2.checked=menuControlSettings.showHvacTab;if(t3)t3.checked=menuControlSettings.showLeaderMessage!==false;if(t4)t4.checked=menuControlSettings.showFacilityRequest!==false;
+    var t5=document.getElementById('toggleUnsubmittedAlert');if(t5)t5.checked=menuControlSettings.showUnsubmittedAlert!==false;
+    var t6=document.getElementById('toggleOutingRequest');if(t6)t6.checked=menuControlSettings.showOutingRequest!==false;
+    var t7=document.getElementById('toggleAccessRequest');if(t7)t7.checked=menuControlSettings.showAccessRequest!==false;
+    var t8=document.getElementById('toggleLotteryEvent');if(t8)t8.checked=menuControlSettings.showLotteryEvent!==false;
 }
 
 async function saveMenuControl(){
     var t1=document.getElementById('toggleOfficeMenu'),t2=document.getElementById('toggleHvacTab');if(!t1||!t2)return;
     menuControlSettings.showOfficeMenu=t1.checked;menuControlSettings.showHvacTab=t2.checked;
     var t3=document.getElementById('toggleLeaderMessage');menuControlSettings.showLeaderMessage=t3?t3.checked:true;
-    var t4=document.getElementById('toggleFacilityRequest');menuControlSettings.showFacilityRequest=t4?t4.checked:true;var t5=document.getElementById('toggleUnsubmittedAlert');menuControlSettings.showUnsubmittedAlert=t5?t5.checked:true;var t6=document.getElementById('toggleOutingRequest');menuControlSettings.showOutingRequest=t6?t6.checked:true;
-   var t7=document.getElementById('toggleAccessRequest');menuControlSettings.showAccessRequest=t7?t7.checked:true;var t8=document.getElementById('toggleLotteryEvent');menuControlSettings.showLotteryEvent=t8?t8.checked:true;
+    var t4=document.getElementById('toggleFacilityRequest');menuControlSettings.showFacilityRequest=t4?t4.checked:true;
+    var t5=document.getElementById('toggleUnsubmittedAlert');menuControlSettings.showUnsubmittedAlert=t5?t5.checked:true;
+    var t6=document.getElementById('toggleOutingRequest');menuControlSettings.showOutingRequest=t6?t6.checked:true;
+    var t7=document.getElementById('toggleAccessRequest');menuControlSettings.showAccessRequest=t7?t7.checked:true;
+    var t8=document.getElementById('toggleLotteryEvent');menuControlSettings.showLotteryEvent=t8?t8.checked:true;
     try{await db.collection('settings').doc('menuControl').set({showOfficeMenu:t1.checked,showHvacTab:t2.checked,showLeaderMessage:t3?t3.checked:true,showFacilityRequest:t4?t4.checked:true,showUnsubmittedAlert:t5?t5.checked:true,showOutingRequest:t6?t6.checked:true,showAccessRequest:t7?t7.checked:true,showLotteryEvent:t8?t8.checked:true,updatedAt:new Date().toISOString()},{merge:true});showToast('메뉴 설정 저장 완료','success');applyMenuControl()}catch(e){showToast('저장 실패','error')}
 }
 
-// 메뉴 제어 섹션 동적 삽입
-var _origRender3=render;render=function(){_origRender3();setTimeout(function(){
-if(adminTab!=='settings')return;
-    if(!isSuperAdmin)return;if(document.getElementById('sec-menu-control'))return;
-    var dangerSec=document.getElementById('sec-danger');if(!dangerSec)return;
-    var section=document.createElement('div');section.id='sec-menu-control';section.className='mt-3';section.style.display='none';section.innerHTML='<div class="bg-surface-50 rounded-2xl p-6 border-2 border-primary-200"><p class="text-sm text-gray-500 mb-4">초기 화면의 메뉴 표시/숨김을 제어합니다. (슈퍼관리자 전용)</p><div class="space-y-4"><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-building text-orange-500 mr-2"></i>운영사무실 메뉴</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleOfficeMenu" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-snowflake text-cyan-500 mr-2"></i>냉난방 신청 탭</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleHvacTab" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-comment-dots text-primary-500 mr-2"></i>학과대표 전달사항</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleLeaderMessage" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-tools text-purple-500 mr-2"></i>시설 민원 접수</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleFacilityRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-walking text-info-500 mr-2"></i>외출 신청</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleOutingRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-bell text-danger-500 mr-2"></i>미제출자 알림</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleUnsubmittedAlert" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-door-open text-teal-500 mr-2"></i>기숙사 출입신청</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleAccessRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-ticket-alt text-yellow-500 mr-2"></i>출석 이벤트 (복권)</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleLotteryEvent" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div></div>'+'<div class="mt-5 pt-5 border-t-2 border-primary-100"><h3 class="font-bold text-primary-700 text-base mb-3"><i class="fas fa-lock mr-1"></i> 인원보고 제어</h3><div class="space-y-2"><label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode"value="always" '+(submitMode==='always'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">항상 열림 (현재 방식)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="manual" '+(submitMode==='manual'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">관리자 수동 제어</span></label>'+(submitMode==='manual'?'<div class="ml-7 mb-1"><button onclick="toggleManualSubmit()" class="px-4 py-2 '+(submitManualOpen?'bg-success-500':'bg-danger-500')+' text-white rounded-xl text-sm font-bold btn-press">'+(submitManualOpen?'현재: 열림 (닫기 클릭)':'현재: 닫힘 (열기 클릭)')+'</button></div>':'')+'<label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="auto" '+(submitMode==='auto'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">자동 (금~일, 공휴일 전날~공휴일만)</span></label></div></div></div>';
-    dangerSec.parentElement.insertBefore(section,dangerSec.nextSibling);
-    if(!document.getElementById('menuControlToggleBtn')){var toggleBtn=document.createElement('div');toggleBtn.id='menuControlToggleBtn';toggleBtn.className='bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none';toggleBtn.onclick=function(){toggleManageSection('sec-menu-control')};toggleBtn.innerHTML='<h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-sliders-h mr-2"></i>메뉴 제어</h3><i id="secIcon-sec-menu-control" class="fas fa-chevron-down text-gray-400"></i>';toggleBtn.style.display='flex';toggleBtn.style.alignItems='center';toggleBtn.style.justifyContent='space-between';var dangerBtn=dangerSec.previousElementSibling;if(dangerBtn)dangerBtn.parentElement.insertBefore(toggleBtn,dangerBtn.nextSibling);else dangerSec.parentElement.insertBefore(toggleBtn,dangerSec)}
-    loadMenuControl();
-},300)};
+// ===== 섹션 병합 헬퍼 =====
+function _doSectionMerge(sourceSecId, targetSecId, mergeClass, headerBg, headerBd, iconBg, iconColor, titleColor, iconClass, titleText){
+    var sourceToggle=document.querySelector('[onclick="toggleManageSection(\''+sourceSecId+'\')"]');
+    var sourceSec=document.getElementById(sourceSecId);
+    var targetSec=document.getElementById(targetSecId);
+    if(!sourceToggle||!sourceSec||!targetSec)return;
+    if(targetSec.querySelector('.'+mergeClass))return;
+    var sourceParent=sourceToggle.closest('.mb-4');
+    var wrapper=document.createElement('div');wrapper.className=mergeClass+' mt-5 pt-5';
+    var header=document.createElement('div');header.className='flex items-center justify-between p-4 rounded-xl border cursor-pointer select-none';
+    header.style.cssText='background:'+headerBg+';border-color:'+headerBd;
+    header.innerHTML='<div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:'+iconBg+'"><i class="fas '+iconClass+'" style="color:'+iconColor+'"></i></div><h3 class="font-bold text-base" style="color:'+titleColor+'">'+titleText+'</h3></div><i class="fas fa-chevron-down transition-transform" style="color:#94a3b8"></i>';
+    var content=document.createElement('div');content.style.display='none';content.className='mt-3';
+    sourceSec.querySelectorAll(':scope > *').forEach(function(c){content.appendChild(c.cloneNode(true))});
+    header.onclick=function(){var icon=header.querySelector('.fa-chevron-down,.fa-chevron-up');if(content.style.display==='none'){content.style.display='';if(icon)icon.className=icon.className.replace('fa-chevron-down','fa-chevron-up')}else{content.style.display='none';if(icon)icon.className=icon.className.replace('fa-chevron-up','fa-chevron-down')}};
+    wrapper.appendChild(header);wrapper.appendChild(content);targetSec.appendChild(wrapper);
+    if(sourceParent)sourceParent.remove();
+}
 
-// DOM 재배치 + 병합 + 색상
-var _settingsInitDone=false;
-var _settingsRenderTimer=null;
-var _origRender4=render;render=function(){_origRender4();if(_settingsRenderTimer){clearTimeout(_settingsRenderTimer);_settingsRenderTimer=null;}_settingsRenderTimer=setTimeout(function(){_settingsRenderTimer=null;    if(adminTab!=='settings')return;
-    // 공지사항 위 전체펼치기/접기 제거    var announceSec2=document.getElementById('sec-announce');if(announceSec2){var announceParent=announceSec2.closest('.bg-white');if(announceParent){var prevEl=announceParent.previousElementSibling;if(prevEl&&prevEl.querySelector&&prevEl.querySelector('[onclick="toggleAllManageSections(true)"]'))prevEl.remove()}}
-    // 학과대표 → 학과 내 병합
-    var leaderToggle=document.querySelector('[onclick="toggleManageSection(\'sec-leaders\')"]');var leaderSec=document.getElementById('sec-leaders');var deptSec=document.getElementById('sec-departments');
-    if(leaderToggle&&leaderSec&&deptSec&&!deptSec.querySelector('.merged-leaders')){var leaderToggleParent=leaderToggle.closest('.mb-4');var wrapper=document.createElement('div');wrapper.className='merged-leaders mt-5 pt-5';var header=document.createElement('div');header.className='flex items-center justify-between p-4 rounded-xl border cursor-pointer select-none';header.style.cssText='background:rgba(226,232,240,0.4);border-color:rgba(203,213,225,0.6)';header.innerHTML='<div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(203,213,225,0.5)"><i class="fas fa-user-tie" style="color:#64748b"></i></div><h3 class="font-bold text-base" style="color:#475569">학과대표 관리</h3></div><i class="fas fa-chevron-down transition-transform" style="color:#94a3b8"></i>';var content=document.createElement('div');content.style.display='none';content.className='mt-3';leaderSec.querySelectorAll(':scope > *').forEach(function(c){content.appendChild(c.cloneNode(true))});header.onclick=function(){var icon=header.querySelector('.fa-chevron-down,.fa-chevron-up');if(content.style.display==='none'){content.style.display='';if(icon)icon.className=icon.className.replace('fa-chevron-down','fa-chevron-up')}else{content.style.display='none';if(icon)icon.className=icon.className.replace('fa-chevron-up','fa-chevron-down')}};wrapper.appendChild(header);wrapper.appendChild(content);deptSec.appendChild(wrapper);if(leaderToggleParent)leaderToggleParent.remove()}
-    // 비밀번호 → 교육생 내 병합
-    var pwToggle=document.querySelector('[onclick="toggleManageSection(\'sec-passwords\')"]');var pwSec=document.getElementById('sec-passwords');var studentSec=document.getElementById('sec-students');
-    if(pwToggle&&pwSec&&studentSec&&!studentSec.querySelector('.merged-passwords')){var pwToggleParent=pwToggle.closest('.mb-4');var wrapper2=document.createElement('div');wrapper2.className='merged-passwords mt-5 pt-5';var header2=document.createElement('div');header2.className='flex items-center justify-between p-4 rounded-xl border cursor-pointer select-none';header2.style.cssText='background:rgba(239,246,255,0.6);border-color:rgba(191,219,254,0.6)';header2.innerHTML='<div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(191,219,254,0.5)"><i class="fas fa-key" style="color:#2563eb"></i></div><h3 class="font-bold text-base" style="color:#1e40af">비밀번호 관리</h3></div><i class="fas fa-chevron-down transition-transform" style="color:#9ca3af"></i>';var content2=document.createElement('div');content2.style.display='none';content2.className='mt-3';pwSec.querySelectorAll(':scope > *').forEach(function(c){content2.appendChild(c.cloneNode(true))});header2.onclick=function(){var icon=header2.querySelector('.fa-chevron-down,.fa-chevron-up');if(content2.style.display==='none'){content2.style.display='';if(icon)icon.className=icon.className.replace('fa-chevron-down','fa-chevron-up')}else{content2.style.display='none';if(icon)icon.className=icon.className.replace('fa-chevron-up','fa-chevron-down')}};wrapper2.appendChild(header2);wrapper2.appendChild(content2);studentSec.appendChild(wrapper2);if(pwToggleParent)pwToggleParent.remove()}
-    // 퇴사이력 → 교육생 내 병합
-    var resignToggle=document.querySelector('[onclick="toggleManageSection(\'sec-resign\')"]');var resignSec=document.getElementById('sec-resign');
-    if(resignToggle&&resignSec&&studentSec&&!studentSec.querySelector('.merged-resign')){var resignToggleParent=resignToggle.closest('.mb-4');var wrapper3=document.createElement('div');wrapper3.className='merged-resign mt-5 pt-5';var header3=document.createElement('div');header3.className='flex items-center justify-between p-4 rounded-xl border cursor-pointer select-none';header3.style.cssText='background:rgba(254,242,242,0.6);border-color:rgba(254,202,202,0.6)';header3.innerHTML='<div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(254,202,202,0.5)"><i class="fas fa-user-slash" style="color:#dc2626"></i></div><h3 class="font-bold text-base" style="color:#991b1b">퇴사이력 관리</h3></div><i class="fas fa-chevron-down transition-transform" style="color:#9ca3af"></i>';var content3=document.createElement('div');content3.style.display='none';content3.className='mt-3';resignSec.querySelectorAll(':scope > *').forEach(function(c){content3.appendChild(c.cloneNode(true))});header3.onclick=function(){var icon=header3.querySelector('.fa-chevron-down,.fa-chevron-up');if(content3.style.display==='none'){content3.style.display='';if(icon)icon.className=icon.className.replace('fa-chevron-down','fa-chevron-up')}else{content3.style.display='none';if(icon)icon.className=icon.className.replace('fa-chevron-up','fa-chevron-down')}};wrapper3.appendChild(header3);wrapper3.appendChild(content3);studentSec.appendChild(wrapper3);if(resignToggleParent)resignToggleParent.remove()}
-    // 메뉴제어 박스화
-    var menuBtn=document.getElementById('menuControlToggleBtn');var menuSecEl=document.getElementById('sec-menu-control');var dangerBox=document.querySelector('[onclick="toggleManageSection(\'sec-danger\')"]');
-    if(menuBtn&&menuSecEl&&dangerBox){var dangerWrapper=dangerBox.closest('.bg-white.rounded-3xl');if(dangerWrapper&&dangerWrapper.parentElement&&!document.getElementById('menuControlBox')){var menuBox=document.createElement('div');menuBox.id='menuControlBox';menuBox.className='bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2';menuBox.appendChild(menuBtn);menuBox.appendChild(menuSecEl);dangerWrapper.parentElement.insertBefore(menuBox,dangerWrapper)}}
-    // 색상 적용
-    if(studentSec){var colors=[{bg:'rgba(16,185,129,0.18)',bd:'rgba(16,185,129,0.35)'},{bg:'rgba(16,185,129,0.14)',bd:'rgba(16,185,129,0.28)'},{bg:'rgba(16,185,129,0.10)',bd:'rgba(16,185,129,0.22)'},{bg:'rgba(16,185,129,0.10)',bd:'rgba(16,185,129,0.22)'},{bg:'rgba(16,185,129,0.07)',bd:'rgba(16,185,129,0.18)'},{bg:'rgba(16,185,129,0.07)',bd:'rgba(16,185,129,0.18)'},{bg:'rgba(16,185,129,0.04)',bd:'rgba(16,185,129,0.12)'},{bg:'rgba(16,185,129,0.04)',bd:'rgba(16,185,129,0.12)'}];var els=studentSec.querySelectorAll('.bg-surface-50, .bg-success-50');els.forEach(function(el,i){if(colors[i]){el.style.background=colors[i].bg;el.style.borderColor=colors[i].bd}});var resignContent=studentSec.querySelector('.merged-resign');if(resignContent)resignContent.querySelectorAll('.bg-red-50').forEach(function(el){el.style.background='rgba(16,185,129,0.04)';el.style.borderColor='rgba(16,185,129,0.12)'})}
-    if(deptSec){var deptColors=[{bg:'rgba(100,116,139,0.10)',bd:'rgba(148,163,184,0.4)'},{bg:'rgba(100,116,139,0.10)',bd:'rgba(148,163,184,0.4)'},{bg:'rgba(100,116,139,0.05)',bd:'rgba(148,163,184,0.25)'}];var deptEls=deptSec.querySelectorAll('.bg-surface-50');deptEls.forEach(function(el,i){if(deptColors[i]){el.style.background=deptColors[i].bg;el.style.borderColor=deptColors[i].bd}})}
-},350)};
+// ===== 아코디언 부착 헬퍼 =====
+function _attachAccordion(titleText){
+    var span=null;document.querySelectorAll('span.font-bold.text-gray-700').forEach(function(s){if(s.textContent.trim()===titleText)span=s});
+    if(!span)return;
+    var header=span.closest('.flex.items-center.justify-between');
+    if(!header||header.querySelector('.section-chevron'))return;
+    var chevron=document.createElement('i');chevron.className='fas fa-chevron-down text-gray-400 transition-transform section-chevron';chevron.style.cssText='cursor:pointer;transition:transform 0.3s';header.appendChild(chevron);
+    var parent=header.parentElement;var siblings=[];var started=false;
+    for(var k=0;k<parent.children.length;k++){if(parent.children[k]===header){started=true;continue}if(started)siblings.push(parent.children[k])}
+    var wrapper=document.createElement('div');wrapper.className='section-content';wrapper.style.cssText='transition:max-height 0.3s ease,opacity 0.3s ease;overflow:hidden';
+    siblings.forEach(function(s){wrapper.appendChild(s)});parent.appendChild(wrapper);
+    header.style.cursor='pointer';wrapper.style.maxHeight='none';wrapper.style.opacity='1';
+    chevron.addEventListener('click',function(e){e.stopPropagation();var isOpen=wrapper.style.opacity!=='0';if(isOpen){wrapper.style.maxHeight=wrapper.scrollHeight+'px';wrapper.offsetHeight;wrapper.style.maxHeight='0px';wrapper.style.opacity='0';chevron.style.transform='rotate(-180deg)'}else{wrapper.style.maxHeight='none';wrapper.style.opacity='1';chevron.style.transform='rotate(0deg)'}});
+    var obs=new MutationObserver(function(){if(wrapper.style.opacity!=='0')wrapper.style.maxHeight='none'});obs.observe(wrapper,{childList:true,subtree:true});
+}
+
+// ===== 메뉴제어 섹션 HTML 생성 =====
+function _buildMenuControlHTML(){
+    return '<div class="bg-surface-50 rounded-2xl p-6 border-2 border-primary-200"><p class="text-sm text-gray-500 mb-4">초기 화면의 메뉴 표시/숨김을 제어합니다. (슈퍼관리자 전용)</p><div class="space-y-4">'
+    +_menuToggleRow('fa-building text-orange-500','운영사무실 메뉴','toggleOfficeMenu')
+    +_menuToggleRow('fa-snowflake text-cyan-500','냉난방 신청 탭','toggleHvacTab')
+    +_menuToggleRow('fa-comment-dots text-primary-500','학과대표 전달사항','toggleLeaderMessage')
+    +_menuToggleRow('fa-tools text-purple-500','시설 민원 접수','toggleFacilityRequest')
+    +_menuToggleRow('fa-walking text-info-500','외출 신청','toggleOutingRequest')
+    +_menuToggleRow('fa-bell text-danger-500','미제출자 알림','toggleUnsubmittedAlert')
+    +_menuToggleRow('fa-door-open text-teal-500','기숙사 출입신청','toggleAccessRequest')
+    +_menuToggleRow('fa-ticket-alt text-yellow-500','출석 이벤트 (복권)','toggleLotteryEvent')
+    +'</div>'
+    +'<div class="mt-5 pt-5 border-t-2 border-primary-100"><h3 class="font-bold text-primary-700 text-base mb-3"><i class="fas fa-lock mr-1"></i> 인원보고 제어</h3><div class="space-y-2">'
+    +'<label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="always" '+(submitMode==='always'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">항상 열림 (현재 방식)</span></label>'
+    +'<label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="manual" '+(submitMode==='manual'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">관리자 수동 제어</span></label>'
+    +(submitMode==='manual'?'<div class="ml-7 mb-1"><button onclick="toggleManualSubmit()" class="px-4 py-2 '+(submitManualOpen?'bg-success-500':'bg-danger-500')+' text-white rounded-xl text-sm font-bold btn-press">'+(submitManualOpen?'현재: 열림 (닫기 클릭)':'현재: 닫힘 (열기 클릭)')+'</button></div>':'')
+    +'<label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="auto" '+(submitMode==='auto'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">자동 (금~일, 공휴일 전날~공휴일만)</span></label>'
+    +'</div></div></div>';
+}
+function _menuToggleRow(icon,label,id){
+    return '<div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas '+icon+' mr-2"></i>'+label+'</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="'+id+'" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div>';
+}
+
+// ===== 단일 통합 후처리 =====
+var _postRenderTimer=null;
+var _baseRender=render;
+render=function(){
+    _baseRender();
+    if(_postRenderTimer)clearTimeout(_postRenderTimer);
+    _postRenderTimer=setTimeout(_postRenderWork,250);
+};
+
+function _postRenderWork(){
+    _postRenderTimer=null;
+
+    // --- 항상 실행: 메뉴 제어 적용 ---
+    applyMenuControl();
+
+    // --- 설정탭이 아니면 여기서 종료 ---
+    if(adminTab!=='settings')return;
+
+    // === 1. 아코디언 부착 ===
+    _attachAccordion('날짜별 이력 조회');
+    _attachAccordion('기간별 통계');
+
+    // === 2. 메뉴제어 섹션 삽입 (슈퍼관리자) ===
+    if(isSuperAdmin&&!document.getElementById('sec-menu-control')){
+        var dangerSec=document.getElementById('sec-danger');
+        if(dangerSec){
+            var section=document.createElement('div');section.id='sec-menu-control';section.className='mt-3';section.style.display='none';
+            section.innerHTML=_buildMenuControlHTML();
+            dangerSec.parentElement.insertBefore(section,dangerSec.nextSibling);
+            if(!document.getElementById('menuControlToggleBtn')){
+                var toggleBtn=document.createElement('div');toggleBtn.id='menuControlToggleBtn';
+                toggleBtn.className='bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none';
+                toggleBtn.onclick=function(){toggleManageSection('sec-menu-control')};
+                toggleBtn.innerHTML='<h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-sliders-h mr-2"></i>메뉴 제어</h3><i id="secIcon-sec-menu-control" class="fas fa-chevron-down text-gray-400"></i>';
+                toggleBtn.style.display='flex';toggleBtn.style.alignItems='center';toggleBtn.style.justifyContent='space-between';
+                var dangerBtn=dangerSec.previousElementSibling;
+                if(dangerBtn)dangerBtn.parentElement.insertBefore(toggleBtn,dangerBtn.nextSibling);
+                else dangerSec.parentElement.insertBefore(toggleBtn,dangerSec);
+            }
+            loadMenuControl();
+        }
+    }
+
+    // === 3. 공지사항 위 중복 버튼 제거 ===
+    var announceSec2=document.getElementById('sec-announce');
+    if(announceSec2){var announceParent=announceSec2.closest('.bg-white');if(announceParent){var prevEl=announceParent.previousElementSibling;if(prevEl&&prevEl.querySelector&&prevEl.querySelector('[onclick="toggleAllManageSections(true)"]'))prevEl.remove()}}
+
+    // === 4. 섹션 병합 ===
+    _doSectionMerge('sec-leaders','sec-departments','merged-leaders','rgba(226,232,240,0.4)','rgba(203,213,225,0.6)','rgba(203,213,225,0.5)','#64748b','#475569','fa-user-tie','학과대표 관리');
+    _doSectionMerge('sec-passwords','sec-students','merged-passwords','rgba(239,246,255,0.6)','rgba(191,219,254,0.6)','rgba(191,219,254,0.5)','#2563eb','#1e40af','fa-key','비밀번호 관리');
+    _doSectionMerge('sec-resign','sec-students','merged-resign','rgba(254,242,242,0.6)','rgba(254,202,202,0.6)','rgba(254,202,202,0.5)','#dc2626','#991b1b','fa-user-slash','퇴사이력 관리');
+
+    // === 5. 메뉴제어 박스화 ===
+    var menuBtn=document.getElementById('menuControlToggleBtn');
+    var menuSecEl=document.getElementById('sec-menu-control');
+    var dangerBox=document.querySelector('[onclick="toggleManageSection(\'sec-danger\')"]');
+    if(menuBtn&&menuSecEl&&dangerBox){
+        var dangerWrapper=dangerBox.closest('.bg-white.rounded-3xl');
+        if(dangerWrapper&&dangerWrapper.parentElement&&!document.getElementById('menuControlBox')){
+            var menuBox=document.createElement('div');menuBox.id='menuControlBox';
+            menuBox.className='bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2';
+            menuBox.appendChild(menuBtn);menuBox.appendChild(menuSecEl);
+            dangerWrapper.parentElement.insertBefore(menuBox,dangerWrapper);
+        }
+    }
+
+    // === 6. 색상 적용 ===
+    var studentSec=document.getElementById('sec-students');
+    if(studentSec){
+        var colors=[{bg:'rgba(16,185,129,0.18)',bd:'rgba(16,185,129,0.35)'},{bg:'rgba(16,185,129,0.14)',bd:'rgba(16,185,129,0.28)'},{bg:'rgba(16,185,129,0.10)',bd:'rgba(16,185,129,0.22)'},{bg:'rgba(16,185,129,0.10)',bd:'rgba(16,185,129,0.22)'},{bg:'rgba(16,185,129,0.07)',bd:'rgba(16,185,129,0.18)'},{bg:'rgba(16,185,129,0.07)',bd:'rgba(16,185,129,0.18)'},{bg:'rgba(16,185,129,0.04)',bd:'rgba(16,185,129,0.12)'},{bg:'rgba(16,185,129,0.04)',bd:'rgba(16,185,129,0.12)'}];
+        var els=studentSec.querySelectorAll('.bg-surface-50, .bg-success-50');
+        els.forEach(function(el,i){if(colors[i]){el.style.background=colors[i].bg;el.style.borderColor=colors[i].bd}});
+        var resignContent=studentSec.querySelector('.merged-resign');
+        if(resignContent)resignContent.querySelectorAll('.bg-red-50').forEach(function(el){el.style.background='rgba(16,185,129,0.04)';el.style.borderColor='rgba(16,185,129,0.12)'});
+    }
+    var deptSec=document.getElementById('sec-departments');
+    if(deptSec){
+        var deptColors=[{bg:'rgba(100,116,139,0.10)',bd:'rgba(148,163,184,0.4)'},{bg:'rgba(100,116,139,0.10)',bd:'rgba(148,163,184,0.4)'},{bg:'rgba(100,116,139,0.05)',bd:'rgba(148,163,184,0.25)'}];
+        var deptEls=deptSec.querySelectorAll('.bg-surface-50');
+        deptEls.forEach(function(el,i){if(deptColors[i]){el.style.background=deptColors[i].bg;el.style.borderColor=deptColors[i].bd}});
+    }
+
+    // === 7. 체크박스 동기화 ===
+    applyMenuControl();
+}
 
 loadMenuControl();
-setInterval(function(){applyMenuControl()},500);
-
-function updatePwLookupList(){
+setInterval(function(){applyMenuControl()},500);function updatePwLookupList(){
     var dept=document.getElementById('pwLookupDept').value;
     var sel=document.getElementById('pwLookupName');
     sel.innerHTML='<option value="">교육생 선택</option>';
