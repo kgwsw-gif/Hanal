@@ -644,7 +644,6 @@ function debouncedRender(){
         if(_myCount===_renderCount){render();renderTimeout=null;}
     },500);
 }
-
 // ============ Firestore 리스너 ============
 if(db){
 var _lastHvacDate = '';
@@ -1118,6 +1117,182 @@ async function submitHvacRequest(){
     }catch(e){showToast('신청 실패','error')}
 }
 // ============ 시설 민원 함수 ============
+// ============ 복권 이벤트 시스템 ============
+function getLotteryMonth(){
+    var now=new Date();
+    var y=now.getFullYear();
+    var m=now.getMonth()+1;
+    return y+'-'+String(m).padStart(2,'0');
+}
+function isLotteryMonth(){
+    var m=new Date().getMonth()+1;
+    if(m===7||m===8||m===12)return false;
+    return true;
+}
+function getLotteryMonthLabel(){
+    var now=new Date();
+    return now.getFullYear()+'년 '+(now.getMonth()+1)+'월';
+}
+function getMonthDateRange(){
+    var now=new Date();
+    var y=now.getFullYear();
+    var m=now.getMonth();
+    var first=new Date(y,m,1);
+    var last=new Date(y,m+1,0);
+    var startStr=y+'-'+String(m+1).padStart(2,'0')+'-01';
+    var endStr=y+'-'+String(m+1).padStart(2,'0')+'-'+String(last.getDate()).padStart(2,'0');
+    return{start:startStr,end:endStr,totalDays:last.getDate()};
+}
+function isMonthEnded(){
+    var now=new Date();
+    var last=new Date(now.getFullYear(),now.getMonth()+1,0);
+    return now.getDate()>last.getDate()-1;
+}
+async function checkStudentLotteryEligible(studentName,dept){
+    if(!isLotteryMonth())return{eligible:false,reason:'이번 달은 이벤트 기간이 아닙니다'};
+    var range=getMonthDateRange();
+    var today=getCurrentDate();
+    var checkEnd=today<range.end?today:range.end;
+    
+    var allDates=[];
+    var cur=new Date(range.start+'T00:00:00');
+    var end=new Date(checkEnd+'T00:00:00');
+    while(cur<=end){
+        var ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+        var regDate=window._secureData.getRegisteredDate(studentName);
+        if(!regDate||regDate<=ds){
+            allDates.push(ds);
+        }
+        cur.setDate(cur.getDate()+1);
+    }
+    
+    if(allDates.length===0)return{eligible:false,reason:'이번 달 해당 기간이 없습니다'};
+    
+    try{
+        var subSnap=await db.collection('submissions').where('name','==',studentName).where('department','==',dept).where('date','>=',range.start).where('date','<=',checkEnd).get();
+        var outSnap=await db.collection('outings').where('name','==',studentName).where('department','==',dept).where('date','>=',range.start).where('date','<=',checkEnd).get();
+        
+        var submittedDates=new Set();
+        subSnap.docs.forEach(function(d){
+            var data=d.data();
+            if(data.status!=='cancelled')submittedDates.add(data.date);
+        });
+        outSnap.docs.forEach(function(d){
+            var data=d.data();
+            if(!data.status||data.status!=='cancelled')submittedDates.add(data.date);
+        });
+        
+        var missedDates=[];
+        allDates.forEach(function(ds){
+            if(!submittedDates.has(ds)){
+                if(isWeekendOrHoliday(ds)){
+                    submittedDates.add(ds);
+                }else{
+                    missedDates.push(ds);
+                }
+            }
+        });
+        
+        var rate=Math.round((allDates.length-missedDates.length)/allDates.length*100);
+        
+        if(missedDates.length>0){
+            return{eligible:false,reason:'인원보고 '+rate+'% (미제출 '+missedDates.length+'일)',rate:rate,missed:missedDates.length,total:allDates.length};
+        }
+        return{eligible:true,reason:'인원보고 100% 달성!',rate:100,missed:0,total:allDates.length};
+    }catch(e){
+        return{eligible:false,reason:'확인 중 오류 발생'};
+    }
+}
+async function checkAlreadyScratched(studentName){
+    var monthKey=getLotteryMonth();
+    try{
+        var doc=await db.collection('lotteryResults').doc(monthKey+'_'+studentName).get();
+        if(doc.exists)return doc.data();
+        return null;
+    }catch(e){return null}
+}
+async function getMonthWinner(){
+    var monthKey=getLotteryMonth();
+    try{
+        var snap=await db.collection('lotteryResults').where('month','==',monthKey).where('result','==','win').get();
+        if(!snap.empty)return snap.docs[0].data();
+        return null;
+    }catch(e){return null}
+}
+async function scratchLottery(studentName,dept){
+    var monthKey=getLotteryMonth();
+    var already=await checkAlreadyScratched(studentName);
+    if(already){
+        if(already.result==='win'){
+            showLotteryResult(true,studentName);
+        }else{
+            showLotteryResult(false,studentName);
+        }
+        return;
+    }
+    
+    var winner=await getMonthWinner();
+    var result='lose';
+    
+    if(!winner){
+        var today=new Date();
+        var lastDay=new Date(today.getFullYear(),today.getMonth()+1,0);
+        var remainDays=lastDay.getDate()-today.getDate();
+        
+        var snap=await db.collection('lotteryResults').where('month','==',monthKey).get();
+        var totalScratched=snap.docs.length;
+        
+        var allEligible=0;
+        for(var i=0;i<departments.length;i++){
+            var deptStudents=students[departments[i]]||[];
+            for(var j=0;j<deptStudents.length;j++){
+                var check=await checkStudentLotteryEligible(deptStudents[j],departments[i]);
+                if(check.eligible)allEligible++;
+            }
+        }
+        
+        var remainEligible=Math.max(1,allEligible-totalScratched);
+        var winChance=1/remainEligible;
+        
+        if(remainDays<=3)winChance=Math.min(1,winChance*3);
+        if(remainDays<=1)winChance=1;
+        
+        if(Math.random()<winChance)result='win';
+    }
+    
+    await db.collection('lotteryResults').doc(monthKey+'_'+studentName).set({
+        month:monthKey,
+        student:studentName,
+        department:dept,
+        result:result,
+        scratchedAt:new Date().toISOString()
+    });
+    
+    showLotteryResult(result==='win',studentName);
+}
+function showLotteryResult(isWin,studentName){
+    if(isWin){
+        var overlay=document.createElement('div');
+        overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;transition:opacity 0.3s';
+        var card=document.createElement('div');
+        card.style.cssText='background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:24px;padding:48px 40px;text-align:center;transform:scale(0.5);transition:transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275);box-shadow:0 25px 60px rgba(0,0,0,0.3)';
+        card.innerHTML='<div style="font-size:60px;margin-bottom:16px">🎉🏆🎉</div><div style="font-size:28px;font-weight:900;color:#fff;margin-bottom:8px;text-shadow:2px 2px 4px rgba(0,0,0,0.2)">축하합니다!</div><div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:16px;text-shadow:1px 1px 2px rgba(0,0,0,0.2)">스타벅스 상품권 1만원 당첨!</div><div style="background:rgba(255,255,255,0.3);border-radius:16px;padding:16px;margin-bottom:16px"><div style="font-size:14px;color:#fff;font-weight:600">🏠 축하합니다! 사감실로 방문하여 수령하세요</div></div><div style="font-size:14px;color:rgba(255,255,255,0.8)">'+getLotteryMonthLabel()+' 이벤트 당첨</div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-top:20px;padding:12px 32px;background:#fff;color:#f59e0b;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15)">확인</button>';
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        requestAnimationFrame(function(){overlay.style.opacity='1';card.style.transform='scale(1)'});
+        playNotifSound();
+        if(navigator.vibrate)navigator.vibrate([200,100,200,100,200,100,200]);
+    }else{
+        var overlay2=document.createElement('div');
+        overlay2.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;transition:opacity 0.3s';
+        var card2=document.createElement('div');
+        card2.style.cssText='background:white;border-radius:24px;padding:48px 40px;text-align:center;transform:scale(0.5);transition:transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275);box-shadow:0 25px 60px rgba(0,0,0,0.3)';
+        card2.innerHTML='<div style="font-size:60px;margin-bottom:16px">😢</div><div style="font-size:24px;font-weight:900;color:#374151;margin-bottom:8px">아쉽네요!</div><div style="font-size:16px;color:#6b7280;margin-bottom:16px">다음 달에 다시 도전하세요!</div><div style="font-size:14px;color:#9ca3af">'+getLotteryMonthLabel()+' 이벤트</div><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-top:20px;padding:12px 32px;background:#6366f1;color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15)">확인</button>';
+        overlay2.appendChild(card2);
+        document.body.appendChild(overlay2);
+        requestAnimationFrame(function(){overlay2.style.opacity='1';card2.style.transform='scale(1)'});
+    }
+}
 function showFacilityRequestModal(){
     var student=currentStudent;if(!student){showToast('로그인 정보 없음','error');return}
     var roomNum=window._secureData.getRoomNumber(student)||'';var dept=currentStudentDept()||'';
@@ -1126,6 +1301,75 @@ function showFacilityRequestModal(){
         if(!category){showToast('분류를 선택하세요','warning');return}if(!content){showToast('민원 내용을 입력하세요','warning');return}
         try{await db.collection('facilityRequests').add({student:student,department:dept,room:roomNum,category:category,content:content,status:'pending',reply:'',createdAt:new Date().toISOString(),repliedAt:''});closeModal();showToast('시설 민원이 접수되었습니다','success');showSuccessAnimation('민원 접수 완료',roomNum+'호 '+category+' · '+new Date().toLocaleTimeString('ko-KR'))}catch(e){showToast('접수 실패','error')}
     });
+}
+async function loadLotteryStatus(){
+    var el=document.getElementById('lotteryContent');
+    if(!el)return;
+    el.innerHTML='<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-yellow-500 text-2xl"></i><div class="text-sm text-gray-500 mt-2">확인 중...</div></div>';
+    
+    var student=currentStudent;
+    var dept=currentStudentDept();
+    if(!student||!dept){el.innerHTML='<div class="text-center py-4 text-danger-500">로그인 정보 없음</div>';return}
+    
+    var already=await checkAlreadyScratched(student);
+    if(already){
+        if(already.result==='win'){
+            el.innerHTML='<div class="text-center py-6"><div style="font-size:48px;margin-bottom:12px">🎉🏆🎉</div><div class="font-bold text-yellow-700 text-xl mb-2">축하합니다! 당첨되셨어요!</div><div class="text-sm text-gray-600 mb-4">스타벅스 상품권 1만원</div><div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4"><div class="font-bold text-yellow-700 text-sm"><i class="fas fa-home mr-1"></i>사감실로 방문하여 수령하세요!</div></div></div>';
+        }else{
+            el.innerHTML='<div class="text-center py-6"><div style="font-size:48px;margin-bottom:12px">😢</div><div class="font-bold text-gray-700 text-xl mb-2">이미 참여하셨어요</div><div class="text-sm text-gray-500">아쉽지만 꽝이었어요. 다음 달에 다시 도전!</div></div>';
+        }
+        return;
+    }
+    
+    var check=await checkStudentLotteryEligible(student,dept);
+    
+    if(check.eligible){
+        el.innerHTML='<div class="text-center py-4"><div style="font-size:40px;margin-bottom:12px">✅</div><div class="font-bold text-success-700 text-lg mb-2">참여 자격 달성!</div><div class="text-sm text-gray-600 mb-1">인원보고 100% ('+check.total+'일 중 '+check.total+'일 완료)</div><div class="text-xs text-gray-400 mb-4">이번 달 끝나기 전에 긁어주세요!</div><div class="relative" style="perspective:800px"><button onclick="startScratchAnimation()" id="scratchBtn" class="w-full py-5 bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-500 text-white rounded-2xl font-bold text-xl btn-press shadow-button relative overflow-hidden" style="box-shadow:0 8px 25px rgba(245,158,11,0.4)"><div class="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30" style="animation:shimmer 2s infinite"></div><span style="position:relative;z-index:1"><span style="font-size:24px">🎰</span> 복권 긁기!</span></button></div></div>';
+    }else{
+        var progressHtml='';
+        if(check.rate!==undefined){
+            progressHtml='<div class="mt-4 mb-2"><div class="flex justify-between text-sm mb-1"><span class="font-bold text-gray-600">출석률</span><span class="font-bold '+(check.rate>=80?'text-warning-600':'text-danger-600')+'">'+check.rate+'%</span></div><div class="w-full h-3 bg-gray-200 rounded-full overflow-hidden"><div class="h-full rounded-full '+(check.rate>=80?'bg-warning-400':'bg-danger-400')+'" style="width:'+check.rate+'%;transition:width 1s"></div></div><div class="text-xs text-gray-400 mt-1">'+check.total+'일 중 미제출 '+check.missed+'일</div></div>';
+        }
+        el.innerHTML='<div class="text-center py-4"><div style="font-size:40px;margin-bottom:12px">📊</div><div class="font-bold text-gray-700 text-lg mb-1">아직 자격 미달성</div><div class="text-sm text-gray-500">'+escapeHtml(check.reason)+'</div>'+progressHtml+'<div class="mt-3 p-3 bg-surface-50 rounded-xl border border-surface-200"><div class="text-xs text-gray-500"><i class="fas fa-info-circle mr-1"></i>이번 달 남은 기간 동안 100% 달성하면 참여 가능!</div></div></div>';
+    }
+}
+async function startScratchAnimation(){
+    var btn=document.getElementById('scratchBtn');
+    if(!btn)return;
+    btn.disabled=true;
+    btn.innerHTML='<i class="fas fa-spinner fa-spin mr-2"></i>긁는 중...';
+    
+    var el=document.getElementById('lotteryContent');
+    if(!el)return;
+    
+    // 긁기 애니메이션
+    el.innerHTML='<div class="text-center py-6" id="scratchArea"><div style="font-size:60px;margin-bottom:16px" id="scratchEmoji">🎫</div><div class="font-bold text-gray-700 text-xl mb-4" id="scratchText">긁는 중...</div><div class="w-48 h-2 bg-gray-200 rounded-full mx-auto overflow-hidden"><div id="scratchBar" class="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full" style="width:0%;transition:width 0.3s"></div></div></div>';
+    
+    var bar=document.getElementById('scratchBar');
+    var emoji=document.getElementById('scratchEmoji');
+    var text=document.getElementById('scratchText');
+    var emojis=['🎫','✨','🌟','💫','⭐','🎪','🎭','🎨'];
+    
+    for(var i=0;i<=100;i+=5){
+        await new Promise(function(r){setTimeout(r,80)});
+        if(bar)bar.style.width=i+'%';
+        if(emoji&&i%15===0)emoji.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+        if(text){
+            if(i<30)text.textContent='긁는 중...';
+            else if(i<60)text.textContent='두근두근...';
+            else if(i<90)text.textContent='거의 다 됐어요!';
+            else text.textContent='결과는...?!';
+        }
+    }
+    
+    await new Promise(function(r){setTimeout(r,500)});
+    
+    var student=currentStudent;
+    var dept=currentStudentDept();
+    if(student&&dept){
+        await scratchLottery(student,dept);
+        loadLotteryStatus();
+    }
 }
 async function replyFacilityRequest(reqId){var reply=prompt('답변을 입력하세요:');if(!reply||!reply.trim())return;try{await db.collection('facilityRequests').doc(reqId).update({reply:reply.trim(),status:'replied',repliedAt:new Date().toISOString()});stopFacilityAlarm();showToast('답변 완료','success')}catch(e){showToast('답변 실패','error')}}
 async function progressFacilityRequest(reqId){try{await db.collection('facilityRequests').doc(reqId).update({status:'progress',progressAt:new Date().toISOString()});stopFacilityAlarm();showToast('처리진행 중으로 변경','success')}catch(e){showToast('변경 실패','error')}}
@@ -1136,6 +1380,145 @@ function confirmFacilityRead(reqId){db.collection('facilityRequests').doc(reqId)
 // ============ 관리자→학과대표 메시지 ============
 async function sendAdminMessage(){var dept=document.getElementById('adminMsgDept').value;var text=document.getElementById('adminMsgInput').value.trim();if(!dept){showToast('학과를 선택하세요','error');return}if(!text){showToast('메시지를 입력하세요','error');return}try{await db.collection('messages').add({type:'admin-to-leader',department:dept,text:text,sender:'admin',status:'unread',createdAt:new Date().toISOString()});document.getElementById('adminMsgInput').value='';showToast(dept+' 학과대표에게 전달 완료','success')}catch(e){showToast('전달 실패','error')}}
 
+// ============ 관리자 복권 당첨자 확인 ============
+function renderLotteryAdmin(){
+    var monthKey=getLotteryMonth();
+    var _lotteryMonthLabel=getLotteryMonthLabel();
+    
+    var h='<div class="bg-white rounded-3xl shadow-card border-2 border-yellow-300 p-6 mb-5 animate-fade-up">';
+    h+='<div class="flex items-center gap-3 mb-4"><div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center"><span style="font-size:24px">🎰</span></div><div><h2 class="text-xl font-bold text-gray-800">출석 이벤트 관리</h2><div class="text-sm text-gray-500">'+_lotteryMonthLabel+'</div></div></div>';
+    
+    if(!isLotteryMonth()){
+        h+='<div class="text-center py-6 text-gray-400"><i class="fas fa-calendar-times text-3xl mb-2"></i><div class="text-sm">이번 달은 이벤트 기간이 아닙니다 (7월, 8월, 12월 제외)</div></div>';
+    }else{
+        h+='<div id="lotteryAdminContent"><button onclick="loadLotteryAdminData()" class="w-full py-3.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-search mr-2"></i>이번 달 이벤트 현황 조회</button></div>';
+    }
+    
+    h+='<div class="mt-4"><button onclick="loadLotteryHistory()" class="w-full py-3 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press"><i class="fas fa-history mr-2"></i>지난 달 당첨 이력 조회</button></div>';
+    h+='<div id="lotteryHistoryContent"></div>';
+    h+='</div>';
+    return h;
+}
+
+async function loadLotteryAdminData(){
+    var el=document.getElementById('lotteryAdminContent');
+    if(!el)return;
+    el.innerHTML='<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-yellow-500 text-2xl"></i><div class="text-sm text-gray-500 mt-2">조회 중...</div></div>';
+    
+    var monthKey=getLotteryMonth();
+    
+    try{
+        var snap=await db.collection('lotteryResults').where('month','==',monthKey).get();
+        var results=snap.docs.map(function(d){return d.data()});
+        var winner=results.find(function(r){return r.result==='win'});
+        var losers=results.filter(function(r){return r.result==='lose'});
+        
+        var h='<div class="mt-4">';
+        
+        // 당첨자
+        h+='<div class="mb-4"><div class="text-sm font-bold text-yellow-600 mb-3"><i class="fas fa-trophy mr-1"></i>당첨자</div>';
+        if(winner){
+            h+='<div class="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl border-2 border-yellow-300">';
+            h+='<div class="flex items-center gap-3"><span style="font-size:32px">🏆</span><div>';
+            h+='<div class="font-bold text-lg text-gray-800">'+escapeHtml(winner.student)+'</div>';
+            h+='<div class="text-sm text-gray-600">['+escapeHtml(winner.department)+']</div>';
+            h+='<div class="text-xs text-gray-400">'+new Date(winner.scratchedAt).toLocaleString('ko-KR')+'</div>';
+            h+='</div></div>';
+            h+='<div class="mt-3 p-3 bg-white rounded-xl border border-yellow-200">';
+            h+='<div class="text-sm font-bold text-yellow-700"><i class="fas fa-gift mr-1"></i>스타벅스 상품권 1만원</div>';
+            h+='<div class="text-xs text-gray-500 mt-1">사감실에서 수령 확인해주세요</div>';
+            h+='</div></div>';
+        }else{
+            h+='<div class="p-4 bg-surface-50 rounded-2xl border border-surface-200 text-center"><div class="text-sm text-gray-500">아직 당첨자가 없습니다</div></div>';
+        }
+        h+='</div>';
+        
+        // 통계
+        h+='<div class="grid grid-cols-3 gap-3 mb-4">';
+        h+='<div class="text-center p-3 bg-yellow-50 rounded-xl border border-yellow-200"><div class="text-2xl font-black text-yellow-600">'+results.length+'</div><div class="text-xs text-yellow-600 font-bold">참여자</div></div>';
+        h+='<div class="text-center p-3 bg-success-50 rounded-xl border border-success-200"><div class="text-2xl font-black text-success-600">'+(winner?'1':'0')+'</div><div class="text-xs text-success-600 font-bold">당첨</div></div>';
+        h+='<div class="text-center p-3 bg-surface-50 rounded-xl border border-surface-200"><div class="text-2xl font-black text-gray-600">'+losers.length+'</div><div class="text-xs text-gray-600 font-bold">꽝</div></div>';
+        h+='</div>';
+        
+        // 참여자 목록
+        if(results.length>0){
+            h+='<div class="mb-4"><div class="text-sm font-bold text-gray-600 mb-3"><i class="fas fa-users mr-1"></i>참여자 목록 ('+results.length+'명)</div>';
+            h+='<div class="space-y-2 max-h-60 overflow-y-auto">';
+            results.sort(function(a,b){return(b.scratchedAt||'').localeCompare(a.scratchedAt||'')});
+            results.forEach(function(r){
+                var isWin=r.result==='win';
+                h+='<div class="flex items-center justify-between p-3 '+(isWin?'bg-yellow-50 border-yellow-200':'bg-surface-50 border-surface-200')+' rounded-xl border">';
+                h+='<div class="flex items-center gap-2"><span style="font-size:16px">'+(isWin?'🏆':'😢')+'</span>';
+                h+='<div><span class="text-sm font-bold text-gray-700">'+escapeHtml(r.student)+'</span>';
+                h+='<span class="text-xs text-gray-500 ml-2">['+escapeHtml(r.department)+']</span></div></div>';
+                h+='<div class="text-right"><div class="text-xs font-bold '+(isWin?'text-yellow-600':'text-gray-400')+'">'+(isWin?'당첨':'꽝')+'</div>';
+                h+='<div class="text-xs text-gray-400">'+new Date(r.scratchedAt).toLocaleString('ko-KR')+'</div></div>';
+                h+='</div>';
+            });
+            h+='</div></div>';
+        }
+        
+        // 당첨자 초기화 버튼
+        if(isSuperAdmin){
+            h+='<button onclick="resetLotteryMonth()" class="w-full py-3 bg-danger-50 border border-danger-200 text-danger-600 rounded-2xl font-bold text-sm btn-press mt-2"><i class="fas fa-redo mr-1"></i>이번 달 이벤트 초기화</button>';
+        }
+        
+        h+='</div>';
+        el.innerHTML=h;
+    }catch(e){
+        el.innerHTML='<div class="text-center py-4 text-danger-500 mt-4">조회 실패: '+escapeHtml(e.message)+'</div>';
+    }
+}
+
+async function loadLotteryHistory(){
+    var el=document.getElementById('lotteryHistoryContent');
+    if(!el)return;
+    el.innerHTML='<div class="text-center py-4 mt-3"><i class="fas fa-spinner fa-spin text-gray-400 text-xl"></i></div>';
+    
+    try{
+        var snap=await db.collection('lotteryResults').where('result','==','win').get();
+        var winners=snap.docs.map(function(d){return d.data()});
+        winners.sort(function(a,b){return(b.month||'').localeCompare(a.month||'')});
+        
+        if(winners.length===0){
+            el.innerHTML='<div class="text-center py-4 mt-3 text-gray-400"><div class="text-sm">당첨 이력이 없습니다</div></div>';
+            return;
+        }
+        
+        var h='<div class="mt-4"><div class="text-sm font-bold text-gray-600 mb-3"><i class="fas fa-history mr-1"></i>역대 당첨자</div>';
+        h+='<div class="space-y-2">';
+        winners.forEach(function(w){
+            var mParts=w.month.split('-');
+            var mLabel=mParts[0]+'년 '+parseInt(mParts[1])+'월';
+            h+='<div class="flex items-center justify-between p-3 bg-yellow-50 rounded-xl border border-yellow-200">';
+            h+='<div class="flex items-center gap-2"><span style="font-size:16px">🏆</span>';
+            h+='<div><span class="text-sm font-bold text-gray-700">'+escapeHtml(w.student)+'</span>';
+            h+='<span class="text-xs text-gray-500 ml-2">['+escapeHtml(w.department)+']</span></div></div>';
+            h+='<div class="text-right"><div class="text-xs font-bold text-yellow-600">'+mLabel+'</div>';
+            h+='<div class="text-xs text-gray-400">'+new Date(w.scratchedAt).toLocaleString('ko-KR')+'</div></div>';
+            h+='</div>';
+        });
+        h+='</div></div>';
+        el.innerHTML=h;
+    }catch(e){
+        el.innerHTML='<div class="text-center py-4 mt-3 text-danger-500">조회 실패</div>';
+    }
+}
+
+async function resetLotteryMonth(){
+    if(!isSuperAdmin){showToast('슈퍼 관리자만 가능','error');return}
+    var monthKey=getLotteryMonth();
+    openConfirmModal('이벤트 초기화',getLotteryMonthLabel()+' 이벤트 결과를 모두 초기화하시겠습니까?<br><br>모든 참여 기록과 당첨 결과가 삭제됩니다.',async function(){
+        try{
+            var snap=await db.collection('lotteryResults').where('month','==',monthKey).get();
+            var batch=db.batch();
+            snap.docs.forEach(function(d){batch.delete(d.ref)});
+            await batch.commit();
+            showToast('이벤트 초기화 완료','success');
+            loadLotteryAdminData();
+        }catch(e){showToast('초기화 실패','error')}
+    },'초기화');
+}
 function renderAdminMessagePanel(){
     if(!window._adminMsgDate) window._adminMsgDate=getCurrentDate();
     var msgDate=window._adminMsgDate;
@@ -1291,7 +1674,8 @@ async function leaderDeleteOut(docId,name){
 }
 
 // ============ 관리자 함수 ============
-function switchAdminTab(tab){var el=document.getElementById('adminSettingsTab');var el2=document.getElementById('adminStatusTab');if(el)el.style.opacity='0';if(el2)el2.style.opacity='0';adminTab=tab;render();setTimeout(function(){var el3=document.getElementById('adminSettingsTab');var el4=document.getElementById('adminStatusTab');if(el3)el3.style.opacity='1';if(el4)el4.style.opacity='1'},500)}function setAdminBatchMode(mode){adminBatchMode=(adminBatchMode===mode)?null:mode;render()}
+function switchAdminTab(tab){adminTab=tab;render();var el3=document.getElementById('adminSettingsTab');var el4=document.getElementById('adminStatusTab');if(el3)el3.style.opacity='1';if(el4)el4.style.opacity='1'}
+function setAdminBatchMode(mode){adminBatchMode=(adminBatchMode===mode)?null:mode;render()}
 function updateAdminBatchCount(){var n=0;document.querySelectorAll('.admin-batch-check').forEach(function(x){if(x.checked)n++});var el=document.getElementById('adminBatchCount');if(el)el.textContent=n}
 function selectAllAdmin(){document.querySelectorAll('.admin-batch-check').forEach(function(c){c.checked=true});updateAdminBatchCount()}
 function deselectAllAdmin(){document.querySelectorAll('.admin-batch-check').forEach(function(c){c.checked=false});updateAdminBatchCount()}
@@ -2012,7 +2396,20 @@ if(accessNotice){
         }
         html += '</div>';
     }
-
+ // 복권 이벤트
+    if(menuControlSettings.showLotteryEvent!==false && isLotteryMonth()){
+        var _lotteryMonthLabel=getLotteryMonthLabel();
+        html += '<div class="bg-white rounded-3xl shadow-card border-2 border-yellow-300 p-6 mb-4 animate-fade-up stagger-4" id="lotterySection">';
+        html += '<div class="flex items-center gap-3 mb-4">';
+        html += '<div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center"><span style="font-size:24px">🎰</span></div>';
+        html += '<div><h3 class="font-bold text-gray-800 text-lg">'+_lotteryMonthLabel+' 출석 이벤트</h3>';
+        html += '<div class="text-sm text-gray-500">인원보고 100% 달성 시 복권 긁기!</div></div></div>';
+        html += '<div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl p-4 mb-4">';
+        html += '<div class="flex items-center gap-2 mb-2"><span style="font-size:16px">🏆</span><span class="font-bold text-yellow-700 text-sm">상품: 스타벅스 상품권 1만원 (매월 1명)</span></div>';
+        html += '<div class="flex items-center gap-2"><span style="font-size:16px">📋</span><span class="text-sm text-gray-600">이번 달 인원보고를 100% 완료하면 참여 가능!</span></div></div>';
+        html += '<div id="lotteryContent"><button onclick="loadLotteryStatus()" class="w-full py-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-2xl font-bold text-lg btn-press shadow-button"><span style="font-size:20px">🎫</span> 내 참여 자격 확인하기</button></div>';
+        html += '</div>';
+    }
     // 퇴사 신청
     html += '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up stagger-5">';
     if(myResign){
@@ -2416,7 +2813,7 @@ function renderRoomStatus(){
             else if(_kw==='1인실'||_kw==='1인'){if(r.count===1)_found=true;}
             else if(_kw==='2인실'||_kw==='2인'){if(r.count>=2)_found=true;}
             else if(_kw==='교직원'){if(r.isStaff)_found=true;}
-            else if(_kw==='메모'){if(roomMemos[r.room])_found=true;}
+            else if(_kw==='메모'){if(roomMemos[r.room])_found=true;}else if(roomMemos[r.room]&&roomMemos[r.room].memo&&roomMemos[r.room].memo.toLowerCase().indexOf(_kw)!==-1){_found=true;}
             else{
               for(var si2=0;si2<r.members.length;si2++){if(r.members[si2].name.toLowerCase().indexOf(_kw)!==-1){_found=true;break;}}
               if(r.room.indexOf(roomSearchKeyword)!==-1)_found=true;
@@ -2543,7 +2940,7 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
     /* 수정D: 외출 섹션 X버튼 축소 */
     '<div id="outingSection" style="display:'+(menuControlSettings.showOutingRequest!==false?'block':'none')+'">'+(pureOut.length>0?'<div class="bg-white rounded-3xl shadow-card border border-info-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'outing\')"><h2 class="text-xl font-bold text-info-700"><i class="fas fa-walking"></i> 외출 ('+pureOut.length+'명)</h2><i class="fas '+(adminSectionOpen.outing?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.outing?renderSortToggle()+'<div class="space-y-2 mt-3">'+sortByMode(pureOut).map(function(o){return'<div class="bg-info-50 border border-info-100 rounded-xl px-4 py-2.5"><div class="flex items-center justify-between mb-1"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-info-800">'+formatStudentName(o.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(o.department)+']</span></div><button onclick="deleteOuting(\''+safeAttr(o.id)+'\',\''+safeAttr(o.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0" style="font-size:10px"><i class="fas fa-times"></i></button></div><div class="text-xs text-gray-500">'+escapeHtml(o.outingTime)+'~'+escapeHtml(o.returnTime)+' | '+escapeHtml(o.reason)+(o.returnConfirmed?' <span class="text-success-600 font-bold">✓복귀 '+escapeHtml(o.returnConfirmedAt||'')+'</span>':'')+'</div></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div></div>'+'<div id="deptStatusSection" class="animate-fade-up stagger-3"><div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-4"><h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-th-list"></i> 학과별 총원 현황</h2>'+'<div class="flex gap-2 mb-3"><button onclick="toggleAllDeptCards(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllDeptCards(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+deptHtml+'<button onclick="scrollToTop()" class="w-full -mt-1 mb-4 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button></div></div>'+
     (pR.length>0?'<div class="bg-white rounded-3xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){return'<div class="bg-warning-50 rounded-2xl p-5 border border-warning-200"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span></div><div class="flex gap-2"><button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button></div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
-    '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="bg-white rounded-3xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-danger-700"><i class="fas fa-exclamation-triangle"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>';
+    '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="bg-white rounded-3xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-danger-700"><i class="fas fa-exclamation-triangle"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+(menuControlSettings.showLotteryEvent!==false?renderLotteryAdmin():'');
 }
 
 // ============ 관리자 설정 ============
@@ -2572,9 +2969,8 @@ var _origRender2=render;render=function(){_origRender2();setTimeout(function(){
     sections.forEach(function(sec){var span=null;var allSpans=document.querySelectorAll('span.font-bold.text-gray-700');allSpans.forEach(function(s){if(s.textContent.trim()===sec.title)span=s});if(!span)return;var header=span.closest('.flex.items-center.justify-between');if(!header||header.querySelector('.section-chevron'))return;var chevron=document.createElement('i');chevron.className='fas fa-chevron-down text-gray-400 transition-transform section-chevron';chevron.style.cssText='cursor:pointer;transition:transform 0.3s';header.appendChild(chevron);var parent=header.parentElement;var siblings=[];var started=false;for(var k=0;k<parent.children.length;k++){if(parent.children[k]===header){started=true;continue}if(started)siblings.push(parent.children[k])}var wrapper=document.createElement('div');wrapper.className='section-content';wrapper.style.cssText='transition:max-height 0.3s ease,opacity 0.3s ease;overflow:hidden';siblings.forEach(function(s){wrapper.appendChild(s)});parent.appendChild(wrapper);header.style.cursor='pointer';wrapper.style.maxHeight='none';wrapper.style.opacity='1';var collapsed=false;chevron.addEventListener('click',function(e){e.stopPropagation();var isOpen=wrapper.style.opacity!=='0';if(isOpen){wrapper.style.maxHeight=wrapper.scrollHeight+'px';wrapper.offsetHeight;wrapper.style.maxHeight='0px';wrapper.style.opacity='0';chevron.style.transform='rotate(-180deg)'}else{wrapper.style.maxHeight='none';wrapper.style.opacity='1';chevron.style.transform='rotate(0deg)'}});var obs=new MutationObserver(function(){if(!collapsed){wrapper.style.maxHeight='none'}});obs.observe(wrapper,{childList:true,subtree:true})})},200)};
 
 // ============ 메뉴 제어 (슈퍼관리자 전용) ============
-var menuControlSettings={showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true};
-
-async function loadMenuControl(){try{var doc=await db.collection('settings').doc('menuControl').get();if(doc.exists){menuControlSettings=Object.assign({showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true},doc.data())}applyMenuControl()}catch(e){}}
+var menuControlSettings={showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true};
+async function loadMenuControl(){try{var doc=await db.collection('settings').doc('menuControl').get();if(doc.exists){menuControlSettings=Object.assign({showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true},doc.data())}applyMenuControl()}catch(e){}}
 
 function applyMenuControl(){
     var officeBtn=document.querySelector('button[onclick="showOfficeLogin()"]');if(officeBtn)officeBtn.style.display=menuControlSettings.showOfficeMenu?'':'none';
@@ -2583,7 +2979,7 @@ function applyMenuControl(){
     var adminMsgToggle=document.querySelector('[onclick="toggleManageSection(\'sec-messages-status\')"]');if(adminMsgToggle){var adminMsgWrapper=adminMsgToggle.closest('.bg-white.rounded-2xl');if(adminMsgWrapper)adminMsgWrapper.style.display=menuControlSettings.showLeaderMessage!==false?'':'none'}
     var t1=document.getElementById('toggleOfficeMenu'),t2=document.getElementById('toggleHvacTab'),t3=document.getElementById('toggleLeaderMessage'),t4=document.getElementById('toggleFacilityRequest');
     if(t1)t1.checked=menuControlSettings.showOfficeMenu;if(t2)t2.checked=menuControlSettings.showHvacTab;if(t3)t3.checked=menuControlSettings.showLeaderMessage!==false;if(t4)t4.checked=menuControlSettings.showFacilityRequest!==false;var t5=document.getElementById('toggleUnsubmittedAlert');if(t5)t5.checked=menuControlSettings.showUnsubmittedAlert!==false;var t6=document.getElementById('toggleOutingRequest');if(t6)t6.checked=menuControlSettings.showOutingRequest!==false;
- var t7=document.getElementById('toggleAccessRequest');if(t7)t7.checked=menuControlSettings.showAccessRequest!==false;
+ var t7=document.getElementById('toggleAccessRequest');if(t7)t7.checked=menuControlSettings.showAccessRequest!==false;var t8=document.getElementById('toggleLotteryEvent');if(t8)t8.checked=menuControlSettings.showLotteryEvent!==false;
 }
 
 async function saveMenuControl(){
@@ -2591,8 +2987,8 @@ async function saveMenuControl(){
     menuControlSettings.showOfficeMenu=t1.checked;menuControlSettings.showHvacTab=t2.checked;
     var t3=document.getElementById('toggleLeaderMessage');menuControlSettings.showLeaderMessage=t3?t3.checked:true;
     var t4=document.getElementById('toggleFacilityRequest');menuControlSettings.showFacilityRequest=t4?t4.checked:true;var t5=document.getElementById('toggleUnsubmittedAlert');menuControlSettings.showUnsubmittedAlert=t5?t5.checked:true;var t6=document.getElementById('toggleOutingRequest');menuControlSettings.showOutingRequest=t6?t6.checked:true;
-   var t7=document.getElementById('toggleAccessRequest');menuControlSettings.showAccessRequest=t7?t7.checked:true;
-    try{await db.collection('settings').doc('menuControl').set({showOfficeMenu:t1.checked,showHvacTab:t2.checked,showLeaderMessage:t3?t3.checked:true,showFacilityRequest:t4?t4.checked:true,showUnsubmittedAlert:t5?t5.checked:true,showOutingRequest:t6?t6.checked:true,showAccessRequest:t7?t7.checked:true,updatedAt:new Date().toISOString()},{merge:true});showToast('메뉴 설정 저장 완료','success');applyMenuControl()}catch(e){showToast('저장 실패','error')}
+   var t7=document.getElementById('toggleAccessRequest');menuControlSettings.showAccessRequest=t7?t7.checked:true;var t8=document.getElementById('toggleLotteryEvent');menuControlSettings.showLotteryEvent=t8?t8.checked:true;
+    try{await db.collection('settings').doc('menuControl').set({showOfficeMenu:t1.checked,showHvacTab:t2.checked,showLeaderMessage:t3?t3.checked:true,showFacilityRequest:t4?t4.checked:true,showUnsubmittedAlert:t5?t5.checked:true,showOutingRequest:t6?t6.checked:true,showAccessRequest:t7?t7.checked:true,showLotteryEvent:t8?t8.checked:true,updatedAt:new Date().toISOString()},{merge:true});showToast('메뉴 설정 저장 완료','success');applyMenuControl()}catch(e){showToast('저장 실패','error')}
 }
 
 // 메뉴 제어 섹션 동적 삽입
@@ -2600,7 +2996,7 @@ var _origRender3=render;render=function(){_origRender3();setTimeout(function(){
 if(adminTab!=='settings')return;
     if(!isSuperAdmin)return;if(document.getElementById('sec-menu-control'))return;
     var dangerSec=document.getElementById('sec-danger');if(!dangerSec)return;
-    var section=document.createElement('div');section.id='sec-menu-control';section.className='mt-3';section.style.display='none';section.innerHTML='<div class="bg-surface-50 rounded-2xl p-6 border-2 border-primary-200"><p class="text-sm text-gray-500 mb-4">초기 화면의 메뉴 표시/숨김을 제어합니다. (슈퍼관리자 전용)</p><div class="space-y-4"><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-building text-orange-500 mr-2"></i>운영사무실 메뉴</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleOfficeMenu" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-snowflake text-cyan-500 mr-2"></i>냉난방 신청 탭</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleHvacTab" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-comment-dots text-primary-500 mr-2"></i>학과대표 전달사항</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleLeaderMessage" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-tools text-purple-500 mr-2"></i>시설 민원 접수</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleFacilityRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-walking text-info-500 mr-2"></i>외출 신청</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleOutingRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-bell text-danger-500 mr-2"></i>미제출자 알림</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleUnsubmittedAlert" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-door-open text-teal-500 mr-2"></i>기숙사 출입신청</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleAccessRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div></div>'+'<div class="mt-5 pt-5 border-t-2 border-primary-100"><h3 class="font-bold text-primary-700 text-base mb-3"><i class="fas fa-lock mr-1"></i> 인원보고 제어</h3><div class="space-y-2"><label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode"value="always" '+(submitMode==='always'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">항상 열림 (현재 방식)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="manual" '+(submitMode==='manual'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">관리자 수동 제어</span></label>'+(submitMode==='manual'?'<div class="ml-7 mb-1"><button onclick="toggleManualSubmit()" class="px-4 py-2 '+(submitManualOpen?'bg-success-500':'bg-danger-500')+' text-white rounded-xl text-sm font-bold btn-press">'+(submitManualOpen?'현재: 열림 (닫기 클릭)':'현재: 닫힘 (열기 클릭)')+'</button></div>':'')+'<label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="auto" '+(submitMode==='auto'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">자동 (금~일, 공휴일 전날~공휴일만)</span></label></div></div></div>';
+    var section=document.createElement('div');section.id='sec-menu-control';section.className='mt-3';section.style.display='none';section.innerHTML='<div class="bg-surface-50 rounded-2xl p-6 border-2 border-primary-200"><p class="text-sm text-gray-500 mb-4">초기 화면의 메뉴 표시/숨김을 제어합니다. (슈퍼관리자 전용)</p><div class="space-y-4"><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-building text-orange-500 mr-2"></i>운영사무실 메뉴</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleOfficeMenu" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-snowflake text-cyan-500 mr-2"></i>냉난방 신청 탭</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleHvacTab" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-comment-dots text-primary-500 mr-2"></i>학과대표 전달사항</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleLeaderMessage" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-tools text-purple-500 mr-2"></i>시설 민원 접수</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleFacilityRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-walking text-info-500 mr-2"></i>외출 신청</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleOutingRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-bell text-danger-500 mr-2"></i>미제출자 알림</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleUnsubmittedAlert" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-door-open text-teal-500 mr-2"></i>기숙사 출입신청</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleAccessRequest" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="flex items-center justify-between p-3 bg-white rounded-xl border"><span class="font-semibold text-gray-700"><i class="fas fa-ticket-alt text-yellow-500 mr-2"></i>출석 이벤트 (복권)</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="toggleLotteryEvent" class="sr-only peer" onchange="saveMenuControl()"><div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-primary-500 after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div></div>'+'<div class="mt-5 pt-5 border-t-2 border-primary-100"><h3 class="font-bold text-primary-700 text-base mb-3"><i class="fas fa-lock mr-1"></i> 인원보고 제어</h3><div class="space-y-2"><label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode"value="always" '+(submitMode==='always'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">항상 열림 (현재 방식)</span></label><label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="manual" '+(submitMode==='manual'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">관리자 수동 제어</span></label>'+(submitMode==='manual'?'<div class="ml-7 mb-1"><button onclick="toggleManualSubmit()" class="px-4 py-2 '+(submitManualOpen?'bg-success-500':'bg-danger-500')+' text-white rounded-xl text-sm font-bold btn-press">'+(submitManualOpen?'현재: 열림 (닫기 클릭)':'현재: 닫힘 (열기 클릭)')+'</button></div>':'')+'<label class="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-white"><input type="radio" name="submitMode" value="auto" '+(submitMode==='auto'?'checked':'')+' onchange="saveSubmitMode(this.value)" class="w-4 h-4"><span class="text-sm font-medium text-gray-700">자동 (금~일, 공휴일 전날~공휴일만)</span></label></div></div></div>';
     dangerSec.parentElement.insertBefore(section,dangerSec.nextSibling);
     if(!document.getElementById('menuControlToggleBtn')){var toggleBtn=document.createElement('div');toggleBtn.id='menuControlToggleBtn';toggleBtn.className='bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none';toggleBtn.onclick=function(){toggleManageSection('sec-menu-control')};toggleBtn.innerHTML='<h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-sliders-h mr-2"></i>메뉴 제어</h3><i id="secIcon-sec-menu-control" class="fas fa-chevron-down text-gray-400"></i>';toggleBtn.style.display='flex';toggleBtn.style.alignItems='center';toggleBtn.style.justifyContent='space-between';var dangerBtn=dangerSec.previousElementSibling;if(dangerBtn)dangerBtn.parentElement.insertBefore(toggleBtn,dangerBtn.nextSibling);else dangerSec.parentElement.insertBefore(toggleBtn,dangerSec)}
     loadMenuControl();
