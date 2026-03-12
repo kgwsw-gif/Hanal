@@ -410,24 +410,24 @@ loadRoomMemos();
 var DEPARTMENT_LEADERS={};window._updateDepartments=function(){if(!departments||departments.length===0)departments=window._secureData.getDepartments();updateStudentsList()};
 (function(){
 'use strict';
-var _pw={},_room={},_stu={},_regDate={};
+var _pw={},_room={},_stu={},_regDate={},_age={};
 function setup(){
 if(!db)return;
 db.collection('passwords').onSnapshot(function(s){_pw={};s.forEach(function(d){_pw[d.id]=d.data().password;if(d.data().registeredDate)_regDate[d.id]=d.data().registeredDate})});
-db.collection('roomNumbers').onSnapshot(function(s){_room={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate})});
+db.collection('roomNumbers').onSnapshot(function(s){_room={};_age={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age})});
 db.collection('students').onSnapshot(function(s){_stu={};s.forEach(function(d){_stu[d.id]=d.data().students});window._updateDepartments()});
 }
 window._secureData={
 getPassword:function(n){return typeof n==='string'?(_pw[n]||null):null},
 getRoomNumber:function(n){return typeof n==='string'?(_room[n]||null):null},
 getRegisteredDate:function(n){return typeof n==='string'?(_regDate[n]||null):null},
+getAge:function(n){return typeof n==='string'?(_age[n]||null):null},
 getStudentsByDept:function(d){return typeof d==='string'?(_stu[d]||[]):[]},
 getAllStudents:function(){return Object.assign({},_stu)},
 getDepartments:function(){return Object.keys(_stu)}
 };
 setup();
 })();
-
 window._updateDepartments=function(){if(!departments||departments.length===0)departments=window._secureData.getDepartments();updateStudentsList()};
 
 var DEPARTMENT_LEADERS={};
@@ -463,7 +463,19 @@ function getAvailableDates(){
     if(today.getDay()===5){for(var off=1;off<=2;off++){var d2=new Date(today);d2.setDate(d2.getDate()+off);var str2=d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0')+'-'+String(d2.getDate()).padStart(2,'0');if(!added.has(str2)){result.push({date:str2,label:getDateLabel(str2)});added.add(str2)}}}
     return result;
 }
-
+// ============ 나이 유틸 ============
+function calcAgeFromBirth(birthStr){
+    if(!birthStr)return null;
+    var s=String(birthStr).replace(/[^0-9]/g,'');
+    var year=null;
+    if(s.length===8){year=parseInt(s.substring(0,4))}
+    else if(s.length===6){var yy=parseInt(s.substring(0,2));year=yy>=0&&yy<=30?2000+yy:1900+yy}
+    else if(s.length===4){year=parseInt(s)}
+    else if(s.length===2){var yy2=parseInt(s);year=yy2>=0&&yy2<=30?2000+yy2:1900+yy2}
+    if(!year||year<1950||year>2015)return null;
+    var age=new Date().getFullYear()-year;
+    return age>0&&age<80?age:null;
+}
 function formatStudentName(n){var r=window._secureData.getRoomNumber(n);return r?r+'호 '+escapeHtml(n):escapeHtml(n)}
 function formatStudentNameRaw(n){var r=window._secureData.getRoomNumber(n);return r?r+'호 '+n:n}
 function sortStudentsByRoom(l){return l.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')})}
@@ -482,16 +494,19 @@ function toggleManageSection(id){
     if(!el)return;
     if(el.style.display==='none'){
         el.style.display='';
+        manageSectionState[id] = true;
         if(icon)icon.className=icon.className.replace('fa-chevron-down','fa-chevron-up');
         if(id==='sec-messages-status') window._msgSectionOpen=true;
     } else {
         el.style.display='none';
+        manageSectionState[id] = false;
         if(icon)icon.className=icon.className.replace('fa-chevron-up','fa-chevron-down');
         if(id==='sec-messages-status') window._msgSectionOpen=false;
     }
 }
 function toggleAllManageSections(expand){
-    ['sec-students','sec-departments'].forEach(function(id){
+    ['sec-students','sec-departments','sec-leaders','sec-passwords','sec-resign','sec-announce','sec-login','sec-danger','sec-menu-control'].forEach(function(id){
+        manageSectionState[id] = expand;
         var el=document.getElementById(id);
         var icon=document.getElementById('secIcon-'+id);
         if(!el)return;
@@ -506,8 +521,7 @@ function toggleAllManageSections(expand){
         if(expand){content.style.display='';if(icon)icon.className=icon.className.replace('fa-chevron-down','fa-chevron-up')}
         else{content.style.display='none';if(icon)icon.className=icon.className.replace('fa-chevron-up','fa-chevron-down')}
     });
-}
-function toggleDeptCard(dept){
+}function toggleDeptCard(dept){
     var el=document.getElementById('deptCard_'+dept);
     var icon=document.getElementById('deptIcon_'+dept);
     if(!el)return;
@@ -634,6 +648,7 @@ var deptCardsExpanded=false;
 var adminSectionOpen={stay:true,out:true,outing:true,female:true,notSubmitted:true,deptStatus:true};
 function toggleAdminSection(key){adminSectionOpen[key]=!adminSectionOpen[key];render()}
 var currentDate=getCurrentDate(),submissions=[],outings=[],outingHistory=[],resignRequests=[],announcement='',adminTab='status',loginLogs=[],quickSubmitMode=null,adminBatchMode=null;
+var manageSectionState = {};
 var renderTimeout=null;
 var _renderCount=0;
 function debouncedRender(){
@@ -1964,9 +1979,8 @@ async function loadPeriodStats(){var startD=document.getElementById('statStartDa
 var found=subs.find(function(s){return s.date===dateStr&&s.department===dept&&s.name===nm&&s.status==='stay'});if(found)dayStayCount++});wStay+=dayStayCount});wdeptStats[dept]={stay:wStay,out:Math.max(0,wTotal-wStay),total:wTotal}});var wTotalAll=0,wStayAll=0,wOutAll=0;Object.keys(wdeptStats).forEach(function(dept){wTotalAll+=wdeptStats[dept].total;wStayAll+=wdeptStats[dept].stay;wOutAll+=wdeptStats[dept].out});var wStayPctAll=wTotalAll>0?Math.round(wStayAll/wTotalAll*100):0;var wOutPctAll=wTotalAll>0?Math.round(wOutAll/wTotalAll*100):0;weekendHtml='<div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-calendar-check text-info-500 mr-1"></i>주말/공휴일 잔류율 ('+weekendDates.length+'일)</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex items-center justify-between p-3 mb-2 bg-white rounded-xl border border-surface-200"><div class="text-sm font-bold text-gray-700">전체 평균</div><div class="flex gap-4"><span class="text-sm font-bold text-success-600">잔류 '+wStayPctAll+'%</span><span class="text-sm font-bold text-warning-600">외박 '+wOutPctAll+'%</span></div></div><div class="flex gap-0.5 h-3 mb-3 rounded-full overflow-hidden">'+(wStayAll>0?'<div class="bg-success-400 h-full" style="flex:'+wStayAll+'"></div>':'')+(wOutAll>0?'<div class="bg-warning-400 h-full" style="flex:'+wOutAll+'"></div>':'')+'</div><div class="flex items-center py-1.5 mb-1"><span class="text-xs text-gray-400 flex-1"></span><div class="flex gap-3 text-xs text-gray-400"><span class="w-16 text-center font-bold text-sm">잔류</span><span class="w-16 text-center font-bold text-sm">외박</span><span class="w-16 text-center font-bold text-sm">잔류율</span></div></div>';Object.keys(wdeptStats).forEach(function(dept){var wd=wdeptStats[dept];if(wd.total===0)return;var stayPct=Math.round(wd.stay/wd.total*100);weekendHtml+='<div class="py-2 border-b border-surface-100"><div class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700 truncate flex-1">'+escapeHtml(dept)+'</span><div class="flex gap-3 text-xs"><span class="w-16 text-center text-success-600 font-bold text-sm">'+wd.stay+'</span><span class="w-16 text-center text-warning-600 font-bold text-sm">'+wd.out+'</span><span class="w-16 text-center font-bold text-sm '+(stayPct>=50?'text-success-600':'text-warning-600')+'">'+stayPct+'%</span></div></div><div class="flex gap-0.5 h-2 mt-1 rounded-full overflow-hidden">'+(wd.stay>0?'<div class="bg-success-400 h-full rounded-sm" style="flex:'+wd.stay+'"></div>':'')+(wd.out>0?'<div class="bg-warning-400 h-full rounded-sm" style="flex:'+wd.out+'"></div>':'')+'</div></div>'});weekendHtml+='</div></div>'}area.innerHTML='<div class="mt-3"><div class="grid grid-cols-4 gap-2 mb-4"><div class="text-center p-3 bg-surface-50 rounded-xl"><div class="text-xl font-black text-gray-700">'+totalDays+'</div><div class="text-xs text-gray-500 font-bold">조회일수</div></div><div class="text-center p-3 bg-success-50 rounded-xl"><div class="text-xl font-black text-success-600">'+totalStay+'</div><div class="text-xs text-success-600 font-bold">잔류(일평균'+avgStay+')</div></div><div class="text-center p-3 bg-warning-50 rounded-xl"><div class="text-xl font-black text-warning-600">'+totalOut+'</div><div class="text-xs text-warning-600 font-bold">외박(일평균'+avgOut+')</div></div><div class="text-center p-3 bg-info-50 rounded-xl"><div class="text-xl font-black text-info-600">'+totalOuting+'</div><div class="text-xs text-info-600 font-bold">외출(일평균'+avgOuting+')</div></div></div><div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-2">일별 추이 ('+sortedDates.length+'일)</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex gap-2 text-xs text-gray-400 mb-2"><span class="w-20"></span><span class="w-10 text-center text-success-500 font-bold text-sm">잔류</span><span class="w-10 text-center text-warning-500 font-bold text-sm">외박</span><span class="w-10 text-center text-info-500 font-bold text-sm">외출</span><span class="flex-1"></span><span class="w-10 text-right text-sm">합계</span></div>'+dailyHtml+'</div></div>'+weekendHtml+'<div><div class="text-sm font-bold text-gray-700 mb-2">학과별 누적</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex items-center py-1.5"><span class="text-xs text-gray-400 flex-1"></span><div class="flex gap-3 text-xs text-gray-400"><span class="w-16 text-center font-bold text-sm">잔류</span><span class="w-16 text-center font-bold text-sm">외박</span><span class="w-16 text-center font-bold text-sm">외출</span></div></div>'+deptHtml+'</div></div></div>'}catch(e){area.innerHTML='<div class="text-sm text-danger-500 text-center py-3">조회 실패: '+escapeHtml(e.message)+'</div>'}}async function resetStudentPassword(){var dept=document.getElementById('pwLookupDept').value,name=document.getElementById('pwLookupName').value,newPw=document.getElementById('pwResetValue').value.trim();if(!dept||!name){showToast('교육생을 먼저 조회하세요','warning');return}if(!newPw||newPw.length<4){showToast('4자리 이상 비밀번호를 입력하세요','warning');return}openConfirmModal('비밀번호 초기화',escapeHtml(name)+'의 비밀번호를<br><b>'+escapeHtml(newPw)+'</b>로 초기화하시겠습니까?',async function(){try{await db.collection('passwords').doc(name).update({password:newPw,updatedAt:new Date().toISOString()});await db.collection('passwordChangeLogs').add({name:name,department:dept,changedAt:new Date().toISOString(),device:'관리자 초기화'});showToast(name+' 비밀번호 초기화 완료','success');document.getElementById('pwResetValue').value='';lookupPassword()}catch(e){showToast('초기화 실패','error')}},'초기화')}
 function showManageTab(tab){['students','departments','leaders','passwords','danger','resign'].forEach(function(t){var el=document.getElementById('manage-'+t);if(el)el.style.display='none';var btn=document.getElementById('manage-btn-'+t);if(btn)btn.className='px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap bg-surface-100 text-gray-500 btn-press transition-all'});var el=document.getElementById('manage-'+tab);if(el)el.style.display='block';var btn=document.getElementById('manage-btn-'+tab);if(btn)btn.className='px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap bg-primary-500 text-white btn-press transition-all shadow-button'}
 
-async function addStudent(){var dept=document.getElementById('addStudentDept').value,name=document.getElementById('addStudentName').value.trim(),room=document.getElementById('addStudentRoom').value.trim(),pw=document.getElementById('addStudentPw').value.trim();if(!dept||!name||!pw){showToast('학과,이름,비밀번호 필수','warning');return}if(pw.length<4){showToast('비밀번호는 4자리 이상','warning');return}if(students[dept]&&students[dept].includes(name)){showToast('이미 존재','warning');return}if(room){var _rc=0;departments.forEach(function(d2){(students[d2]||[]).forEach(function(n2){if(window._secureData.getRoomNumber(n2)===room)_rc++})});if(_rc>=2){showToast(room+'호는 이미 2명이 배정되어 있습니다','warning');return}}try{var batch=db.batch();var todayDate=getCurrentDate();
-if(room)batch.set(db.collection('roomNumbers').doc(name),{room:room,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});
-batch.set(db.collection('passwords').doc(name),{password:pw,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value=''}catch(e){showToast('추가 실패','error')}}
+async function addStudent(){var dept=document.getElementById('addStudentDept').value,name=document.getElementById('addStudentName').value.trim(),room=document.getElementById('addStudentRoom').value.trim(),pw=document.getElementById('addStudentPw').value.trim(),birthYear=document.getElementById('addStudentBirthYear')?document.getElementById('addStudentBirthYear').value.trim():'';if(!dept||!name||!pw){showToast('학과,이름,비밀번호 필수','warning');return}if(pw.length<4){showToast('비밀번호는 4자리 이상','warning');return}if(students[dept]&&students[dept].includes(name)){showToast('이미 존재','warning');return}if(room){var _rc=0;departments.forEach(function(d2){(students[d2]||[]).forEach(function(n2){if(window._secureData.getRoomNumber(n2)===room)_rc++})});if(_rc>=2){showToast(room+'호는 이미 2명이 배정되어 있습니다','warning');return}}try{var batch=db.batch();var todayDate=getCurrentDate();var ageVal=null;if(birthYear){var by=parseInt(birthYear);if(by>=1950&&by<=2015){ageVal=new Date().getFullYear()-by}else if(by>=0&&by<=99){var fullYear=by<=30?2000+by:1900+by;ageVal=new Date().getFullYear()-fullYear}}var roomData={department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()};if(room)roomData.room=room;if(ageVal)roomData.age=ageVal;if(room||ageVal)batch.set(db.collection('roomNumbers').doc(name),roomData,{merge:true});
+batch.set(db.collection('passwords').doc(name),{password:pw,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value='';if(document.getElementById('addStudentBirthYear'))document.getElementById('addStudentBirthYear').value=''}catch(e){showToast('추가 실패','error')}}
 function updateDelStudentList(){var dept=document.getElementById('delStudentDept').value,sel=document.getElementById('delStudentName');sel.innerHTML='<option value="">선택</option>';if(dept&&students[dept])students[dept].forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
 async function deleteStudentAction(){var dept=document.getElementById('delStudentDept').value,name=document.getElementById('delStudentName').value;if(!dept||!name){showToast('선택 필요','warning');return}openConfirmModal('교육생 삭제',formatStudentName(name)+' 삭제?',async function(){var updated=(window._secureData.getStudentsByDept(dept)||[]).filter(function(s){return s!==name});var batch=db.batch();batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});batch.delete(db.collection('roomNumbers').doc(name));batch.delete(db.collection('passwords').doc(name));try{await batch.commit()}catch(e){}var leaderSnap=await db.collection('departmentLeaders').doc(dept).get();if(leaderSnap.exists&&leaderSnap.data().name===name)await db.collection('departmentLeaders').doc(dept).delete();showToast(name+' 삭제 완료','success');render()},'삭제')}
 async function addDepartment(){var name=document.getElementById('addDeptName').value.trim();if(!name){showToast('학과명 필요','warning');return}if(departments.includes(name)){showToast('이미 존재','warning');return}var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:departments.concat([name]),updatedAt:new Date().toISOString()});batch.set(db.collection('students').doc(name),{students:[],updatedAt:new Date().toISOString()});await batch.commit();showToast(name+' 추가 완료','success');document.getElementById('addDeptName').value=''}
@@ -2014,10 +2028,14 @@ async function resetAllData(){if(!isSuperAdmin){showToast('슈퍼 관리자만 �
 function downloadStudentTemplate(){
     loadExcelJS().then(function(){
         var wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('학생명단');
-        ws.columns=[{header:'학과',key:'dept',width:25},{header:'이름',key:'name',width:15},{header:'호실',key:'room',width:10},{header:'비밀번호',key:'password',width:15}];
+        ws.columns=[{header:'학과',key:'dept',width:25},{header:'이름',key:'name',width:15},{header:'호실',key:'room',width:10},{header:'비밀번호',key:'password',width:15},{header:'생년월일',key:'birth',width:15}];
         ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};
         ws.getRow(1).fill={type:'pattern',pattern:'solidFill',fgColor:{argb:'FF6366F1'}};
-        ws.addRow({dept:'반도체표면처리과',name:'홍길동',room:'301',password:'970101'});
+        ws.addRow({dept:'반도체표면처리과',name:'홍길동',room:'301',password:'970101',birth:'970101'});
+        ws.addRow({dept:'반도체표면처리과',name:'김철수',room:'302',password:'000315',birth:'2000'});
+        ws.addRow({});
+        ws.addRow({dept:'※ 생년월일은 선택사항입니다. 나이(숫자)만 저장되고 원본은 저장되지 않습니다.'});
+        ws.addRow({dept:'※ 형식: 970101, 19970101, 1997-01-01, 1997 모두 가능'});
         wb.xlsx.writeBuffer().then(function(buf){
             var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
             var a=document.createElement('a');
@@ -2032,7 +2050,6 @@ function downloadStudentTemplate(){
         showToast('ExcelJS 로드 실패: '+e.message,'error');
     });
 }
-
 function uploadStudentsExcel(){
     loadExcelJS().then(function(){
         var input=document.createElement('input');
@@ -2050,12 +2067,13 @@ function uploadStudentsExcel(){
                     var ws=wb.worksheets[0];
                     if(!ws){showToast('시트 없음','error');return}
                     var headers=[];
-                    ws.getRow(1).eachCell(function(c,cn){headers[cn]=c.value});
+                    ws.getRow(1).eachCell(function(c,cn){headers[cn]=c.value?c.value.toString():''});
                     var dC=headers.findIndex(function(h){return h&&h.toString().includes('학과')});
                     var nC=headers.findIndex(function(h){return h&&h.toString().includes('이름')});
                     var rC=headers.findIndex(function(h){return h&&h.toString().includes('호실')});
                     var pC=headers.findIndex(function(h){return h&&h.toString().includes('비밀번호')});
-                    if(dC===-1||nC===-1||pC===-1){showToast('필수 컬럼 없음','error');return}
+                    var bC=headers.findIndex(function(h){return h&&(h.toString().includes('생년월일')||h.toString().includes('생년')||h.toString().includes('나이'))});
+                    if(dC===-1||nC===-1||pC===-1){showToast('필수 컬럼 없음 (학과,이름,비밀번호)','error');return}
                     var data=[];
                     ws.eachRow(function(row,rn){
                         if(rn===1)return;
@@ -2063,10 +2081,12 @@ function uploadStudentsExcel(){
                         var n=row.getCell(nC).value?row.getCell(nC).value.toString().trim():'';
                         var r=rC!==-1&&row.getCell(rC).value?row.getCell(rC).value.toString().trim():'';
                         var p=row.getCell(pC).value?row.getCell(pC).value.toString().trim():'';
-                        if(d&&n&&p)data.push({dept:d,name:n,room:r,password:p});
+                        var b=bC!==-1&&row.getCell(bC).value?row.getCell(bC).value.toString().trim():'';
+                        if(d&&n&&p)data.push({dept:d,name:n,room:r,password:p,birth:b});
                     });
                     if(data.length===0){showToast('등록할 학생 없음','warning');return}
-                    openConfirmModal('업로드','총 '+data.length+'명 등록?',async function(){
+                    var birthCount=data.filter(function(s){return s.birth}).length;
+                    openConfirmModal('업로드','총 '+data.length+'명 등록'+(birthCount>0?' (생년월일 '+birthCount+'명 → 나이로 변환, 원본 미저장)':'')+'?',async function(){
                         var cnt=0;
                         var byDept={};
                         data.forEach(function(s){if(!byDept[s.dept])byDept[s.dept]=[];byDept[s.dept].push(s)});
@@ -2079,19 +2099,24 @@ function uploadStudentsExcel(){
                             for(var si=0;si<byDept[dept].length;si++){
                                 var s=byDept[dept][si];
                                 var todayDate2=getCurrentDate();
-if(s.room)await db.collection('roomNumbers').doc(s.name).set({room:s.room,department:dept,registeredDate:todayDate2,updatedAt:new Date().toISOString()});
-await db.collection('passwords').doc(s.name).set({password:s.password,department:dept,registeredDate:todayDate2,updatedAt:new Date().toISOString()});
+                                var ageVal=null;
+                                if(s.birth){ageVal=calcAgeFromBirth(s.birth)}
+                                var roomData={department:dept,registeredDate:todayDate2,updatedAt:new Date().toISOString()};
+                                if(s.room)roomData.room=s.room;
+                                if(ageVal)roomData.age=ageVal;
+                                if(s.room||ageVal)await db.collection('roomNumbers').doc(s.name).set(roomData,{merge:true});
+                                await db.collection('passwords').doc(s.name).set({password:s.password,department:dept,registeredDate:todayDate2,updatedAt:new Date().toISOString()});
                                 if(existing.indexOf(s.name)===-1)existing.push(s.name);if(s.room){var _erc=0;for(var dk2 in byDept){byDept[dk2].forEach(function(ss){if(ss.room===s.room&&ss.name!==s.name)_erc++})}if(_erc>=2){console.log(s.name+': '+s.room+'호 초과(3명이상), 건너뜀');continue}}
                                 cnt++;
                             }
                             existing.sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});
                             await db.collection('students').doc(dept).set({students:existing,updatedAt:new Date().toISOString()});
                         }
-                        showToast(cnt+'명 등록 완료','success');
+                        showToast(cnt+'명 등록 완료'+(birthCount>0?' (나이 저장, 생년월일 원본 미저장)':''),'success');
                         render();
                     });
                 }catch(err){
-                    showToast('파일 처리 실패','error');
+                    showToast('파일 처리 실패: '+err.message,'error');
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -2099,7 +2124,6 @@ await db.collection('passwords').doc(s.name).set({password:s.password,department
         input.click();
     });
 }
-
 // ============ 메인 렌더 ============
 var intervalsInit=false;
 function initIntervals(){if(intervalsInit)return;intervalsInit=true;setInterval(function(){var el=document.getElementById('clockDisplay');if(el)el.textContent=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})},1000);
@@ -2844,7 +2868,7 @@ function renderRoomStatus(){
           if(r.count>0){
             for(var mi=0;mi<r.members.length;mi++){
               var m=r.members[mi];
-              h+='<div class="text-sm text-gray-700 font-semibold truncate">'+escapeHtml(m.name)+' <span class="text-gray-600 font-medium">['+escapeHtml(m.dept)+']</span></div>';
+             var _mAge=window._secureData.getAge(m.name);var _mBY=_mAge?String((new Date().getFullYear()-_mAge)%100).padStart(2,'0'):null;h+='<div class="text-sm text-gray-700 font-semibold truncate">'+escapeHtml(m.name)+(_mAge?' <span class="text-primary-500 font-bold text-xs">('+_mBY+'년,'+_mAge+')</span>':'')+' <span class="text-gray-600 font-medium">['+escapeHtml(m.dept)+']</span></div>';
             }
           }else{
             h+='<div class="text-sm text-gray-500 italic">비어있음</div>';
@@ -2948,17 +2972,21 @@ function renderAdminSettings(){
     var deptOpts=departments.map(function(d){return'<option value="'+safeAttr(d)+'">'+escapeHtml(d)+'</option>'}).join('');
     var leaderList=Object.keys(DEPARTMENT_LEADERS).length>0?'<div class="mt-5 pt-5 border-t border-surface-200"><div class="text-base font-bold text-primary-700 mb-3">현재 학과대표</div><div class="space-y-2">'+Object.keys(DEPARTMENT_LEADERS).map(function(dept){return'<div class="flex items-center justify-between bg-white px-4 py-3 rounded-xl border border-surface-200"><div><span class="text-sm font-medium text-gray-700">'+escapeHtml(dept)+'</span><span class="text-sm font-bold text-primary-600 ml-2">'+escapeHtml(DEPARTMENT_LEADERS[dept].name)+'</span></div><button onclick="deleteLeader(\''+safeAttr(dept)+'\')" class="px-3 py-1.5 bg-danger-50 border border-danger-200 text-danger-600 rounded-lg text-xs font-bold btn-press hover:bg-danger-100"><i class="fas fa-times mr-1"></i>해제</button></div>'}).join('')+'</div></div>':'';
 
+    function sd(id,def){var v=manageSectionState[id];if(v===true)return'block';if(v===false)return'none';return def?'block':'none'}
+    function si(id,def){var v=manageSectionState[id];if(v===true)return'fa-chevron-up';if(v===false)return'fa-chevron-down';return def?'fa-chevron-up':'fa-chevron-down'}
+
     return''+
-   '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-1"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-announce\')"><h2 class="text-xl font-bold text-primary-700"><i class="fas fa-bullhorn"></i> 공지사항</h2><i id="secIcon-sec-announce" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-announce" style="display:block"><textarea id="announcementInput" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base resize-none mb-4 mt-4" rows="4" placeholder="공지사항..." style="font-size:16px">'+escapeHtml(announcement)+'</textarea><button onclick="saveAnnouncement()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press hover:bg-primary-100 transition-all"><i class="fas fa-save mr-1"></i> 저장</button>'+
+   '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-1"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-announce\')"><h2 class="text-xl font-bold text-primary-700"><i class="fas fa-bullhorn"></i> 공지사항</h2><i id="secIcon-sec-announce" class="fas '+si('sec-announce',true)+' text-gray-400"></i></div><div id="sec-announce" style="display:'+sd('sec-announce',true)+'"><textarea id="announcementInput" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base resize-none mb-4 mt-4" rows="4" placeholder="공지사항..." style="font-size:16px">'+escapeHtml(announcement)+'</textarea><button onclick="saveAnnouncement()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press hover:bg-primary-100 transition-all"><i class="fas fa-save mr-1"></i> 저장</button>'+
 '<div class="mt-5 pt-5 border-t border-surface-200"><h3 class="font-bold text-gray-700 text-base mb-3"><i class="fas fa-volume-up text-primary-500 mr-1"></i> 알림 소리 설정</h3><div class="flex items-center justify-between p-4 bg-surface-50 rounded-xl border border-surface-200"><span class="font-semibold text-gray-700"><i class="fas '+(soundEnabled?'fa-volume-up text-success-500':'fa-volume-mute text-gray-400')+' mr-2"></i>새 제출 알림 소리</span><button onclick="toggleSound()" class="px-5 py-2.5 rounded-xl text-sm font-bold btn-press '+(soundEnabled?'bg-success-500 text-white':'bg-gray-300 text-gray-600')+'">'+(soundEnabled?'켜짐':'꺼짐')+'</button></div><p class="text-xs text-gray-400 mt-2">끄면 새 제출/신청 시 알림 소리가 울리지 않습니다.</p></div>'+'<div class="mt-5 pt-5 border-t border-surface-200"><h3 class="font-bold text-warning-700 text-base mb-3"><i class="fas fa-calendar-plus mr-1"></i> 교육생 등록일 일괄 설정</h3><p class="text-sm text-gray-500 mb-3">등록일이 없는 교육생에게 등록일을 설정합니다.<br>설정하면 해당 날짜 이전으로 조회 시 미제출자에서 제외됩니다.</p><div class="flex gap-2"><input type="date" id="bulkRegDateInput" value="'+getCurrentDate()+'" class="flex-1 px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><button onclick="setRegisteredDateForAll()" class="px-6 py-3 bg-warning-500 text-white rounded-xl font-bold text-sm btn-press">설정</button></div></div></div></div></div>'+
     '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2"><h2 class="text-xl font-bold text-gray-800 mb-5"><i class="fas fa-users-cog"></i> 학생/학과 관리</h2><div class="flex gap-2 mb-4"><button onclick="toggleAllManageSections(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllManageSections(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+
-    '<div class="mb-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-departments\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-building mr-2"></i>학과</h3><i id="secIcon-sec-departments" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-departments" style="display:none" class="mt-3"><button onclick="showDeptOrderModal()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press mb-5"><i class="fas fa-sort mr-2"></i>학과 순서 변경</button><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-plus-square"></i> 학과 추가</h3><input type="text" id="addDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" placeholder="학과명" style="font-size:16px"><button onclick="addDepartment()" class="w-full py-3.5 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-minus-square"></i> 학과 삭제</h3><select id="delDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" style="font-size:16px"><option value="">선택</option>'+deptOpts+'</select><button onclick="deleteDepartmentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div></div></div>'+
-    '<div class="mb-4 mt-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-students\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-user-graduate mr-2"></i>교육생</h3><i id="secIcon-sec-students" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-students" class="mt-3" style="display:none"><div class="bg-success-50 rounded-2xl p-6 border border-success-200 mb-5"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-file-excel"></i> 엑셀 일괄 등록</h3><div class="flex gap-3"><button onclick="downloadStudentTemplate()" class="flex-1 py-3.5 bg-white text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-download mr-1"></i> 템플릿</button><button onclick="uploadStudentsExcel()" class="flex-1 py-3.5 bg-success-100 text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-upload mr-1"></i> 업로드</button></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-info-700 text-lg mb-4"><i class="fas fa-user-plus"></i> 교육생 추가</h3><div class="space-y-3"><select id="addStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><input type="text" id="addStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="이름" style="font-size:16px"><input type="text" id="addStudentRoom" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="호실(선택)" style="font-size:16px"><input type="text" id="addStudentPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="비밀번호(4자리이상)" maxlength="20" style="font-size:16px"><button onclick="addStudent()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-user-minus"></i> 교육생 삭제</h3><div class="space-y-3"><select id="delStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateDelStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="delStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="deleteStudentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mt-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-edit"></i> 교육생 정보 수정</h3><div class="space-y-3"><select id="editStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateEditStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="editStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="loadStudentInfo()" style="font-size:16px"><option value="">교육생 선택</option></select><div id="editStudentInfo" style="display:none"><div class="bg-white rounded-xl p-4 border-2 border-primary-200 space-y-3"><div><label class="block text-sm font-semibold text-gray-600 mb-1">이름 변경</label><div class="flex gap-2"><input type="text" id="editStudentNewName" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 이름 입력" style="font-size:16px"><button onclick="updateStudentName()" class="px-5 py-3 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-user-edit mr-1"></i>변경</button></div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">호실 변경</label><input type="text" id="editStudentRoom" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 호실 번호" style="font-size:16px"></div><button onclick="updateStudentRoom()" class="w-full py-3 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-home mr-1"></i> 호실 변경</button><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">학과 이동</label><select id="editStudentNewDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">이동할 학과 선택</option>'+deptOpts+'</select></div><button onclick="moveStudentDept()" class="w-full py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-exchange-alt mr-1"></i> 학과 이동</button></div></div></div></div></div></div>'+
-    '<div class="mb-4"><div class="flex items-center justify-between bg-info-50 border border-info-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-leaders\')"><h3 class="font-bold text-info-700 text-lg"><i class="fas fa-user-tie mr-2"></i>학과대표</h3><i id="secIcon-sec-leaders" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-leaders" style="display:none" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-tie"></i> 학과대표 지정</h3><div class="space-y-3"><select id="setLeaderDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateLeaderStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="setLeaderStudent" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><input type="text" id="setLeaderPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="학과대표 비밀번호" style="font-size:16px"><button onclick="setLeaderAction()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-user-check mr-1"></i> 지정</button></div>'+leaderList+'</div></div></div>'+
-    '<div class="mb-4"><div class="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-passwords\')"><h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-key mr-2"></i>비밀번호</h3><i id="secIcon-sec-passwords" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-passwords" style="display:none" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mb-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-key"></i> 비밀번호 조회</h3><div class="space-y-3"><select id="pwLookupDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updatePwLookupList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="pwLookupName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="lookupPassword()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-search mr-1"></i> 조회</button></div><div id="pwLookupResult"></div><div id="pwResetArea" style="display:none" class="mt-4 p-4 bg-warning-50 rounded-xl border border-warning-200"><div class="flex items-center justify-between"><div><div class="text-sm font-bold text-warning-700">비밀번호 초기화</div><div class="text-xs text-gray-500 mt-1">새 비밀번호로 초기화됩니다</div></div><button onclick="resetStudentPassword()" class="px-4 py-2 bg-warning-500 text-white rounded-xl text-sm font-bold btn-press">초기화</button></div><div class="mt-3"><input type="text" id="pwResetValue" class="w-full px-4 py-3 bg-white border-2 border-warning-200 rounded-xl text-base text-center tracking-widest" placeholder="초기화할 비밀번호(4자리이상)" maxlength="20" style="font-size:16px"></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-warning-700 text-lg mb-4"><i class="fas fa-history"></i> 비밀번호 변경 이력</h3><div id="pwChangeLogArea" class="text-sm text-gray-500 text-center py-3">조회 버튼을 눌러주세요</div><button onclick="loadPasswordChangeLogs()" class="w-full py-3.5 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-base btn-press mt-3"><i class="fas fa-sync mr-1"></i> 이력 조회</button></div></div></div>'+
-    '<div class="mb-4"><div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-resign\')"><h3 class="font-bold text-red-700 text-lg"><i class="fas fa-user-slash mr-2"></i>퇴사이력</h3><i id="secIcon-sec-resign" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-resign" style="display:none" class="mt-3"><div class="bg-red-50 rounded-2xl p-6 border border-red-200"><h3 class="font-bold text-red-700 text-lg mb-4"><i class="fas fa-user-slash mr-2 text-red-400"></i>퇴사 이력 관리</h3><p class="text-xs text-gray-500 mb-3">퇴사 신청 및 승인된 교육생의 이력을 조회하고 엑셀로 다운로드할 수 있습니다.</p><div class="flex gap-2 mb-3"><button onclick="loadResignHistory()" class="px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-search mr-1"></i>퇴사 이력 조회</button><button onclick="downloadResignHistory()" class="px-4 py-2.5 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-download mr-1"></i>엑셀 다운로드</button></div><div id="resignHistoryResult"></div></div></div></div>'+
-    '</div>'+(isSuperAdmin?'<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2"><div class="mb-4"><div class="flex items-center justify-between bg-info-50 border border-info-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-login\')"><h3 class="font-bold text-info-700 text-lg"><i class="fas fa-shield-alt mr-2"></i>로그인 기록</h3><i id="secIcon-sec-login" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-login" style="display:none" class="mt-3"><div class="bg-surface-50 rounded-2xl p-4 border border-surface-200 mb-4 max-h-80 overflow-y-auto"><table class="w-full"><thead class="text-sm text-gray-500"><tr><th class="text-left py-2 px-3">일시</th><th class="text-left py-2 px-3">결과</th><th class="text-left py-2 px-3">타입</th><th class="text-left py-2 px-3">IP</th></tr></thead><tbody class="text-sm">'+loginLogs.slice(0,20).map(function(log){var d=new Date(log.timestamp),ds=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');return'<tr class="border-t border-surface-100"><td class="py-2.5 px-3 text-gray-600">'+ds+'</td><td class="py-2.5 px-3">'+(log.success?'<span class="text-success-600 font-bold">성공</span>':'<span class="text-danger-600 font-bold">실패</span>')+'</td><td class="py-2.5 px-3 text-gray-500">'+escapeHtml(log.adminType||'-')+'</td><td class="py-2.5 px-3 text-gray-400 font-mono">'+escapeHtml(log.ip||'-')+'</td></tr>'}).join('')+'</tbody></table></div><button onclick="downloadLoginLogs()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-2xl font-bold text-base btn-press hover:bg-info-100 transition-all"><i class="fas fa-download mr-1"></i> 로그인 기록 다운로드</button></div></div></div>':'')+
-    '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2" style="display:'+(isSuperAdmin?'block':'none')+'"><div class="mb-4"><div class="flex items-center justify-between bg-danger-50 border border-danger-200 rounded-xl px-5 py-3 cursor-pointer select-none" style="display:'+(isSuperAdmin?'flex':'none')+'" onclick="toggleManageSection(\'sec-danger\')"><h3 class="font-bold text-danger-700 text-lg"><i class="fas fa-exclamation-triangle mr-2"></i>위험</h3><i id="secIcon-sec-danger" class="fas fa-chevron-down text-gray-400"></i></div><div id="sec-danger" style="display:none" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border-2 border-danger-200"><h3 class="font-bold text-danger-700 text-xl mb-3"><i class="fas fa-exclamation-triangle"></i> 기수 전환 (신기수 초기화)</h3><p class="text-sm text-gray-600 mb-3">새 기수를 시작할 때 교육생/비밀번호/호실/학과대표를 초기화합니다.</p><p class="text-sm text-success-600 mb-5"><i class="fas fa-check-circle mr-1"></i>과거 제출 이력(잔류(Stay)/외박(Out)/외출)은 보존됩니다.</p><button onclick="resetNewTerm()" class="w-full py-4 bg-primary-50 border-2 border-primary-300 text-primary-700 rounded-xl font-bold text-base btn-press mb-4"><i class="fas fa-sync-alt mr-1"></i> 기수 전환</button><h3 class="font-bold text-danger-700 text-xl mb-3 mt-6"><i class="fas fa-exclamation-triangle"></i> 전체 데이터 초기화</h3><p class="text-sm text-danger-600 mb-5">모든 데이터가 삭제됩니다. 되돌릴 수 없습니다.</p><button onclick="resetAllData()" class="w-full py-4 bg-danger-50 border-2 border-danger-300 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 전체 초기화</button></div></div></div></div>';
+    '<div class="mb-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-departments\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-building mr-2"></i>학과</h3><i id="secIcon-sec-departments" class="fas '+si('sec-departments',false)+' text-gray-400"></i></div><div id="sec-departments" style="display:'+sd('sec-departments',false)+'" class="mt-3"><button onclick="showDeptOrderModal()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press mb-5"><i class="fas fa-sort mr-2"></i>학과 순서 변경</button><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-plus-square"></i> 학과 추가</h3><input type="text" id="addDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" placeholder="학과명" style="font-size:16px"><button onclick="addDepartment()" class="w-full py-3.5 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-minus-square"></i> 학과 삭제</h3><select id="delDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" style="font-size:16px"><option value="">선택</option>'+deptOpts+'</select><button onclick="deleteDepartmentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div></div></div>'+
+    '<div class="mb-4 mt-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-students\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-user-graduate mr-2"></i>교육생</h3><i id="secIcon-sec-students" class="fas '+si('sec-students',false)+' text-gray-400"></i></div><div id="sec-students" class="mt-3" style="display:'+sd('sec-students',false)+'"><div class="bg-success-50 rounded-2xl p-6 border border-success-200 mb-5"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-file-excel"></i> 엑셀 일괄 등록</h3><div class="flex gap-3"><button onclick="downloadStudentTemplate()" class="flex-1 py-3.5 bg-white text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-download mr-1"></i> 템플릿</button><button onclick="uploadStudentsExcel()" class="flex-1 py-3.5 bg-success-100 text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-upload mr-1"></i> 업로드</button></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-info-700 text-lg mb-4"><i class="fas fa-user-plus"></i> 교육생 추가</h3><div class="space-y-3"><select id="addStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><input type="text" id="addStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="이름" style="font-size:16px"><input type="text" id="addStudentRoom" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="호실(선택)" style="font-size:16px"><input type="text" id="addStudentPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="비밀번호(4자리이상)" maxlength="20" style="font-size:16px"><input type="text" id="addStudentBirthYear" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="생년(선택) 예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="addStudent()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-user-minus"></i> 교육생 삭제</h3><div class="space-y-3"><select id="delStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateDelStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="delStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="deleteStudentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mt-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-edit"></i> 교육생 정보 수정</h3><div class="space-y-3"><select id="editStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateEditStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="editStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="loadStudentInfo()" style="font-size:16px"><option value="">교육생 선택</option></select><div id="editStudentInfo" style="display:none"><div class="bg-white rounded-xl p-4 border-2 border-primary-200 space-y-3"><div><label class="block text-sm font-semibold text-gray-600 mb-1">이름 변경</label><div class="flex gap-2"><input type="text" id="editStudentNewName" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 이름 입력" style="font-size:16px"><button onclick="updateStudentName()" class="px-5 py-3 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-user-edit mr-1"></i>변경</button></div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">호실 변경</label><input type="text" id="editStudentRoom" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 호실 번호" style="font-size:16px"></div><button onclick="updateStudentRoom()" class="w-full py-3 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-home mr-1"></i> 호실 변경</button><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">생년 (나이 계산용)</label><div class="flex gap-2"><input type="text" id="editStudentBirthYear2" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="updateStudentAge()" class="px-5 py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-birthday-cake mr-1"></i>저장</button></div><div class="text-xs text-gray-400 mt-1">생년만 입력하면 나이(숫자)로 변환 저장됩니다. 빈칸으로 저장하면 삭제됩니다.</div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">학과 이동</label><select id="editStudentNewDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">이동할 학과 선택</option>'+deptOpts+'</select></div><button onclick="moveStudentDept()" class="w-full py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-exchange-alt mr-1"></i> 학과 이동</button></div></div></div></div></div></div>'+
+    '<div class="mb-4"><div class="flex items-center justify-between bg-info-50 border border-info-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-leaders\')"><h3 class="font-bold text-info-700 text-lg"><i class="fas fa-user-tie mr-2"></i>학과대표</h3><i id="secIcon-sec-leaders" class="fas '+si('sec-leaders',false)+' text-gray-400"></i></div><div id="sec-leaders" style="display:'+sd('sec-leaders',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-tie"></i> 학과대표 지정</h3><div class="space-y-3"><select id="setLeaderDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateLeaderStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="setLeaderStudent" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><input type="text" id="setLeaderPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="학과대표 비밀번호" style="font-size:16px"><button onclick="setLeaderAction()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-user-check mr-1"></i> 지정</button></div>'+leaderList+'</div></div></div>'+
+    '<div class="mb-4"><div class="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-passwords\')"><h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-key mr-2"></i>비밀번호</h3><i id="secIcon-sec-passwords" class="fas '+si('sec-passwords',false)+' text-gray-400"></i></div><div id="sec-passwords" style="display:'+sd('sec-passwords',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mb-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-key"></i> 비밀번호 조회</h3><div class="space-y-3"><select id="pwLookupDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updatePwLookupList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="pwLookupName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="lookupPassword()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-search mr-1"></i> 조회</button></div><div id="pwLookupResult"></div><div id="pwResetArea" style="display:none" class="mt-4 p-4 bg-warning-50 rounded-xl border border-warning-200"><div class="flex items-center justify-between"><div><div class="text-sm font-bold text-warning-700">비밀번호 초기화</div><div class="text-xs text-gray-500 mt-1">새 비밀번호로 초기화됩니다</div></div><button onclick="resetStudentPassword()" class="px-4 py-2 bg-warning-500 text-white rounded-xl text-sm font-bold btn-press">초기화</button></div><div class="mt-3"><input type="text" id="pwResetValue" class="w-full px-4 py-3 bg-white border-2 border-warning-200 rounded-xl text-base text-center tracking-widest" placeholder="초기화할 비밀번호(4자리이상)" maxlength="20" style="font-size:16px"></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-warning-700 text-lg mb-4"><i class="fas fa-history"></i> 비밀번호 변경 이력</h3><div id="pwChangeLogArea" class="text-sm text-gray-500 text-center py-3">조회 버튼을 눌러주세요</div><button onclick="loadPasswordChangeLogs()" class="w-full py-3.5 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-base btn-press mt-3"><i class="fas fa-sync mr-1"></i> 이력 조회</button></div></div></div>'+
+    '<div class="mb-4"><div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-resign\')"><h3 class="font-bold text-red-700 text-lg"><i class="fas fa-user-slash mr-2"></i>퇴사이력</h3><i id="secIcon-sec-resign" class="fas '+si('sec-resign',false)+' text-gray-400"></i></div><div id="sec-resign" style="display:'+sd('sec-resign',false)+'" class="mt-3"><div class="bg-red-50 rounded-2xl p-6 border border-red-200"><h3 class="font-bold text-red-700 text-lg mb-4"><i class="fas fa-user-slash mr-2 text-red-400"></i>퇴사 이력 관리</h3><p class="text-xs text-gray-500 mb-3">퇴사 신청 및 승인된 교육생의 이력을 조회하고 엑셀로 다운로드할 수 있습니다.</p><div class="flex gap-2 mb-3"><button onclick="loadResignHistory()" class="px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-search mr-1"></i>퇴사 이력 조회</button><button onclick="downloadResignHistory()" class="px-4 py-2.5 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-download mr-1"></i>엑셀 다운로드</button></div><div id="resignHistoryResult"></div></div></div></div>'+
+    '</div>'+(isSuperAdmin?'<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2"><div class="mb-4"><div class="flex items-center justify-between bg-info-50 border border-info-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-login\')"><h3 class="font-bold text-info-700 text-lg"><i class="fas fa-shield-alt mr-2"></i>로그인 기록</h3><i id="secIcon-sec-login" class="fas '+si('sec-login',false)+' text-gray-400"></i></div><div id="sec-login" style="display:'+sd('sec-login',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-4 border border-surface-200 mb-4 max-h-80 overflow-y-auto"><table class="w-full"><thead class="text-sm text-gray-500"><tr><th class="text-left py-2 px-3">일시</th><th class="text-left py-2 px-3">결과</th><th class="text-left py-2 px-3">타입</th><th class="text-left py-2 px-3">IP</th></tr></thead><tbody class="text-sm">'+loginLogs.slice(0,20).map(function(log){var d=new Date(log.timestamp),ds=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');return'<tr class="border-t border-surface-100"><td class="py-2.5 px-3 text-gray-600">'+ds+'</td><td class="py-2.5 px-3">'+(log.success?'<span class="text-success-600 font-bold">성공</span>':'<span class="text-danger-600 font-bold">실패</span>')+'</td><td class="py-2.5 px-3 text-gray-500">'+escapeHtml(log.adminType||'-')+'</td><td class="py-2.5 px-3 text-gray-400 font-mono">'+escapeHtml(log.ip||'-')+'</td></tr>'}).join('')+'</tbody></table></div><button onclick="downloadLoginLogs()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-2xl font-bold text-base btn-press hover:bg-info-100 transition-all"><i class="fas fa-download mr-1"></i> 로그인 기록 다운로드</button></div></div></div>':'')+
+    (isSuperAdmin?'<div id="menuControlBox" class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2"><div id="menuControlToggleBtn" class="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none" style="margin-bottom:1rem" onclick="toggleManageSection(\'sec-menu-control\')"><h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-sliders-h mr-2"></i>메뉴 제어</h3><i id="secIcon-sec-menu-control" class="fas '+si('sec-menu-control',false)+' text-gray-400"></i></div><div id="sec-menu-control" style="display:'+sd('sec-menu-control',false)+'" class="mt-3">'+_buildMenuControlHTML()+'</div></div>':'')+
+    '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2" style="display:'+(isSuperAdmin?'block':'none')+'"><div class="mb-4"><div class="flex items-center justify-between bg-danger-50 border border-danger-200 rounded-xl px-5 py-3 cursor-pointer select-none" style="display:'+(isSuperAdmin?'flex':'none')+'" onclick="toggleManageSection(\'sec-danger\')"><h3 class="font-bold text-danger-700 text-lg"><i class="fas fa-exclamation-triangle mr-2"></i>위험</h3><i id="secIcon-sec-danger" class="fas '+si('sec-danger',false)+' text-gray-400"></i></div><div id="sec-danger" style="display:'+sd('sec-danger',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border-2 border-danger-200"><h3 class="font-bold text-danger-700 text-xl mb-3"><i class="fas fa-exclamation-triangle"></i> 기수 전환 (신기수 초기화)</h3><p class="text-sm text-gray-600 mb-3">새 기수를 시작할 때 교육생/비밀번호/호실/학과대표를 초기화합니다.</p><p class="text-sm text-success-600 mb-5"><i class="fas fa-check-circle mr-1"></i>과거 제출 이력(잔류(Stay)/외박(Out)/외출)은 보존됩니다.</p><button onclick="resetNewTerm()" class="w-full py-4 bg-primary-50 border-2 border-primary-300 text-primary-700 rounded-xl font-bold text-base btn-press mb-4"><i class="fas fa-sync-alt mr-1"></i> 기수 전환</button><h3 class="font-bold text-danger-700 text-xl mb-3 mt-6"><i class="fas fa-exclamation-triangle"></i> 전체 데이터 초기화</h3><p class="text-sm text-danger-600 mb-5">모든 데이터가 삭제됩니다. 되돌릴 수 없습니다.</p><button onclick="resetAllData()" class="w-full py-4 bg-danger-50 border-2 border-danger-300 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 전체 초기화</button></div></div></div></div>';
 }
 </script>
 <script>
@@ -3062,68 +3090,22 @@ render=function(){
 function _postRenderWork(){
     _postRenderTimer=null;
 
-    // --- 항상 실행: 메뉴 제어 적용 ---
+    // 메뉴 제어 적용
     applyMenuControl();
 
-    // --- 설정탭이 아니면 여기서 종료 ---
+    // 설정탭이 아니면 여기서 종료
     if(adminTab!=='settings')return;
 
-    // === 1. 아코디언 부착 ===
+    // 아코디언 부착
     _attachAccordion('날짜별 이력 조회');
     _attachAccordion('기간별 통계');
 
-    // === 2. 메뉴제어 섹션 삽입 (슈퍼관리자) ===
-    if(isSuperAdmin&&!document.getElementById('sec-menu-control')){
-        var dangerSec=document.getElementById('sec-danger');
-        if(dangerSec){
-            var section=document.createElement('div');section.id='sec-menu-control';section.className='mt-3';section.style.display='none';
-            section.innerHTML=_buildMenuControlHTML();
-            dangerSec.parentElement.insertBefore(section,dangerSec.nextSibling);
-            if(!document.getElementById('menuControlToggleBtn')){
-                var toggleBtn=document.createElement('div');toggleBtn.id='menuControlToggleBtn';
-                toggleBtn.className='bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none';
-                toggleBtn.onclick=function(){toggleManageSection('sec-menu-control')};
-                toggleBtn.innerHTML='<h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-sliders-h mr-2"></i>메뉴 제어</h3><i id="secIcon-sec-menu-control" class="fas fa-chevron-down text-gray-400"></i>';
-                toggleBtn.style.display='flex';toggleBtn.style.alignItems='center';toggleBtn.style.justifyContent='space-between';
-                var dangerBtn=dangerSec.previousElementSibling;
-                if(dangerBtn)dangerBtn.parentElement.insertBefore(toggleBtn,dangerBtn.nextSibling);
-                else dangerSec.parentElement.insertBefore(toggleBtn,dangerSec);
-            }
-            loadMenuControl();
-        }
-    }
-
-    // === 3. 공지사항 위 중복 버튼 제거 ===
-    var announceSec2=document.getElementById('sec-announce');
-    if(announceSec2){var announceParent=announceSec2.closest('.bg-white');if(announceParent){var prevEl=announceParent.previousElementSibling;if(prevEl&&prevEl.querySelector&&prevEl.querySelector('[onclick="toggleAllManageSections(true)"]'))prevEl.remove()}}
-
-    // === 4. 섹션 병합 ===
-    _doSectionMerge('sec-leaders','sec-departments','merged-leaders','rgba(226,232,240,0.4)','rgba(203,213,225,0.6)','rgba(203,213,225,0.5)','#64748b','#475569','fa-user-tie','학과대표 관리');
-    _doSectionMerge('sec-passwords','sec-students','merged-passwords','rgba(239,246,255,0.6)','rgba(191,219,254,0.6)','rgba(191,219,254,0.5)','#2563eb','#1e40af','fa-key','비밀번호 관리');
-    _doSectionMerge('sec-resign','sec-students','merged-resign','rgba(254,242,242,0.6)','rgba(254,202,202,0.6)','rgba(254,202,202,0.5)','#dc2626','#991b1b','fa-user-slash','퇴사이력 관리');
-
-    // === 5. 메뉴제어 박스화 ===
-    var menuBtn=document.getElementById('menuControlToggleBtn');
-    var menuSecEl=document.getElementById('sec-menu-control');
-    var dangerBox=document.querySelector('[onclick="toggleManageSection(\'sec-danger\')"]');
-    if(menuBtn&&menuSecEl&&dangerBox){
-        var dangerWrapper=dangerBox.closest('.bg-white.rounded-3xl');
-        if(dangerWrapper&&dangerWrapper.parentElement&&!document.getElementById('menuControlBox')){
-            var menuBox=document.createElement('div');menuBox.id='menuControlBox';
-            menuBox.className='bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2';
-            menuBox.appendChild(menuBtn);menuBox.appendChild(menuSecEl);
-            dangerWrapper.parentElement.insertBefore(menuBox,dangerWrapper);
-        }
-    }
-
-    // === 6. 색상 적용 ===
+    // 색상 적용
     var studentSec=document.getElementById('sec-students');
     if(studentSec){
         var colors=[{bg:'rgba(16,185,129,0.18)',bd:'rgba(16,185,129,0.35)'},{bg:'rgba(16,185,129,0.14)',bd:'rgba(16,185,129,0.28)'},{bg:'rgba(16,185,129,0.10)',bd:'rgba(16,185,129,0.22)'},{bg:'rgba(16,185,129,0.10)',bd:'rgba(16,185,129,0.22)'},{bg:'rgba(16,185,129,0.07)',bd:'rgba(16,185,129,0.18)'},{bg:'rgba(16,185,129,0.07)',bd:'rgba(16,185,129,0.18)'},{bg:'rgba(16,185,129,0.04)',bd:'rgba(16,185,129,0.12)'},{bg:'rgba(16,185,129,0.04)',bd:'rgba(16,185,129,0.12)'}];
         var els=studentSec.querySelectorAll('.bg-surface-50, .bg-success-50');
         els.forEach(function(el,i){if(colors[i]){el.style.background=colors[i].bg;el.style.borderColor=colors[i].bd}});
-        var resignContent=studentSec.querySelector('.merged-resign');
-        if(resignContent)resignContent.querySelectorAll('.bg-red-50').forEach(function(el){el.style.background='rgba(16,185,129,0.04)';el.style.borderColor='rgba(16,185,129,0.12)'});
     }
     var deptSec=document.getElementById('sec-departments');
     if(deptSec){
@@ -3132,10 +3114,9 @@ function _postRenderWork(){
         deptEls.forEach(function(el,i){if(deptColors[i]){el.style.background=deptColors[i].bg;el.style.borderColor=deptColors[i].bd}});
     }
 
-    // === 7. 체크박스 동기화 ===
+    // 체크박스 동기화
     applyMenuControl();
 }
-
 loadMenuControl();
 setInterval(function(){applyMenuControl()},500);function updatePwLookupList(){
     var dept=document.getElementById('pwLookupDept').value;
@@ -3277,16 +3258,18 @@ function updateEditStudentList(){
         var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o);
     });
 }
-
 function loadStudentInfo(){
     var name=document.getElementById('editStudentName').value;
     var info=document.getElementById('editStudentInfo');
     if(!name){info.style.display='none';return}
     info.style.display='block';
     var room=window._secureData.getRoomNumber(name)||'';
+    var age=window._secureData.getAge(name);
     document.getElementById('editStudentRoom').value=room;
     var newNameInput=document.getElementById('editStudentNewName');
     if(newNameInput) newNameInput.value=name;
+    var ageInput=document.getElementById('editStudentBirthYear2');
+    if(ageInput) ageInput.value=age?String(new Date().getFullYear()-age):'';
 }
 async function updateStudentRoom(){
     var dept=document.getElementById('editStudentDept').value;
@@ -3298,6 +3281,20 @@ async function updateStudentRoom(){
         await db.collection('roomNumbers').doc(name).set({room:newRoom,department:dept,updatedAt:new Date().toISOString()},{merge:true});
         showToast(name+' 호실 → '+newRoom+'호 변경 완료','success');
     }catch(e){showToast('변경 실패','error')}
+}
+async function updateStudentAge(){
+    var name=document.getElementById('editStudentName').value;
+    var birthYear=document.getElementById('editStudentBirthYear2').value.trim();
+    if(!name){showToast('교육생을 선택하세요','warning');return}
+    if(!birthYear){
+        try{await db.collection('roomNumbers').doc(name).update({age:firebase.firestore.FieldValue.delete(),updatedAt:new Date().toISOString()});showToast(name+' 나이 정보 삭제','success')}catch(e){showToast('삭제 실패','error')}
+        return;
+    }
+    var by=parseInt(birthYear);var ageVal=null;
+    if(by>=1950&&by<=2015){ageVal=new Date().getFullYear()-by}
+    else if(by>=0&&by<=99){var fullYear=by<=30?2000+by:1900+by;ageVal=new Date().getFullYear()-fullYear}
+    if(!ageVal||ageVal<1||ageVal>79){showToast('올바른 생년을 입력하세요 (예: 1997 또는 97)','warning');return}
+    try{await db.collection('roomNumbers').doc(name).set({age:ageVal,updatedAt:new Date().toISOString()},{merge:true});showToast(name+' 나이 '+ageVal+'세 저장 완료','success')}catch(e){showToast('저장 실패','error')}
 }
 async function updateStudentName(){
     var dept = document.getElementById('editStudentDept').value;
