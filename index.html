@@ -842,6 +842,15 @@ async function submitStatus(dept,name,status){
     if(!isOnline){showToast('오프라인 상태입니다. 인터넷 연결 후 다시 시도해주세요.','warning');return}
     var sd=getSelectedDate();
     var docId=sd+'_'+dept+'_'+name;
+    // 21시 이후 변경 제한 (교육생만, 관리자/학과대표는 제외)
+    if(currentMode==='student'){
+        var now=new Date();
+        var existingSub=submissions.find(function(s){return s.id===docId&&s.status!=='cancelled'});
+        if(existingSub&&now.getHours()>=21){
+            showToast('21시 이후에는 신청을 변경할 수 없습니다.','warning');
+            return;
+        }
+    }
     try{
         await db.collection('submissions').doc(docId).set({department:dept,name:name,status:status,date:sd,timestamp:new Date().toLocaleTimeString('ko-KR'),submitDate:new Date().toISOString()});
         // 서버 저장 확인 (검증)
@@ -1684,7 +1693,7 @@ function handleStudentStay(){var check=isSubmitAllowed();if(!check.allowed){show
 function handleStudentOut(){var check=isSubmitAllowed();if(!check.allowed){showToast(check.reason,'warning');return}var d=currentStudentDept();if(d)submitStatus(d,currentStudent,'out')}
 function handleStudentOuting(){var check=isSubmitAllowed();if(!check.allowed){showToast(check.reason,'warning');return}var d=currentStudentDept();if(d)showOutingModal(d,currentStudent)}
 function changePassword(){var dept=currentStudentDept();var name=currentStudent;openInputModal('비밀번호 변경',[{label:'현재 비밀번호',type:'password',placeholder:'현재 비밀번호',maxLength:20,center:true},{label:'새 비밀번호',type:'password',placeholder:'새 비밀번호',maxLength:20,center:true},{label:'새 비밀번호 확인',type:'password',placeholder:'새 비밀번호 다시 입력',maxLength:20,center:true}],async function(){var cur=document.getElementById('modalInput0').value.trim();var np=document.getElementById('modalInput1').value.trim();var nc=document.getElementById('modalInput2').value.trim();if(!cur||!np||!nc){showToast('모든 항목을 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(cur!==pw){showToast('현재 비밀번호가 틀립니다','error');return}if(np.length<4){showToast('새 비밀번호는 4자리 이상이어야 합니다','warning');return}if(np!==nc){showToast('새 비밀번호가 일치하지 않습니다','warning');return}if(cur===np){showToast('현재와 동일한 비밀번호입니다','warning');return}try{await db.collection('passwords').doc(name).set({password:np,updatedAt:new Date().toISOString()});await db.collection('passwordChangeLogs').add({name:name,department:dept,changedAt:new Date().toISOString(),device:/Mobile|Android|iPhone/i.test(navigator.userAgent)?'Mobile':'PC'});closeModal();showToast('비밀번호가 변경되었습니다','success')}catch(e){showToast('변경 실패: '+e.message,'error')}})}
-function updateVehicleStudentList(){var dept=document.getElementById('vehicleDept').value;var sel=document.getElementById('vehicleStudent');sel.innerHTML='<option value="">교육생 선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n)+(vehicleNumbers[n]?' ['+vehicleNumbers[n]+']':'');sel.appendChild(o)})}
+function updateVehicleStudentList(){var dept=document.getElementById('vehicleDept').value;var sel=document.getElementById('vehicleStudent');sel.innerHTML='<option value="">교육생 선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n)+(vehicleNumbers[n]?' ['+vehicleNumbers[n]+']':'');sel.appendChild(o)});showVehicleSearch()}
 function adminSaveVehicle(){var name=document.getElementById('vehicleStudent').value;var number=document.getElementById('vehicleNumberInput').value.trim();if(!name){showToast('교육생을 선택하세요','warning');return}if(!number){showToast('차량번호를 입력하세요','warning');return}saveVehicleNumber(name,number);document.getElementById('vehicleNumberInput').value='';updateVehicleStudentList()}
 function showVehicleSearch(){var area=document.getElementById('vehicleListResult');if(!area)return;var keyword=(document.getElementById('vehicleNumberInput')?document.getElementById('vehicleNumberInput').value.trim():'').toLowerCase();var selDept=(document.getElementById('vehicleDept')?document.getElementById('vehicleDept').value:'');var list=[];departments.forEach(function(dept){if(selDept&&dept!==selDept)return;(students[dept]||[]).forEach(function(name){if(vehicleNumbers[name]){if(keyword&&vehicleNumbers[name].toLowerCase().indexOf(keyword)===-1&&name.toLowerCase().indexOf(keyword)===-1)return;list.push({dept:dept,name:name,room:window._secureData.getRoomNumber(name)||'',vehicle:vehicleNumbers[name]})}})});if(list.length===0){area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">등록된 차량이 없습니다</div>';return}list.sort(function(a,b){return parseInt(a.room||'999')-parseInt(b.room||'999')});var h='<div class="text-xs font-bold text-blue-600 mb-2">등록 차량 '+list.length+'대</div><div class="space-y-1 max-h-60 overflow-y-auto">';list.forEach(function(item){h+='<div class="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-surface-200"><div><span class="text-sm font-bold text-gray-700">'+(item.room?item.room+'호 ':'')+escapeHtml(item.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(item.dept)+']</span></div><div class="flex items-center gap-2"><span class="text-sm font-bold text-blue-600">'+escapeHtml(item.vehicle)+'</span><button onclick="saveVehicleNumber(\''+safeAttr(item.name)+'\',\'\');showVehicleSearch()" class="text-danger-400 hover:text-danger-600" style="font-size:10px"><i class="fas fa-times"></i></button></div></div>'});h+='</div>';area.innerHTML=h}
 async function downloadVehicleExcel(){try{await loadExcelJS();var wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('차량번호');ws.columns=[{header:'학과',key:'dept',width:25},{header:'이름',key:'name',width:15},{header:'호실',key:'room',width:10},{header:'차량번호',key:'vehicle',width:20}];ws.getRow(1).font={bold:true};departments.forEach(function(dept){(students[dept]||[]).forEach(function(name){if(vehicleNumbers[name])ws.addRow({dept:dept,name:name,room:window._secureData.getRoomNumber(name)||'',vehicle:vehicleNumbers[name]})})});var buf=await wb.xlsx.writeBuffer();var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='차량번호_'+getCurrentDate()+'.xlsx';a.click();showToast('다운로드 완료','success')}catch(e){showToast('다운로드 실패: '+e.message,'error')}}
@@ -1776,7 +1785,7 @@ async function leaderDeleteOut(docId,name){
 }
 
 // ============ 관리자 함수 ============
-function switchAdminTab(tab){adminTab=tab;render();setTimeout(function(){window.scrollTo({top:0,behavior:'smooth'})},50)}
+function switchAdminTab(tab){adminTab=tab;window._roomStatusOpen=false;var dd=document.getElementById('deptDropdown');if(dd)dd.remove();render();setTimeout(function(){window.scrollTo({top:0,behavior:'smooth'})},50)}
 function setAdminBatchMode(mode){adminBatchMode=(adminBatchMode===mode)?null:mode;render()}
 function updateAdminBatchCount(){var n=0;document.querySelectorAll('.admin-batch-check').forEach(function(x){if(x.checked)n++});var el=document.getElementById('adminBatchCount');if(el)el.textContent=n}
 function selectAllAdmin(){document.querySelectorAll('.admin-batch-check').forEach(function(c){c.checked=true});updateAdminBatchCount()}
@@ -2849,73 +2858,96 @@ Object.keys(floors).forEach(function(fk){var fl=floors[fk];fl.rooms.forEach(func
 }
 function roomCardFilter(keyword){
   roomSearchKeyword=keyword;
-  window._roomFloorOpen={'1':true,'2':true,'3':true,'4':true};
+  window._roomFloorOpen={'1':true,'2':true,'3':true,'4':true};window._floorPlanOpen={'1F':true,'2F':true,'3F':true,'4F':true};
   render();
   setTimeout(function(){
     var firstMatch=document.querySelector('.room-card-match');
     if(firstMatch){firstMatch.scrollIntoView({behavior:'smooth',block:'center'});}
     setTimeout(function(){roomSearchKeyword='';var el=document.getElementById('roomSearchInput');if(el)el.value='';},5000);
   },100);
-}function showDeptFilterModal(){
-    var h='<div class="p-6">';
-    h+='<div class="flex items-center justify-between mb-5">';
-    h+='<h3 class="text-xl font-bold text-gray-900"><i class="fas fa-building text-primary-500 mr-2"></i>학과 선택</h3>';
-    h+='<button onclick="closeModal()" class="w-9 h-9 rounded-full bg-surface-100 text-gray-400 flex items-center justify-center hover:bg-surface-200 transition-all"><i class="fas fa-times"></i></button>';
-    h+='</div>';
-
-    // 전체 버튼
-    h+='<button onclick="roomFilterDept=\'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};closeModal();render()" class="w-full mb-4 p-4 rounded-2xl text-left btn-press transition-all flex items-center gap-3 '+(roomFilterDept===''?'border-2 border-primary-400':'border-2 border-surface-200 hover:border-primary-200')+'" style="'+(roomFilterDept===''?'background:linear-gradient(135deg,rgba(238,242,255,0.9),rgba(224,231,255,0.7))':'background:rgba(255,255,255,0.8)')+'">';
-    h+='<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0"><i class="fas fa-th text-white"></i></div>';
-    h+='<div class="flex-1 min-w-0"><div class="font-bold text-gray-800 text-base">전체 학과</div>';
-    var _totalAll=0;departments.forEach(function(d){_totalAll+=(students[d]||[]).length});
-    h+='<div class="text-sm text-gray-500">'+departments.length+'개 학과 · '+_totalAll+'명</div></div>';
-    if(roomFilterDept==='') h+='<i class="fas fa-check-circle text-primary-500 text-lg"></i>';
-    h+='</button>';
-
-    // 학과별 버튼
-    h+='<div class="space-y-2 max-h-[55vh] overflow-y-auto">';
-    
-    var colors=[
-        {bg:'from-emerald-400 to-emerald-600',light:'rgba(16,185,129,0.08)',border:'rgba(16,185,129,0.25)',activeBg:'rgba(16,185,129,0.12)'},
-        {bg:'from-blue-400 to-blue-600',light:'rgba(59,130,246,0.08)',border:'rgba(59,130,246,0.25)',activeBg:'rgba(59,130,246,0.12)'},
-        {bg:'from-amber-400 to-amber-600',light:'rgba(245,158,11,0.08)',border:'rgba(245,158,11,0.25)',activeBg:'rgba(245,158,11,0.12)'},
-        {bg:'from-rose-400 to-rose-600',light:'rgba(244,63,94,0.08)',border:'rgba(244,63,94,0.25)',activeBg:'rgba(244,63,94,0.12)'},
-        {bg:'from-violet-400 to-violet-600',light:'rgba(139,92,246,0.08)',border:'rgba(139,92,246,0.25)',activeBg:'rgba(139,92,246,0.12)'},
-        {bg:'from-cyan-400 to-cyan-600',light:'rgba(6,182,212,0.08)',border:'rgba(6,182,212,0.25)',activeBg:'rgba(6,182,212,0.12)'},
-        {bg:'from-orange-400 to-orange-600',light:'rgba(249,115,22,0.08)',border:'rgba(249,115,22,0.25)',activeBg:'rgba(249,115,22,0.12)'},
-        {bg:'from-teal-400 to-teal-600',light:'rgba(20,184,166,0.08)',border:'rgba(20,184,166,0.25)',activeBg:'rgba(20,184,166,0.12)'},
-        {bg:'from-pink-400 to-pink-600',light:'rgba(236,72,153,0.08)',border:'rgba(236,72,153,0.25)',activeBg:'rgba(236,72,153,0.12)'},
-        {bg:'from-indigo-400 to-indigo-600',light:'rgba(99,102,241,0.08)',border:'rgba(99,102,241,0.25)',activeBg:'rgba(99,102,241,0.12)'}
+}
+function showDeptFilterModal(){
+    var existing=document.getElementById('deptDropdown');
+    if(existing){existing.remove();return}
+    var btn=document.querySelector('[onclick*="showDeptFilterModal"]');
+    if(!btn)return;
+    var rect=btn.getBoundingClientRect();
+    var div=document.createElement('div');
+    div.id='deptDropdown';
+    div.style.cssText='position:fixed;left:'+rect.left+'px;top:'+(rect.bottom+4)+'px;width:'+Math.max(rect.width,280)+'px;max-height:50vh;overflow-y:auto;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);z-index:9999;padding:8px;border:1px solid rgba(0,0,0,0.08)';
+    var styleList=[
+        {icon:'fa-car',bg:'linear-gradient(135deg,#6ee7b7,#10b981)',border:'rgba(16,185,129,0.5)',activeBg:'rgba(16,185,129,0.12)'},
+        {icon:'fa-paint-roller',bg:'linear-gradient(135deg,#86efac,#22c55e)',border:'rgba(34,197,94,0.5)',activeBg:'rgba(34,197,94,0.12)'},
+        {icon:'fa-industry',bg:'linear-gradient(135deg,#93c5fd,#3b82f6)',border:'rgba(59,130,246,0.5)',activeBg:'rgba(59,130,246,0.12)'},
+        {icon:'fa-gem',bg:'linear-gradient(135deg,#fcd34d,#f59e0b)',border:'rgba(245,158,11,0.5)',activeBg:'rgba(245,158,11,0.12)'},
+        {icon:'fa-car-side',bg:'linear-gradient(135deg,#fda4af,#f43f5e)',border:'rgba(244,63,94,0.5)',activeBg:'rgba(244,63,94,0.12)'},
+        {icon:'fa-bolt',bg:'linear-gradient(135deg,#c4b5fd,#8b5cf6)',border:'rgba(139,92,246,0.5)',activeBg:'rgba(139,92,246,0.12)'},
+        {icon:'fa-cogs',bg:'linear-gradient(135deg,#67e8f9,#06b6d4)',border:'rgba(6,182,212,0.5)',activeBg:'rgba(6,182,212,0.12)'},
+        {icon:'fa-microchip',bg:'linear-gradient(135deg,#5eead4,#14b8a6)',border:'rgba(20,184,166,0.5)',activeBg:'rgba(20,184,166,0.12)'},
+        {icon:'fa-flask',bg:'linear-gradient(135deg,#f9a8d4,#ec4899)',border:'rgba(236,72,153,0.5)',activeBg:'rgba(236,72,153,0.12)'},
+        {icon:'fa-wrench',bg:'linear-gradient(135deg,#a5b4fc,#6366f1)',border:'rgba(99,102,241,0.5)',activeBg:'rgba(99,102,241,0.12)'}
     ];
+    function getDeptIcon(name){
+        if(name.indexOf('도장')>-1) return 'fa-paint-roller';
+        if(name.indexOf('자동차')>-1||name.indexOf('차량')>-1) return 'fa-car-side';
+        if(name.indexOf('전기')>-1||name.indexOf('전자')>-1) return 'fa-bolt';
+        if(name.indexOf('기계')>-1||name.indexOf('설비')>-1) return 'fa-cogs';
+        if(name.indexOf('반도체')>-1||name.indexOf('표면')>-1) return 'fa-microchip';
+        if(name.indexOf('주얼리')>-1||name.indexOf('보석')>-1||name.indexOf('목공')>-1) return 'fa-gem';
+        if(name.indexOf('산업')>-1) return 'fa-industry';
+        if(name.indexOf('바리스타')>-1||name.indexOf('여성')>-1) return 'fa-coffee';
+        if(name.indexOf('소방')>-1) return 'fa-fire-extinguisher';
+        if(name.indexOf('용접')>-1) return 'fa-fire';
+        return null;
+    }
+    var html='';
+    var totalAll=0;
+    departments.forEach(function(d){totalAll+=(students[d]||[]).length});
+    var isAllActive=(roomFilterDept==='');
+    html+='<button onclick="roomFilterDept=\'\';roomSearchKeyword=\'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};document.getElementById(\'deptDropdown\').remove();render()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:2px solid '+(isAllActive?'rgba(99,102,241,0.5)':'transparent')+';background:'+(isAllActive?'rgba(238,242,255,0.9)':'transparent')+';cursor:pointer;text-align:left;font-size:15px;margin-bottom:4px">';
+    html+='<div style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#a5b4fc,#6366f1);flex-shrink:0"><i class="fas fa-th" style="color:#fff;font-size:14px"></i></div>';
+    html+='<div style="flex:1;min-width:0"><div style="font-weight:700;color:#1f2937;font-size:15px">전체 학과</div>';
+    html+='<div style="font-size:13px;color:#6b7280;font-weight:600">'+departments.length+'개 학과 · '+totalAll+'명</div></div>';
+    if(isAllActive) html+='<i class="fas fa-check-circle" style="color:#6366f1;font-size:16px"></i>';
+    html+='</button>';
 
     departments.forEach(function(dept,idx){
-        var c=colors[idx%colors.length];
+        var c=styleList[idx%styleList.length];
+        var customIcon=getDeptIcon(dept);
+        var icon=customIcon||c.icon;
         var isActive=(roomFilterDept===dept);
         var deptStudents=students[dept]||[];
         var count=deptStudents.length;
-        var femCount=deptStudents.filter(function(n){return n.includes('(여)')}).length;
-        var roomCount=0;
-        var roomSet=new Set();
-        deptStudents.forEach(function(n){var r=window._secureData.getRoomNumber(n);if(r)roomSet.add(r)});
-        roomCount=roomSet.size;
+        var femCount=deptStudents.filter(function(n){return n.indexOf('(여)')>-1}).length;
+        var roomSet={};
+        deptStudents.forEach(function(n){var r=window._secureData.getRoomNumber(n);if(r)roomSet[r]=1});
+        var roomCount=Object.keys(roomSet).length;
+        var floors={};
+        Object.keys(roomSet).forEach(function(r){floors[r.charAt(0)]=1});
+        var topFloor=Object.keys(floors).sort(function(a,b){return (students[dept]||[]).filter(function(n){var rm=window._secureData.getRoomNumber(n);return rm&&rm.charAt(0)===b}).length-(students[dept]||[]).filter(function(n){var rm=window._secureData.getRoomNumber(n);return rm&&rm.charAt(0)===a}).length})[0]||'1';
 
-        h+='<button onclick="roomFilterDept=\''+safeAttr(dept)+'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};closeModal();render()" class="w-full p-4 rounded-2xl text-left btn-press transition-all flex items-center gap-3" style="border:2px solid '+(isActive?c.border:'rgba(0,0,0,0.06)')+';background:'+(isActive?c.activeBg:'rgba(255,255,255,0.8)')+'">';
-        h+='<div class="w-10 h-10 rounded-xl bg-gradient-to-br '+c.bg+' flex items-center justify-center flex-shrink-0"><i class="fas fa-users text-white text-sm"></i></div>';
-        h+='<div class="flex-1 min-w-0">';
-        h+='<div class="font-bold text-gray-800 text-base truncate">'+escapeHtml(dept)+'</div>';
-        h+='<div class="flex items-center gap-2 mt-0.5">';
-        h+='<span class="text-sm text-gray-500"><i class="fas fa-user text-xs mr-0.5"></i>'+count+'명</span>';
-        if(femCount>0) h+='<span class="text-sm text-pink-500"><i class="fas fa-female text-xs mr-0.5"></i>'+femCount+'</span>';
-        h+='<span class="text-sm text-gray-400"><i class="fas fa-door-open text-xs mr-0.5"></i>'+roomCount+'실</span>';
-        h+='</div></div>';
-        if(isActive) h+='<i class="fas fa-check-circle text-lg flex-shrink-0" style="color:'+c.border+'"></i>';
-        h+='</button>';
+        html+='<button onclick="roomFilterDept=\''+dept.replace(/'/g,"\\'")+'\';roomSearchKeyword=\'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};window._scrollToFloor=\''+topFloor+'F\';document.getElementById(\'deptDropdown\').remove();render()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:2px solid '+(isActive?c.border:'transparent')+';background:'+(isActive?c.activeBg:'transparent')+';cursor:pointer;text-align:left;font-size:15px;margin-bottom:2px">';
+        html+='<div style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:'+c.bg+';flex-shrink:0"><i class="fas '+icon+'" style="color:#fff;font-size:14px"></i></div>';
+        html+='<div style="flex:1;min-width:0"><div style="font-weight:700;color:#1f2937;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(dept)+'</div>';
+        html+='<div style="display:flex;align-items:center;gap:6px;margin-top:2px">';
+        html+='<span style="font-size:13px;font-weight:600;color:#4b5563"><i class="fas fa-user" style="font-size:11px;opacity:0.5;margin-right:2px"></i>'+count+'명</span>';
+        if(femCount>0) html+='<span style="font-size:13px;font-weight:600;color:#db2777"><i class="fas fa-female" style="font-size:11px;opacity:0.5;margin-right:2px"></i>'+femCount+'</span>';
+        html+='<span style="font-size:13px;font-weight:600;color:#4b5563"><i class="fas fa-door-open" style="font-size:11px;opacity:0.5;margin-right:2px"></i>'+roomCount+'실</span>';
+        html+='</div></div>';
+        if(isActive) html+='<i class="fas fa-check-circle" style="color:'+c.border+';font-size:16px"></i>';
+        html+='</button>';
     });
 
-    h+='</div></div>';
-    openModal(h);
+    div.innerHTML=html;
+    document.body.appendChild(div);
+    setTimeout(function(){
+        document.addEventListener('click',function _close(e){
+            var dd=document.getElementById('deptDropdown');
+            if(!dd){document.removeEventListener('click',_close);return}
+            if(!dd.contains(e.target)&&!e.target.closest('[onclick*="showDeptFilterModal"]')){dd.remove();document.removeEventListener('click',_close)}
+        })
+    },300);
 }
-
 function renderRoomStatus(){
   if(!window._roomStatusOpen)window._roomStatusOpen=false;
   if(!window._roomFloorOpen)window._roomFloorOpen={};
@@ -2929,7 +2961,6 @@ function renderRoomStatus(){
 
   var h='<div class="bg-white rounded-3xl shadow-card border border-surface-200 mb-4 animate-fade-up" style="transition:box-shadow 0.2s ease">';
 
-  // ===== 헤더 (클릭으로 토글) =====
   h+='<div class="p-4 text-center cursor-pointer rounded-3xl" onclick="window._roomStatusOpen=!window._roomStatusOpen;render()" style="transition:background 0.2s ease" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'white\'">';
   h+='<i class="fas fa-building text-primary-500 text-3xl mb-2"></i>';
   h+='<div class="text-lg font-bold text-gray-700">호실 현황</div>';
@@ -2938,70 +2969,59 @@ function renderRoomStatus(){
 
   if(!window._roomStatusOpen){ h+='</div>'; return h; }
 
-  // ===== 펼쳐진 콘텐츠 =====
   h+='<div class="px-4 pb-5">';
 
-   // ───── 새 프로그레스 바 통계 영역 ─────
-  h+='<div class="mb-5 p-5 rounded-2xl border border-surface-200" style="background:linear-gradient(135deg,rgba(238,242,255,0.6),rgba(224,231,255,0.4));backdrop-filter:blur(15px)">';
+  h+='<div class="mb-5 p-5 rounded-2xl border border-surface-200" style="background:rgba(255,255,255,0.5);backdrop-filter:blur(10px)">';
 
-  // 입실률 헤더
   h+='<div class="flex items-center justify-between mb-4">';
   h+='<div class="flex items-center gap-2"><div class="w-9 h-9 rounded-lg bg-primary-500 flex items-center justify-center"><i class="fas fa-door-open text-white text-base"></i></div><span class="font-bold text-gray-800 text-lg">입실 현황</span></div>';
-  h+='<div class="text-right"><span class="text-4xl font-black text-primary-600">'+_occupyPct+'</span><span class="text-xl font-bold text-primary-400">%</span><div class="text-sm text-gray-500 font-medium">'+(rs.singleRooms+rs.doubleRooms)+' / '+_studentRooms+'실</div></div>';
+  h+='<div class="text-right"><span class="text-3xl font-black text-primary-600">'+_occupyPct+'</span><span class="text-lg font-bold text-primary-400">%</span><div class="text-sm text-gray-500 font-medium">'+(rs.singleRooms+rs.doubleRooms)+' / '+_studentRooms+'실</div></div>';
   h+='</div>';
 
-  // 메인 세그먼트 바 (h-7 → h-9)
   h+='<div class="relative mb-4">';
-  h+='<div class="flex rounded-full h-9 overflow-hidden" style="background:rgba(0,0,0,0.06)">';
-  if(rs.singleRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'1인실\')" style="width:'+_singlePct+'%;background:linear-gradient(135deg,#fbbf24,#d97706);min-width:'+(rs.singleRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_singlePct>=8?_singlePct+'%':'')+'</span></div>';
-  if(rs.doubleRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'2인실\')" style="width:'+_doublePct+'%;background:linear-gradient(135deg,#34d399,#059669);min-width:'+(rs.doubleRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_doublePct>=8?_doublePct+'%':'')+'</span></div>';
-  if(rs.emptyRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'공실\')" style="width:'+_emptyPct+'%;background:linear-gradient(135deg,#94a3b8,#64748b);min-width:'+(rs.emptyRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_emptyPct>=8?_emptyPct+'%':'')+'</span></div>';
+  h+='<div class="flex rounded-full h-9 overflow-hidden" style="background:rgba(0,0,0,0.03)">';
+  if(rs.singleRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'1인실\')" style="width:'+_singlePct+'%;background:linear-gradient(135deg,rgba(251,191,36,0.6),rgba(217,119,6,0.6));min-width:'+(rs.singleRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_singlePct>=8?_singlePct+'%':'')+'</span></div>';
+  if(rs.doubleRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'2인실\')" style="width:'+_doublePct+'%;background:linear-gradient(135deg,rgba(52,211,153,0.6),rgba(5,150,105,0.6));min-width:'+(rs.doubleRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_doublePct>=8?_doublePct+'%':'')+'</span></div>';
+  if(rs.emptyRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'공실\')" style="width:'+_emptyPct+'%;background:linear-gradient(135deg,rgba(148,163,184,0.6),rgba(100,116,139,0.6));min-width:'+(rs.emptyRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_emptyPct>=8?_emptyPct+'%':'')+'</span></div>';
   h+='</div>';
   h+='</div>';
 
-  // 범례 (p-2.5 → p-3.5, 숫자 text-lg → text-2xl, 설명 text-xs → text-sm)
   h+='<div class="grid grid-cols-3 gap-2">';
-  // 1인실
-  h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'1인실\')" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2)">';
-  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,#fbbf24,#d97706)"></div>';
+  h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'1인실\')" style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.12)">';
+  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,rgba(251,191,36,0.6),rgba(217,119,6,0.6))"></div>';
   h+='<div class="min-w-0"><div class="text-2xl font-black text-warning-700 leading-none">'+rs.singleRooms+'</div><div class="text-sm text-warning-600 font-bold mt-1">1인실 ('+_singlePct+'%)</div></div>';
   h+='</div>';
-  // 2인실
-  h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'2인실\')" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)">';
-  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,#34d399,#059669)"></div>';
+  h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'2인실\')" style="background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.12)">';
+  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,rgba(52,211,153,0.6),rgba(5,150,105,0.6))"></div>';
   h+='<div class="min-w-0"><div class="text-2xl font-black text-success-700 leading-none">'+rs.doubleRooms+'</div><div class="text-sm text-success-600 font-bold mt-1">2인실 ('+_doublePct+'%)</div></div>';
   h+='</div>';
-  // 공실
-  h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'공실\')" style="background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.2)">';
-  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,#94a3b8,#64748b)"></div>';
+  h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'공실\')" style="background:rgba(100,116,139,0.04);border:1px solid rgba(100,116,139,0.12)">';
+  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,rgba(148,163,184,0.6),rgba(100,116,139,0.6))"></div>';
   h+='<div class="min-w-0"><div class="text-2xl font-black text-gray-600 leading-none">'+rs.emptyRooms+'</div><div class="text-sm text-gray-500 font-bold mt-1">공실 ('+_emptyPct+'%)</div></div>';
   h+='</div>';
   h+='</div>';
 
-  // 여학생 / 남학생 미니 바 (p-3 → p-4, 바 h-2.5 → h-3.5, 텍스트 크기 업)
   h+='<div class="grid grid-cols-2 gap-3 mt-4">';
-  // 여학생
   var fOccupy=rs.femaleTotal>0?Math.round((rs.femaleSingle+rs.femaleDouble)/rs.femaleTotal*100):0;
   var fSingleW=rs.femaleTotal>0?Math.round(rs.femaleSingle/rs.femaleTotal*100):0;
   var fDoubleW=rs.femaleTotal>0?Math.round(rs.femaleDouble/rs.femaleTotal*100):0;
   var fEmptyW=rs.femaleTotal>0?Math.round(rs.femaleEmpty/rs.femaleTotal*100):0;
-  h+='<div class="p-4 rounded-xl" style="background:rgba(236,72,153,0.06);border:1px solid rgba(236,72,153,0.15)">';
+  h+='<div class="p-4 rounded-xl" style="background:rgba(236,72,153,0.03);border:1px solid rgba(236,72,153,0.08)">';
   h+='<div class="flex items-center justify-between mb-2"><span class="font-bold text-pink-700 text-base"><i class="fas fa-female mr-1"></i>여학생 ('+rs.femaleTotal+'실)</span><span class="text-sm font-bold text-pink-500">입실 '+fOccupy+'%</span></div>';
-  h+='<div class="flex rounded-full h-3.5 overflow-hidden" style="background:rgba(0,0,0,0.06)">';
+  h+='<div class="flex rounded-full h-3.5 overflow-hidden" style="background:rgba(0,0,0,0.03)">';
   if(rs.femaleSingle>0) h+='<div class="h-full" style="width:'+fSingleW+'%;background:#fbbf24"></div>';
   if(rs.femaleDouble>0) h+='<div class="h-full" style="width:'+fDoubleW+'%;background:#34d399"></div>';
   if(rs.femaleEmpty>0) h+='<div class="h-full" style="width:'+fEmptyW+'%;background:#94a3b8"></div>';
   h+='</div>';
   h+='<div class="flex gap-3 mt-2 text-sm"><span class="text-warning-600">1인 <b>'+rs.femaleSingle+'</b></span><span class="text-success-600">2인 <b>'+rs.femaleDouble+'</b></span><span class="text-gray-500">공실 <b>'+rs.femaleEmpty+'</b></span></div>';
   h+='</div>';
-  // 남학생
   var mOccupy=rs.maleTotal>0?Math.round((rs.maleSingle+rs.maleDouble)/rs.maleTotal*100):0;
   var mSingleW=rs.maleTotal>0?Math.round(rs.maleSingle/rs.maleTotal*100):0;
   var mDoubleW=rs.maleTotal>0?Math.round(rs.maleDouble/rs.maleTotal*100):0;
   var mEmptyW=rs.maleTotal>0?Math.round(rs.maleEmpty/rs.maleTotal*100):0;
-  h+='<div class="p-4 rounded-xl" style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15)">';
+  h+='<div class="p-4 rounded-xl" style="background:rgba(59,130,246,0.03);border:1px solid rgba(59,130,246,0.08)">';
   h+='<div class="flex items-center justify-between mb-2"><span class="font-bold text-blue-700 text-base"><i class="fas fa-male mr-1"></i>남학생 ('+rs.maleTotal+'실)</span><span class="text-sm font-bold text-blue-500">입실 '+mOccupy+'%</span></div>';
-  h+='<div class="flex rounded-full h-3.5 overflow-hidden" style="background:rgba(0,0,0,0.06)">';
+  h+='<div class="flex rounded-full h-3.5 overflow-hidden" style="background:rgba(0,0,0,0.03)">';
   if(rs.maleSingle>0) h+='<div class="h-full" style="width:'+mSingleW+'%;background:#fbbf24"></div>';
   if(rs.maleDouble>0) h+='<div class="h-full" style="width:'+mDoubleW+'%;background:#34d399"></div>';
   if(rs.maleEmpty>0) h+='<div class="h-full" style="width:'+mEmptyW+'%;background:#94a3b8"></div>';
@@ -3011,13 +3031,10 @@ function renderRoomStatus(){
   h+='</div>';
 
   h+='</div>';
-  // ───── 프로그레스 바 통계 영역 끝 ─────
 
-  // ===== 학과 선택 + 검색 필터 (기존 유지) =====
   h+='<div class="mb-3">';
   h+='<div class="flex items-center gap-2 mb-2">';
   if(roomFilterDept){
-    // 선택된 학과 표시
     var _deptStudents=(students[roomFilterDept]||[]);
     var _deptCount=_deptStudents.length;
     var _ageSum=0,_ageCount=0;
@@ -3026,9 +3043,8 @@ function renderRoomStatus(){
     h+='<button onclick="showDeptFilterModal()" class="flex items-center gap-2.5 px-4 py-3.5 rounded-xl font-bold border-2 border-primary-300 btn-press flex-1" style="background:linear-gradient(135deg,rgba(238,242,255,0.8),rgba(224,231,255,0.6))">';
     h+='<i class="fas fa-building text-primary-500 text-lg"></i>';
     h+='<span class="text-primary-700 truncate text-base">'+escapeHtml(roomFilterDept)+'</span>';
-    h+='<span class="text-sm text-primary-500 font-bold ml-auto whitespace-nowrap">'+_deptCount+'명 <span class="text-sm text-primary-400 font-bold">(Avg.Age: '+_avgAge+')</span></span>';
-    h+='</button>';
-    h+='<button onclick="roomFilterDept=\'\';render()" class="px-3.5 py-3.5 bg-danger-50 text-danger-500 rounded-xl text-sm font-bold btn-press border border-danger-200"><i class="fas fa-times"></i></button>';
+    h+='<span class="text-sm text-primary-500 font-bold ml-auto whitespace-nowrap">'+_deptCount+'명'+(isSuperAdmin?' <span class="text-sm text-primary-400 font-bold">(A.Age: '+_avgAge+')</span>':'')+'</span>';
+    h+='</button>';   
   } else {
     h+='<button onclick="showDeptFilterModal()" class="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-base font-bold border-2 border-surface-300 btn-press flex-1 hover:border-primary-300 transition-all" style="background:rgba(255,255,255,0.7)">';
     h+='<i class="fas fa-building text-gray-400"></i>';
@@ -3036,22 +3052,77 @@ function renderRoomStatus(){
     h+='<i class="fas fa-chevron-down text-gray-400 text-xs ml-1"></i>';
     h+='</button>';
   }
-  h+='</div>';
-
-  // 텍스트 검색
-  h+='<div class="flex items-center gap-2">';
-  h+='<div class="flex items-center bg-surface-50 border border-surface-200 rounded-xl px-3 py-3.5 flex-1"><i class="fas fa-search text-gray-400 mr-3 ml-2"></i><input type="text" id="roomSearchInput" placeholder="이름, 호실 검색" value="'+escapeHtml(roomSearchKeyword)+'" onkeydown="if(event.key===\'Enter\'){roomSearchKeyword=this.value.trim();window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render()}" class="bg-transparent border-none outline-none text-base font-medium flex-1" style="min-width:0;height:36px"></div>';
+   h+='<div class="flex items-center gap-2 flex-1">';
+   h+='<div class="flex items-center bg-surface-50 border border-surface-200 rounded-xl px-3 py-2.5 flex-1"><i class="fas fa-search text-gray-400 mr-4"></i><input type="text" id="roomSearchInput" placeholder="이름, 호실 검색" value="" oninput="clearTimeout(window._searchTimer);var v=this.value;window._searchTimer=setTimeout(function(){roomSearchKeyword=v.trim();roomFilterDept=\'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render();var el=document.getElementById(\'roomSearchInput\');if(el){el.focus();el.value=v;el.setSelectionRange(v.length,v.length)}},500)" class="bg-transparent border-none outline-none text-base font-medium flex-1" style="min-width:0;height:36px;padding-left:8px"></div>';
   h+=(roomSearchKeyword?'<button onclick="roomSearchKeyword=\'\';render()" class="px-3 py-2 bg-danger-50 text-danger-500 rounded-xl text-xs font-bold btn-press border border-danger-200"><i class="fas fa-times"></i></button>':'');
   h+='</div>';
   h+='</div>';
 
-  // 전체 펼치기/접기
+  if(!window._roomViewMode) window._roomViewMode='card';
+  h+='<div class="flex gap-2 mb-2">';
+  h+='<button onclick="window._roomViewMode=\'card\';render()" class="px-5 py-3 rounded-xl text-sm font-bold btn-press transition-all '+(window._roomViewMode==='card'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-th-large mr-1.5"></i>카드뷰</button>';
+  h+='<button onclick="window._roomViewMode=\'floor\';render()" class="px-5 py-3 rounded-xl text-sm font-bold btn-press transition-all '+(window._roomViewMode==='floor'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-map mr-1.5"></i>평면도</button>';
+  h+='<div class="flex-1"></div>';
+  h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};render()" class="px-5 py-3 bg-surface-100 text-gray-600 rounded-xl text-sm font-bold btn-press"><i class="fas fa-expand-alt mr-1.5"></i>펼치기</button>';
+  h+='<button onclick="window._roomFloorOpen={};window._floorPlanOpen={};render()" class="px-5 py-3 bg-surface-100 text-gray-600 rounded-xl text-sm font-bold btn-press"><i class="fas fa-compress-alt mr-1.5"></i>접기</button>';
+  h+='</div>';
   h+='<div class="flex gap-2 mb-4">';
-  h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};render()" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button>';
-  h+='<button onclick="window._roomFloorOpen={};render()" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button>';
+  h+='<span class="text-xs text-gray-400 font-medium self-center">층 구분:</span>';
+  h+='<button onclick="window._floorStyleMode=\'badge\';render()" class="px-3 py-2 rounded-lg text-xs font-bold btn-press transition-all '+(window._floorStyleMode==='badge'?'bg-blue-500 text-white shadow-button':'bg-surface-100 text-gray-500')+'"><i class="fas fa-tag mr-1"></i>뱃지</button>';
+  h+='<button onclick="window._floorStyleMode=\'divider\';render()" class="px-3 py-2 rounded-lg text-xs font-bold btn-press transition-all '+(window._floorStyleMode==='divider'?'bg-blue-500 text-white shadow-button':'bg-surface-100 text-gray-500')+'"><i class="fas fa-grip-lines mr-1"></i>구분선</button>';
   h+='</div>';
 
-  // ===== 층별 호실 카드 (기존 로직 그대로) =====
+  if(window._roomViewMode==='floor'){
+    h+=renderFloorPlan();
+    h+='</div>';
+    h+='</div>';
+    return h;
+  }
+
+  var _scrollToFloor=null;
+  if(roomFilterDept){
+    var _floorCount={'1F':0,'2F':0,'3F':0,'4F':0};
+    var _deptSt=students[roomFilterDept]||[];
+    _deptSt.forEach(function(name){
+      var rm=window._secureData.getRoomNumber(name);
+      if(rm){
+        var fNum=String(rm).charAt(0);
+        var fKey=fNum+'F';
+        if(_floorCount[fKey]!==undefined)_floorCount[fKey]++;
+      }
+    });
+    var _maxFl='1F',_maxCnt=0;
+    for(var _fk in _floorCount){if(_floorCount[_fk]>_maxCnt){_maxCnt=_floorCount[_fk];_maxFl=_fk;}}
+    if(_maxCnt>0){
+      _scrollToFloor=_maxFl;
+      if(!window._floorPlanOpen) window._floorPlanOpen={};
+      window._floorPlanOpen[_maxFl]=true;
+    }
+  }
+
+  if(!window._floorStyleMode) window._floorStyleMode='badge';
+  var _floorThemes={
+    'badge':{ // 뱃지 강조
+      colors:{'1':'rgba(236,72,153,0.04)','2':'rgba(59,130,246,0.04)','3':'rgba(59,130,246,0.04)','4':'rgba(59,130,246,0.04)'},
+      borders:{'1':'rgba(236,72,153,0.15)','2':'rgba(59,130,246,0.15)','3':'rgba(59,130,246,0.15)','4':'rgba(59,130,246,0.15)'},
+      headers:{'1':'rgba(236,72,153,0.08)','2':'rgba(59,130,246,0.08)','3':'rgba(59,130,246,0.08)','4':'rgba(59,130,246,0.08)'},
+      texts:{'1':'#db2777','2':'#374151','3':'#374151','4':'#374151'},
+      icons:{'1':'#db2777','2':'#2563eb','3':'#2563eb','4':'#2563eb'}
+    },
+    'divider':{ // 방안3: 큰 구분선 (색은 통일, 구분선으로 구분)
+      colors:{'1':'rgba(236,72,153,0.04)','2':'rgba(59,130,246,0.04)','3':'rgba(59,130,246,0.04)','4':'rgba(59,130,246,0.04)'},
+      borders:{'1':'rgba(236,72,153,0.15)','2':'rgba(59,130,246,0.15)','3':'rgba(59,130,246,0.15)','4':'rgba(59,130,246,0.15)'},
+      headers:{'1':'rgba(236,72,153,0.08)','2':'rgba(59,130,246,0.08)','3':'rgba(59,130,246,0.08)','4':'rgba(59,130,246,0.08)'},
+      texts:{'1':'#db2777','2':'#374151','3':'#374151','4':'#374151'},
+      icons:{'1':'#db2777','2':'#2563eb','3':'#2563eb','4':'#2563eb'}
+    }
+  };
+   var _ft=_floorThemes[window._floorStyleMode]||_floorThemes['badge'];
+  var floorColors=_ft.colors;
+  var floorBorders=_ft.borders;
+  var floorHeaderColors=_ft.headers;
+  var floorTextColors=_ft.texts;
+  var floorIconColors=_ft.icons;
   var floorKeys=['1','2','3','4'];
   for(var fi=0;fi<floorKeys.length;fi++){
     var f=floorKeys[fi];
@@ -3064,23 +3135,25 @@ function renderRoomStatus(){
       else flDouble++;
     }
     var open=window._roomFloorOpen[f]||false;
-    h+='<div class="mb-3">';
-    h+='<div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl cursor-pointer" onclick="window._roomFloorOpen[\''+f+'\']=!window._roomFloorOpen[\''+f+'\'];render()">';
-    h+='<span class="font-bold text-gray-800">'+fl.label+'</span>';
+    h+='<div class="mb-3 rounded-2xl" id="roomFloor'+f+'" style="background:'+floorColors[f]+';border:1px solid '+floorBorders[f]+';overflow:hidden">';
+    if(window._floorStyleMode==='divider'&&f!=='1'){h+='<div style="height:12px;background:linear-gradient(90deg,rgba(59,130,246,0.08),rgba(59,130,246,0.25),rgba(59,130,246,0.08));margin:-12px -3px 0;border-radius:12px 12px 0 0"></div>';}
+    h+='<div class="flex items-center justify-between p-3.5 cursor-pointer" onclick="window._roomFloorOpen[\''+f+'\']=!window._roomFloorOpen[\''+f+'\'];render()" style="background:'+floorHeaderColors[f]+'">';
+    if(window._floorStyleMode==='badge'){h+='<div class="flex items-center gap-3"><div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,'+(f==='1'?'#ec4899,#db2777':'#60a5fa,#2563eb')+');display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px '+(f==='1'?'rgba(219,39,119,0.3)':'rgba(37,99,235,0.3)')+';flex-shrink:0"><span style="font-size:18px;font-weight:900;color:#fff">'+f+'F</span></div><span class="font-bold" style="font-size:16px;color:'+floorTextColors[f]+'">'+fl.label+'</span></div>';}
+    else{h+='<span class="font-bold" style="font-size:16px;color:'+floorTextColors[f]+'"><i class="fas '+(f==='1'?'fa-female':'fa-male')+' mr-1.5" style="color:'+floorIconColors[f]+';opacity:0.7"></i>'+fl.label+'</span>';}
     h+='<div class="flex items-center gap-3">';
-    h+='<span class="text-sm text-gray-700 font-bold">공실'+flEmpty+'</span>';
-    h+='<span class="text-sm text-warning-700 font-bold">1인'+flSingle+'</span>';
-    h+='<span class="text-sm text-success-700 font-bold">2인'+flDouble+'</span>';
-    h+='<span class="text-sm text-gray-600 font-medium">'+fl.rooms.length+'실</span>';
-    h+='<i class="fas '+(open?'fa-chevron-up':'fa-chevron-down')+' text-gray-400 ml-1"></i>';
+    h+='<span class="font-bold" style="font-size:13px;color:'+floorTextColors[f]+';opacity:0.7">공실'+flEmpty+'</span>';
+    h+='<span class="font-bold" style="font-size:13px;color:'+floorTextColors[f]+';opacity:0.7">1인'+flSingle+'</span>';
+    h+='<span class="font-bold" style="font-size:13px;color:'+floorTextColors[f]+';opacity:0.7">2인'+flDouble+'</span>';
+    h+='<span class="font-medium" style="font-size:13px;color:'+floorTextColors[f]+';opacity:0.5">'+fl.rooms.length+'실</span>';
+    h+='<i class="fas '+(open?'fa-chevron-up':'fa-chevron-down')+'" style="color:'+floorTextColors[f]+';opacity:0.5"></i>';
     h+='</div></div>';
     if(open){
-      h+='<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mt-2">';
+      h+='<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-3">';
       for(var rj=0;rj<fl.rooms.length;rj++){
         var r=fl.rooms[rj];
         var _shouldShow=true;
         if(roomFilterDept){
-          _shouldShow=false;
+          _shouldShow=(r.count===0&&!r.isStaff);
           for(var si=0;si<r.members.length;si++){
             if(r.members[si].dept===roomFilterDept){_shouldShow=true;break;}
           }
@@ -3122,7 +3195,7 @@ function renderRoomStatus(){
           for(var mi=0;mi<r.members.length;mi++){
             var m=r.members[mi];
             var _mAge=window._secureData.getAge(m.name);var _mBY=_mAge?String((new Date().getFullYear()-_mAge)%100).padStart(2,'0'):null;
-            h+='<div class="text-sm text-gray-700 font-semibold" style="word-break:break-all;white-space:normal">'+escapeHtml(m.name)+(_mAge?' <span style="color:#7c3aed;background:rgba(124,58,237,0.1);padding:2px 6px;border-radius:5px;margin-left:3px;font-size:13px;font-weight:800">'+_mAge+'<span style="font-size:11px;opacity:0.65;margin-left:2px;font-weight:600">′'+_mBY+'</span></span>':'')+' <span class="text-gray-600 font-medium">['+escapeHtml(m.dept)+']</span></div>';
+            h+='<div class="text-sm text-gray-700 font-semibold" style="word-break:break-all;white-space:normal">'+escapeHtml(m.name)+(_mAge?' <span style="color:#7c3aed;background:rgba(124,58,237,0.1);padding:2px 6px;border-radius:5px;margin-left:3px;font-size:13px;font-weight:800">'+_mAge+'<span style="font-size:11px;color:#9333ea;margin-left:1px;font-weight:700">('+_mBY+')</span></span>':'')+' <span class="text-gray-600 font-medium">['+escapeHtml(m.dept)+']</span></div>';
           }
         }else{
           h+='<div class="text-sm text-gray-500 italic">비어있음</div>';
@@ -3134,11 +3207,275 @@ function renderRoomStatus(){
     h+='</div>';
   }
 
-  h+='</div>'; // px-4 pb-5
-  h+='</div>'; // 최외곽
+  if(_scrollToFloor){
+    setTimeout(function(){
+      var el=document.getElementById('roomFloor'+_scrollToFloor.replace('F',''));
+      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    },150);
+  }
+
+  h+='</div>';
+  h+='</div>';
   return h;
 }
-function renderAdminStatus(todaySubs,todayOuts,stats){
+function renderFloorPlan(){
+  var rs=getRoomStatus();
+  var roomMap={};
+  departments.forEach(function(d){(students[d]||[]).forEach(function(name){
+    var room=window._secureData.getRoomNumber(name);
+    if(!room)return;
+    if(!roomMap[room])roomMap[room]=[];
+    roomMap[room].push({name:name,dept:d});
+  })});
+
+  var SPECIAL={'322':{type:'staff',label:'관계자'}};
+
+  var _uniformDeptStyle={bg:'transparent',border:'transparent',text:'#374151',tag:'rgba(107,114,128,0.1)'};
+  var deptColorMap={};
+  departments.forEach(function(d){deptColorMap[d]=_uniformDeptStyle});
+
+  var floors=[
+    {floor:'1F',label:'1층 (여학생)',type:'female',
+      left:[101,102,103,104,105],
+      right:[106,107,108,109,110,111]},
+    {floor:'2F',label:'2층 (남학생)',type:'male',
+      left:[201,202,203,204,205,206],
+      right:[207,208,209,210,211,212,213],
+      leftR:[221,220,219,218,217,216,215,214],
+      rightR:[229,228,227,226,225,224,223,222]},
+    {floor:'3F',label:'3층 (남학생)',type:'male',
+      left:[301,302,303,304,305,306],
+      right:[307,308,309,310,311,312,313],
+      leftR:[321,320,319,318,317,316,315,314],
+      rightR:[329,328,327,326,325,324,323,322]},
+    {floor:'4F',label:'4층 (남학생)',type:'male',
+      left:[401,402,403,404,405,406],
+      right:[407,408,409,410,411,412,413],
+      leftR:[421,420,419,418,417,416,415,414],
+      rightR:[429,428,427,426,425,424,423,422]}
+  ];
+
+  var _fpThemes={
+    'badge':{
+      '1F':{bg:'rgba(236,72,153,0.03)',border:'rgba(236,72,153,0.12)',headerBg:'rgba(236,72,153,0.06)',color:'#db2777',textColor:'#db2777'},
+      '2F':{bg:'rgba(59,130,246,0.03)',border:'rgba(59,130,246,0.12)',headerBg:'rgba(59,130,246,0.06)',color:'#2563eb',textColor:'#374151'},
+      '3F':{bg:'rgba(59,130,246,0.03)',border:'rgba(59,130,246,0.12)',headerBg:'rgba(59,130,246,0.06)',color:'#2563eb',textColor:'#374151'},
+      '4F':{bg:'rgba(59,130,246,0.03)',border:'rgba(59,130,246,0.12)',headerBg:'rgba(59,130,246,0.06)',color:'#2563eb',textColor:'#374151'}
+    },
+    'divider':{
+      '1F':{bg:'rgba(236,72,153,0.03)',border:'rgba(236,72,153,0.12)',headerBg:'rgba(236,72,153,0.06)',color:'#db2777',textColor:'#db2777'},
+      '2F':{bg:'rgba(59,130,246,0.03)',border:'rgba(59,130,246,0.12)',headerBg:'rgba(59,130,246,0.06)',color:'#2563eb',textColor:'#374151'},
+      '3F':{bg:'rgba(59,130,246,0.03)',border:'rgba(59,130,246,0.12)',headerBg:'rgba(59,130,246,0.06)',color:'#2563eb',textColor:'#374151'},
+      '4F':{bg:'rgba(59,130,246,0.03)',border:'rgba(59,130,246,0.12)',headerBg:'rgba(59,130,246,0.06)',color:'#2563eb',textColor:'#374151'}
+    }
+  };
+  var floorStyles=_fpThemes[window._floorStyleMode||'badge']||_fpThemes['badge'];
+
+  // 층별 공실/1인/2인 계산
+  function getFloorStats(floorDef){
+    var allRooms=[];
+    if(floorDef.left) allRooms=allRooms.concat(floorDef.left);
+    if(floorDef.right) allRooms=allRooms.concat(floorDef.right);
+    if(floorDef.leftR) allRooms=allRooms.concat(floorDef.leftR);
+    if(floorDef.rightR) allRooms=allRooms.concat(floorDef.rightR);
+    var empty=0,single=0,double2=0,staff=0;
+    allRooms.forEach(function(r){
+      var rStr=String(r);
+      if(SPECIAL[rStr]){staff++;return;}
+      var members=roomMap[rStr]||[];
+      if(members.length===0) empty++;
+      else if(members.length===1) single++;
+      else double2++;
+    });
+    return {empty:empty,single:single,double:double2,staff:staff,total:allRooms.length};
+  }
+
+  function roomCell(roomNum){
+    var rStr=String(roomNum);
+    var members=roomMap[rStr]||[];
+    var special=SPECIAL[rStr];
+    var _memoData=roomMemos[rStr]||null;
+    var _hasMemo=_memoData&&(_memoData.memo||_memoData.star>0);
+    var _memoStar=_memoData?(_memoData.star||0):0;
+    var _memoColor=getStarColor(_memoStar);
+
+    if(special){
+      var spBg='background:rgba(139,92,246,0.08);border-color:rgba(139,92,246,0.3)';
+      var spColor='color:#7c3aed';
+      var spIcon='fa-user-shield';
+      return '<div class="rounded-xl p-2 text-center border" style="'+spBg+';min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center">'
+        +'<div class="font-bold" style="font-size:15px;'+spColor+'">'+rStr+'</div>'
+        +'<i class="fas '+spIcon+' mt-1" style="font-size:16px;'+spColor+';opacity:0.6"></i>'
+        +'<div class="font-bold mt-0.5" style="font-size:12px;'+spColor+';opacity:0.8">'+special.label+'</div>'
+        +'</div>';
+    }
+
+    var bg,borderColor,headerBg,headerColor,statusIcon;
+    if(members.length===0){
+      bg='rgba(107,114,128,0.06)';borderColor='rgba(107,114,128,0.3)';headerBg='rgba(107,114,128,0.12)';headerColor='#4b5563';statusIcon='fa-door-open';
+    }else if(members.length===1){
+      bg='rgba(245,158,11,0.05)';borderColor='rgba(245,158,11,0.25)';headerBg='rgba(245,158,11,0.1)';headerColor='#b45309';statusIcon='fa-user';
+    }else{
+      bg='rgba(16,185,129,0.05)';borderColor='rgba(16,185,129,0.25)';headerBg='rgba(16,185,129,0.1)';headerColor='#047857';statusIcon='fa-user-friends';
+    }
+
+    var h='<div class="rounded-xl border cursor-pointer" onclick="saveRoomMemo(\''+rStr+'\')" style="background:'+bg+';border-color:'+borderColor+';min-height:120px;overflow:hidden">';
+
+    h+='<div class="flex items-center justify-between px-2.5 py-1.5" style="background:'+headerBg+'">';
+    h+='<span class="font-black" style="font-size:15px;color:'+headerColor+'">'+rStr+'</span>';
+    var statusLabel=members.length===0?'공실':members.length===1?'1인':'2인';
+    h+='<div class="flex items-center gap-1">';
+    if(_hasMemo&&_memoStar>0){
+      h+='<span style="font-size:10px;color:'+_memoColor.iconColor+';letter-spacing:-1px">';
+      for(var si=0;si<_memoStar;si++) h+='★';
+      h+='</span>';
+    }
+    if(_hasMemo&&_memoData.memo) h+='<i class="fas fa-sticky-note" style="font-size:10px;color:'+_memoColor.iconColor+'"></i>';
+    h+='<i class="fas '+statusIcon+'" style="font-size:12px;color:'+headerColor+';opacity:0.6"></i>';
+    h+='<span style="font-size:12px;font-weight:700;color:'+headerColor+'">'+statusLabel+'</span>';
+    h+='</div></div>';
+
+    if(members.length>0){
+      members.forEach(function(m){
+        var _mAge=window._secureData.getAge(m.name);
+        var _mBY=_mAge?String((new Date().getFullYear()-_mAge)%100).padStart(2,'0'):null;
+        var dc=deptColorMap[m.dept]||deptColors[0];
+        var shortDept=m.dept.replace('스마트','').replace('과정','').replace('과','');
+        if(shortDept.length>5) shortDept=shortDept.substring(0,5);
+        h+='<div class="px-2.5 py-2" style="border-top:1px solid '+borderColor+';background:'+dc.bg+'">';
+        h+='<div style="font-size:14px;font-weight:800;color:#1f2937;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(m.name.replace('(여)',''));
+        if(_mAge) h+=' <span style="font-size:13px;font-weight:800;color:#7c3aed">'+_mAge+'<span style="font-size:11px;color:#9333ea;font-weight:600">('+_mBY+')</span></span>';
+        h+='</div>';
+        h+='<div style="display:inline-block;font-size:12px;font-weight:700;color:'+dc.text+';background:'+dc.tag+';padding:2px 6px;border-radius:4px;margin-top:3px">'+escapeHtml(shortDept)+'</div>';
+        h+='</div>';
+      });
+    }else{
+      h+='<div class="flex flex-col items-center justify-center" style="min-height:90px"><i class="fas fa-door-open" style="font-size:22px;color:#94a3b8;margin-bottom:4px"></i><span style="font-size:14px;color:#6b7280;font-weight:700">공실</span></div>';
+    }
+
+    h+='</div>';
+    return h;
+  }
+
+  function renderRow(rooms){
+    if(!rooms||rooms.length===0) return '';
+    return '<div class="grid gap-1.5" style="grid-template-columns:repeat('+rooms.length+',minmax(95px,1fr))">'+rooms.map(function(r){
+      var rStr=String(r);
+      var members=roomMap[rStr]||[];
+      var isEmpty=(members.length===0&&!SPECIAL[rStr]);
+      var isMatch=true;
+      if(roomFilterDept){
+        if(isEmpty){isMatch=true;}else{isMatch=false;for(var i=0;i<members.length;i++){if(members[i].dept===roomFilterDept){isMatch=true;break}}}
+      }
+      if(roomSearchKeyword&&isMatch){
+        var _kw=roomSearchKeyword.toLowerCase();
+        var _found=false;
+        if(_kw==='공실'){if(isEmpty)_found=true}
+        else if(_kw==='1인실'||_kw==='1인'){if(members.length===1)_found=true}
+        else if(_kw==='2인실'||_kw==='2인'){if(members.length>=2)_found=true}
+        else if(_kw==='메모'){if(roomMemos[rStr])_found=true}
+        else{
+          for(var j=0;j<members.length;j++){if(members[j].name.toLowerCase().indexOf(_kw)!==-1){_found=true;break}}
+          if(rStr.indexOf(roomSearchKeyword)!==-1)_found=true;
+        }
+        if(!_found)isMatch=false;
+      }
+      var cell=roomCell(r);
+      if(!isMatch) cell='<div class="rounded-xl border" style="min-height:80px;opacity:0.35;pointer-events:none">'+cell+'</div>';
+      else if(roomFilterDept||roomSearchKeyword) cell='<div class="rounded-xl room-card-match" style="box-shadow:0 0 0 2px rgba(99,102,241,0.4);border-radius:12px">'+cell+'</div>';
+      return cell;
+    }).join('')+'</div>';
+  }
+
+  var _scrollToFloor=null;
+  if(roomFilterDept){
+    var _floorCount={'1F':0,'2F':0,'3F':0,'4F':0};
+    var _deptSt=students[roomFilterDept]||[];
+    _deptSt.forEach(function(name){
+      var rm=window._secureData.getRoomNumber(name);
+      if(rm){
+        var fNum=String(rm).charAt(0);
+        var fKey=fNum+'F';
+        if(_floorCount[fKey]!==undefined)_floorCount[fKey]++;
+      }
+    });
+    var _maxFl='1F',_maxCnt=0;
+    for(var _fk in _floorCount){if(_floorCount[_fk]>_maxCnt){_maxCnt=_floorCount[_fk];_maxFl=_fk;}}
+    if(_maxCnt>0) _scrollToFloor=_maxFl;
+  }
+
+  var h='';
+
+  floors.forEach(function(fl){
+    if(!window._floorPlanOpen) window._floorPlanOpen={};
+    if(window._floorPlanOpen[fl.floor]===undefined) window._floorPlanOpen[fl.floor]=false;
+    var open=window._floorPlanOpen[fl.floor]!==false;
+    var fs=floorStyles[fl.floor];
+    var fStats=getFloorStats(fl);
+
+    h+='<div class="mb-4 rounded-2xl" id="floorPlan'+fl.floor+'" style="background:'+fs.bg+';border:1px solid '+fs.border+';overflow:hidden">';
+    if(window._floorStyleMode==='divider'&&fl.floor!=='1F'){h+='<div style="height:14px;background:linear-gradient(90deg,rgba(59,130,246,0.06),rgba(59,130,246,0.25),rgba(59,130,246,0.06));margin:0 -1px;border-radius:12px 12px 0 0"></div>';}
+    h+='<div class="flex items-center justify-between p-4 cursor-pointer" style="background:'+fs.headerBg+'" onclick="window._floorPlanOpen[\''+fl.floor+'\']=!window._floorPlanOpen[\''+fl.floor+'\'];render()">';
+    if(window._floorStyleMode==='badge'){h+='<div class="flex items-center gap-3"><div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,'+(fl.type==='female'?'#ec4899,#db2777':'#60a5fa,#2563eb')+');display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px '+(fl.type==='female'?'rgba(219,39,119,0.3)':'rgba(37,99,235,0.3)')+';flex-shrink:0"><span style="font-size:20px;font-weight:900;color:#fff">'+fl.floor+'</span></div><span class="font-bold" style="font-size:16px;color:'+fs.textColor+'">'+fl.label+'</span></div>';}
+    else{h+='<div class="flex items-center gap-2"><i class="fas '+(fl.type==='female'?'fa-female':'fa-male')+'" style="color:'+fs.color+';font-size:17px"></i><span class="font-bold" style="font-size:16px;color:'+fs.textColor+'">'+fl.label+'</span></div>';}
+    h+='<div class="flex items-center gap-3">';
+    h+='<span class="font-bold" style="font-size:13px;color:'+fs.textColor+';opacity:0.7">공실'+fStats.empty+'</span>';
+    h+='<span class="font-bold" style="font-size:13px;color:'+fs.textColor+';opacity:0.7">1인'+fStats.single+'</span>';
+    h+='<span class="font-bold" style="font-size:13px;color:'+fs.textColor+';opacity:0.7">2인'+fStats.double+'</span>';
+    h+='<span class="font-medium" style="font-size:13px;color:'+fs.textColor+';opacity:0.5">'+fStats.total+'실</span>';
+    h+='<i class="fas '+(open?'fa-chevron-up':'fa-chevron-down')+'" style="color:'+fs.textColor+';opacity:0.5;font-size:14px"></i>';
+    h+='</div></div>';
+
+    if(open){
+      h+='<div class="p-3" style="overflow-x:auto">';
+
+      if(fl.floor==='1F'){
+        h+='<div class="mb-2">';
+        h+=renderRow(fl.right);
+        h+='</div>';
+        h+='<div class="flex items-center justify-center py-2.5 my-2 rounded-full" style="background:'+fs.headerBg+'"><span style="font-size:14px;color:'+fs.color+';font-weight:700;letter-spacing:3px;opacity:0.6">복 도</span></div>';
+        h+='<div>';
+        h+=renderRow(fl.left);
+        h+='</div>';
+      }else{
+        h+='<div class="mb-3">';
+        h+='<div class="mb-1.5">';
+        h+=renderRow(fl.right);
+        h+='</div>';
+        h+='<div class="flex items-center justify-center py-2.5 my-2 rounded-full" style="background:'+fs.headerBg+'"><span style="font-size:14px;color:'+fs.color+';font-weight:700;letter-spacing:3px;opacity:0.6">복 도</span></div>';
+        h+='<div>';
+        h+=renderRow(fl.left);
+        h+='</div>';
+        h+='</div>';
+
+        if(fl.rightR&&fl.leftR){
+          h+='<div class="pt-3 mt-3" style="border-top:3px dashed rgba(0,0,0,0.25);border-top-style:dashed '+fs.border+'">';
+          h+='<div class="mb-1.5">';
+          h+=renderRow(fl.rightR);
+          h+='</div>';
+          h+='<div class="flex items-center justify-center py-2.5 my-2 rounded-full" style="background:'+fs.headerBg+'"><span style="font-size:14px;color:'+fs.color+';font-weight:700;letter-spacing:3px;opacity:0.6">복 도</span></div>';
+          h+='<div>';
+          h+=renderRow(fl.leftR);
+          h+='</div>';
+          h+='</div>';
+        }
+      }
+
+      h+='</div>';
+    }
+
+    h+='</div>';
+  });
+
+  if(_scrollToFloor){
+    setTimeout(function(){
+      var el=document.getElementById('floorPlan'+_scrollToFloor);
+      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    },150);
+  }
+
+  return h;
+}function renderAdminStatus(todaySubs,todayOuts,stats){
   var accessHtml='';
     if(menuControlSettings.showAccessRequest!==false){
         if(window._adminAccessOpen===undefined) window._adminAccessOpen=true;
@@ -3231,7 +3568,7 @@ function renderAdminSettings(){
     return '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-1"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-announce\')"><h2 class="text-xl font-bold text-primary-700"><i class="fas fa-bullhorn"></i> 공지사항</h2><i id="secIcon-sec-announce" class="fas '+_si('sec-announce',true)+' text-gray-400"></i></div><div id="sec-announce" style="display:'+_sd('sec-announce',true)+'"><textarea id="announcementInput" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base resize-none mb-4 mt-4" rows="4" placeholder="공지사항..." style="font-size:16px">'+escapeHtml(announcement)+'</textarea><button onclick="saveAnnouncement()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press hover:bg-primary-100 transition-all"><i class="fas fa-save mr-1"></i> 저장</button><div class="mt-5 pt-5 border-t border-surface-200"><h3 class="font-bold text-gray-700 text-base mb-3"><i class="fas fa-volume-up text-primary-500 mr-1"></i> 알림 소리 설정</h3><div class="flex items-center justify-between p-4 bg-surface-50 rounded-xl border border-surface-200"><span class="font-semibold text-gray-700"><i class="fas '+(soundEnabled?'fa-volume-up text-success-500':'fa-volume-mute text-gray-400')+' mr-2"></i>새 제출 알림 소리</span><button onclick="toggleSound()" class="px-5 py-2.5 rounded-xl text-sm font-bold btn-press '+(soundEnabled?'bg-success-500 text-white':'bg-gray-300 text-gray-600')+'">'+(soundEnabled?'켜짐':'꺼짐')+'</button></div><p class="text-xs text-gray-400 mt-2">끄면 새 제출/신청 시 알림 소리가 울리지 않습니다.</p></div></div></div></div>'+
     '<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2"><h2 class="text-xl font-bold text-gray-800 mb-5"><i class="fas fa-users-cog"></i> 학생/학과 관리</h2><div class="flex gap-2 mb-4"><button onclick="toggleAllManageSections(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllManageSections(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+
     '<div class="mb-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-departments\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-building mr-2"></i>학과</h3><i id="secIcon-sec-departments" class="fas '+_si('sec-departments',false)+' text-gray-400"></i></div><div id="sec-departments" style="display:'+_sd('sec-departments',false)+'" class="mt-3"><button onclick="showDeptOrderModal()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press mb-5"><i class="fas fa-sort mr-2"></i>학과 순서 변경</button><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-plus-square"></i> 학과 추가</h3><input type="text" id="addDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" placeholder="학과명" style="font-size:16px"><button onclick="addDepartment()" class="w-full py-3.5 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-minus-square"></i> 학과 삭제</h3><select id="delDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" style="font-size:16px"><option value="">선택</option>'+deptOpts+'</select><button onclick="deleteDepartmentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div><div class="mt-5 pt-5 border-t-2 border-primary-100"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-tie mr-2"></i>학과대표 지정</h3><div class="space-y-3"><select id="setLeaderDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateLeaderStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="setLeaderStudent" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><input type="text" id="setLeaderPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="학과대표 비밀번호" style="font-size:16px"><button onclick="setLeaderAction()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-user-check mr-1"></i> 지정</button></div>'+leaderList+'</div></div></div>'+
-    '<div class="mb-4 mt-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-students\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-user-graduate mr-2"></i>교육생</h3><i id="secIcon-sec-students" class="fas '+_si('sec-students',false)+' text-gray-400"></i></div><div id="sec-students" class="mt-3" style="display:'+_sd('sec-students',false)+'"><div class="bg-success-50 rounded-2xl p-6 border border-success-200 mb-5"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-file-excel"></i> 엑셀 일괄 등록</h3><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mb-5"><h3 class="font-bold text-blue-700 text-lg mb-4"><i class="fas fa-car mr-1"></i> 차량번호 관리</h3><div class="flex gap-2 mb-4"><button onclick="showVehicleSearch()" class="px-4 py-2.5 bg-blue-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-search mr-1"></i>조회</button><button onclick="downloadVehicleExcel()" class="px-4 py-2.5 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-download mr-1"></i>다운로드</button><button onclick="uploadVehicleExcel()" class="px-4 py-2.5 bg-success-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-upload mr-1"></i>업로드</button></div><div class="space-y-3"><select id="vehicleDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px" onchange="updateVehicleStudentList()"><option value="">학과 선택</option>'+deptOpts+'</select><select id="vehicleStudent" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><div class="flex gap-2"><input type="text" id="vehicleNumberInput" class="flex-1 px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="차량번호 입력 (예: 12가 3456)" style="font-size:16px"><button onclick="adminSaveVehicle()" class="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold text-sm btn-press">저장</button></div></div><div id="vehicleListResult" class="mt-4"></div></div><div class="flex gap-3"><button onclick="downloadStudentTemplate()" class="flex-1 py-3.5 bg-white text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-download mr-1"></i> 템플릿</button><button onclick="uploadStudentsExcel()" class="flex-1 py-3.5 bg-success-100 text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-upload mr-1"></i> 업로드</button></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-info-700 text-lg mb-4"><i class="fas fa-user-plus"></i> 교육생 추가</h3><div class="space-y-3"><select id="addStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><input type="text" id="addStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="이름" style="font-size:16px"><input type="text" id="addStudentRoom" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="호실(선택)" style="font-size:16px"><input type="text" id="addStudentPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="비밀번호(4자리이상)" maxlength="20" style="font-size:16px"><input type="text" id="addStudentBirthYear" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="생년(선택) 예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="addStudent()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-user-minus"></i> 교육생 삭제</h3><div class="space-y-3"><select id="delStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateDelStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="delStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="deleteStudentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mt-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-edit"></i> 교육생 정보 수정</h3><div class="space-y-3"><select id="editStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateEditStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="editStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="loadStudentInfo()" style="font-size:16px"><option value="">교육생 선택</option></select><div id="editStudentInfo" style="display:none"><div class="bg-white rounded-xl p-4 border-2 border-primary-200 space-y-3"><div><label class="block text-sm font-semibold text-gray-600 mb-1">이름 변경</label><div class="flex gap-2"><input type="text" id="editStudentNewName" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 이름 입력" style="font-size:16px"><button onclick="updateStudentName()" class="px-5 py-3 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-user-edit mr-1"></i>변경</button></div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">호실 변경</label><input type="text" id="editStudentRoom" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 호실 번호" style="font-size:16px"></div><button onclick="updateStudentRoom()" class="w-full py-3 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-home mr-1"></i> 호실 변경</button><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">생년 (나이 계산용)</label><div class="flex gap-2"><input type="text" id="editStudentBirthYear2" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="updateStudentAge()" class="px-5 py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-birthday-cake mr-1"></i>저장</button></div><div class="text-xs text-gray-400 mt-1">생년만 입력하면 나이(숫자)로 변환 저장됩니다. 빈칸으로 저장하면 삭제됩니다.</div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">학과 이동</label><select id="editStudentNewDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">이동할 학과 선택</option>'+deptOpts+'</select></div><button onclick="moveStudentDept()" class="w-full py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-exchange-alt mr-1"></i> 학과 이동</button></div></div></div></div><div class="mb-4 mt-5"><div class="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-passwords\')"><h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-key mr-2"></i>비밀번호</h3><i id="secIcon-sec-passwords" class="fas '+_si('sec-passwords',false)+' text-gray-400"></i></div><div id="sec-passwords" style="display:'+_sd('sec-passwords',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mb-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-key"></i> 비밀번호 조회</h3><div class="space-y-3"><select id="pwLookupDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updatePwLookupList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="pwLookupName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="lookupPassword()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-search mr-1"></i> 조회</button></div><div id="pwLookupResult"></div><div id="pwResetArea" style="display:none" class="mt-4 p-4 bg-warning-50 rounded-xl border border-warning-200"><div class="flex items-center justify-between"><div><div class="text-sm font-bold text-warning-700">비밀번호 초기화</div><div class="text-xs text-gray-500 mt-1">새 비밀번호로 초기화됩니다</div></div><button onclick="resetStudentPassword()" class="px-4 py-2 bg-warning-500 text-white rounded-xl text-sm font-bold btn-press">초기화</button></div><div class="mt-3"><input type="text" id="pwResetValue" class="w-full px-4 py-3 bg-white border-2 border-warning-200 rounded-xl text-base text-center tracking-widest" placeholder="초기화할 비밀번호(4자리이상)" maxlength="20" style="font-size:16px"></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-warning-700 text-lg mb-4"><i class="fas fa-history"></i> 비밀번호 변경 이력</h3><div id="pwChangeLogArea" class="text-sm text-gray-500 text-center py-3">조회 버튼을 눌러주세요</div><button onclick="loadPasswordChangeLogs()" class="w-full py-3.5 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-base btn-press mt-3"><i class="fas fa-sync mr-1"></i> 이력 조회</button></div></div></div>'+
+    '<div class="mb-4 mt-4"><div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-students\')"><h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-user-graduate mr-2"></i>교육생</h3><i id="secIcon-sec-students" class="fas '+_si('sec-students',false)+' text-gray-400"></i></div><div id="sec-students" class="mt-3" style="display:'+_sd('sec-students',false)+'"><div class="bg-success-50 rounded-2xl p-6 border border-success-200 mb-5"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-file-excel"></i> 엑셀 일괄 등록</h3><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mb-5"><h3 class="font-bold text-blue-700 text-lg mb-4"><i class="fas fa-car mr-1"></i> 차량번호 관리</h3><div class="flex gap-2 mb-4"><button onclick="downloadVehicleExcel()" class="px-4 py-2.5 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-download mr-1"></i>다운로드</button><button onclick="uploadVehicleExcel()" class="px-4 py-2.5 bg-success-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-upload mr-1"></i>업로드</button></div></div><div class="space-y-3"><select id="vehicleDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px" onchange="updateVehicleStudentList()"><option value="">학과 선택</option>'+deptOpts+'</select><select id="vehicleStudent" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><div class="flex gap-2"><input type="text" id="vehicleNumberInput" class="flex-1 px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="차량번호 입력 (예: 12가 3456)" style="font-size:16px" oninput="clearTimeout(window._vehSearchTimer);window._vehSearchTimer=setTimeout(showVehicleSearch,300)"><button onclick="adminSaveVehicle()" class="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold text-sm btn-press">저장</button></div></div><div id="vehicleListResult" class="mt-4"></div></div><div class="flex gap-3"><button onclick="downloadStudentTemplate()" class="flex-1 py-3.5 bg-white text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-download mr-1"></i> 템플릿</button><button onclick="uploadStudentsExcel()" class="flex-1 py-3.5 bg-success-100 text-success-700 rounded-xl font-bold text-sm btn-press border border-success-200"><i class="fas fa-upload mr-1"></i> 업로드</button></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-5"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-info-700 text-lg mb-4"><i class="fas fa-user-plus"></i> 교육생 추가</h3><div class="space-y-3"><select id="addStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><input type="text" id="addStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="이름" style="font-size:16px"><input type="text" id="addStudentRoom" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="호실(선택)" style="font-size:16px"><input type="text" id="addStudentPw" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="비밀번호(4자리이상)" maxlength="20" style="font-size:16px"><input type="text" id="addStudentBirthYear" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="생년(선택) 예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="addStudent()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-user-minus"></i> 교육생 삭제</h3><div class="space-y-3"><select id="delStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateDelStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="delStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="deleteStudentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mt-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-user-edit"></i> 교육생 정보 수정</h3><div class="space-y-3"><select id="editStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateEditStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="editStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="loadStudentInfo()" style="font-size:16px"><option value="">교육생 선택</option></select><div id="editStudentInfo" style="display:none"><div class="bg-white rounded-xl p-4 border-2 border-primary-200 space-y-3"><div><label class="block text-sm font-semibold text-gray-600 mb-1">이름 변경</label><div class="flex gap-2"><input type="text" id="editStudentNewName" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 이름 입력" style="font-size:16px"><button onclick="updateStudentName()" class="px-5 py-3 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-user-edit mr-1"></i>변경</button></div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">호실 변경</label><input type="text" id="editStudentRoom" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 호실 번호" style="font-size:16px"></div><button onclick="updateStudentRoom()" class="w-full py-3 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-home mr-1"></i> 호실 변경</button><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">생년 (나이 계산용)</label><div class="flex gap-2"><input type="text" id="editStudentBirthYear2" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="updateStudentAge()" class="px-5 py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-birthday-cake mr-1"></i>저장</button></div><div class="text-xs text-gray-400 mt-1">생년만 입력하면 나이(숫자)로 변환 저장됩니다. 빈칸으로 저장하면 삭제됩니다.</div></div><div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">학과 이동</label><select id="editStudentNewDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">이동할 학과 선택</option>'+deptOpts+'</select></div><button onclick="moveStudentDept()" class="w-full py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-exchange-alt mr-1"></i> 학과 이동</button></div></div></div></div><div class="mb-4 mt-5"><div class="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-passwords\')"><h3 class="font-bold text-primary-700 text-lg"><i class="fas fa-key mr-2"></i>비밀번호</h3><i id="secIcon-sec-passwords" class="fas '+_si('sec-passwords',false)+' text-gray-400"></i></div><div id="sec-passwords" style="display:'+_sd('sec-passwords',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mb-5"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-key"></i> 비밀번호 조회</h3><div class="space-y-3"><select id="pwLookupDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updatePwLookupList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select><select id="pwLookupName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select><button onclick="lookupPassword()" class="w-full py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-search mr-1"></i> 조회</button></div><div id="pwLookupResult"></div><div id="pwResetArea" style="display:none" class="mt-4 p-4 bg-warning-50 rounded-xl border border-warning-200"><div class="flex items-center justify-between"><div><div class="text-sm font-bold text-warning-700">비밀번호 초기화</div><div class="text-xs text-gray-500 mt-1">새 비밀번호로 초기화됩니다</div></div><button onclick="resetStudentPassword()" class="px-4 py-2 bg-warning-500 text-white rounded-xl text-sm font-bold btn-press">초기화</button></div><div class="mt-3"><input type="text" id="pwResetValue" class="w-full px-4 py-3 bg-white border-2 border-warning-200 rounded-xl text-base text-center tracking-widest" placeholder="초기화할 비밀번호(4자리이상)" maxlength="20" style="font-size:16px"></div></div></div><div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-warning-700 text-lg mb-4"><i class="fas fa-history"></i> 비밀번호 변경 이력</h3><div id="pwChangeLogArea" class="text-sm text-gray-500 text-center py-3">조회 버튼을 눌러주세요</div><button onclick="loadPasswordChangeLogs()" class="w-full py-3.5 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-base btn-press mt-3"><i class="fas fa-sync mr-1"></i> 이력 조회</button></div></div></div>'+
     '<div class="mb-4"><div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-resign\')"><h3 class="font-bold text-red-700 text-lg"><i class="fas fa-user-slash mr-2"></i>퇴사이력</h3><i id="secIcon-sec-resign" class="fas '+_si('sec-resign',false)+' text-gray-400"></i></div><div id="sec-resign" style="display:'+_sd('sec-resign',false)+'" class="mt-3"><div class="bg-red-50 rounded-2xl p-6 border border-red-200"><h3 class="font-bold text-red-700 text-lg mb-4"><i class="fas fa-user-slash mr-2 text-red-400"></i>퇴사 이력 관리</h3><p class="text-xs text-gray-500 mb-3">퇴사 신청 및 승인된 교육생의 이력을 조회하고 엑셀로 다운로드할 수 있습니다.</p><div class="flex gap-2 mb-3"><button onclick="loadResignHistory()" class="px-4 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-search mr-1"></i>퇴사 이력 조회</button><button onclick="downloadResignHistory()" class="px-4 py-2.5 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-download mr-1"></i>엑셀 다운로드</button></div><div id="resignHistoryResult"></div></div></div></div></div>'+
     '</div>'+
     (isSuperAdmin?'<div class="bg-white rounded-3xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2"><div class="mb-4"><div class="flex items-center justify-between bg-info-50 border border-info-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-login\')"><h3 class="font-bold text-info-700 text-lg"><i class="fas fa-shield-alt mr-2"></i>로그인 기록</h3><i id="secIcon-sec-login" class="fas '+_si('sec-login',false)+' text-gray-400"></i></div><div id="sec-login" style="display:'+_sd('sec-login',false)+'" class="mt-3"><div class="bg-surface-50 rounded-2xl p-4 border border-surface-200 mb-4 max-h-80 overflow-y-auto"><table class="w-full"><thead class="text-sm text-gray-500"><tr><th class="text-left py-2 px-3">일시</th><th class="text-left py-2 px-3">결과</th><th class="text-left py-2 px-3">타입</th><th class="text-left py-2 px-3">IP</th></tr></thead><tbody class="text-sm">'+loginLogs.slice(0,20).map(function(log){var d=new Date(log.timestamp),ds=(d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');return'<tr class="border-t border-surface-100"><td class="py-2.5 px-3 text-gray-600">'+ds+'</td><td class="py-2.5 px-3">'+(log.success?'<span class="text-success-600 font-bold">성공</span>':'<span class="text-danger-600 font-bold">실패</span>')+'</td><td class="py-2.5 px-3 text-gray-500">'+escapeHtml(log.adminType||'-')+'</td><td class="py-2.5 px-3 text-gray-400 font-mono">'+escapeHtml(log.ip||'-')+'</td></tr>'}).join('')+'</tbody></table></div><button onclick="downloadLoginLogs()" class="w-full py-3.5 bg-info-50 border-2 border-info-200 text-info-700 rounded-2xl font-bold text-base btn-press hover:bg-info-100 transition-all"><i class="fas fa-download mr-1"></i> 로그인 기록 다운로드</button></div></div></div>':'')+
@@ -3765,7 +4102,6 @@ function enterStudentViewFromAdmin(){
     if(!name){showToast('교육생을 선택하세요','warning');return}
     currentStudent=name;currentMode='student';closeModal();render();showToast(name+'님 환영합니다','success');showToast(name+' 교육생 화면','success');
 }
-switchAdminTab=function(tab){adminTab=tab;if(tab==='status')window._roomStatusOpen=false;render();setTimeout(function(){window.scrollTo(0,0)},200)};
 </script>
 </body>
 </html>
