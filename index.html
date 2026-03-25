@@ -2246,7 +2246,39 @@ setInterval(function(){
         render();
     }
 },5000);}
+// 리스너 끊김 감지 - 30초마다 submissions 수 비교
+var _lastSubCount = -1;
+setInterval(async function(){
+    if(!isAdminLoggedIn && !isLeaderLoggedIn) return;
+    try{
+        var snap = await db.collection('submissions').where('date','==',currentDate).get();
+        var serverCount = snap.docs.filter(function(d){return d.data().status!=='cancelled'}).length;
+        var memoryCount = submissions.filter(function(s){return s.date===currentDate && s.status!=='cancelled'}).length;
+        if(serverCount !== memoryCount){
+            console.log('리스너 동기화 불일치! 서버:'+serverCount+' 메모리:'+memoryCount);
+            submissions = snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
+            updateStudentsList();
+            render();
+        }
+    }catch(e){}
+},30000);
 
+// 탭 전환 시 동기화
+document.addEventListener('visibilitychange', async function(){
+    if(document.visibilityState === 'visible' && (isAdminLoggedIn || isLeaderLoggedIn)){
+        try{
+            var snap = await db.collection('submissions').where('date','==',currentDate).get();
+            var serverCount = snap.docs.filter(function(d){return d.data().status!=='cancelled'}).length;
+            var memoryCount = submissions.filter(function(s){return s.date===currentDate && s.status!=='cancelled'}).length;
+            if(serverCount !== memoryCount){
+                console.log('탭 복귀 동기화!');
+                submissions = snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
+                updateStudentsList();
+                render();
+            }
+        }catch(e){}
+    }
+});
 function render(){
     initIntervals();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
     var stats=getStats(),todaySubs,todayOuts;if(isWeekendOrHoliday(currentDate)){var _autoData=getAutoOutSubmissions(currentDate);todaySubs=_autoData.submissions;todayOuts=_autoData.outings}else{todaySubs=submissions.filter(function(s){return s.date===currentDate&&s.status!=='cancelled'});todayOuts=outings.filter(function(o){return o.date===currentDate&&(!o.status||o.status!=='cancelled')})}
@@ -4038,6 +4070,58 @@ function _postRenderWork(){
     applyMenuControl();
 }
 function updatePwLookupList(){var dept=document.getElementById('pwLookupDept').value;var sel=document.getElementById('pwLookupName');sel.innerHTML='<option value="">교육생 선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
+async function checkStudentSubmission(name, date){
+    if(!date) date = getCurrentDate();
+    console.log('=== 제출 데이터 확인 ===');
+    console.log('이름:', name, '날짜:', date);
+    
+    // 1. 학과 확인
+    var foundDept = null;
+    departments.forEach(function(d){
+        if((students[d]||[]).includes(name)) foundDept = d;
+    });
+    console.log('현재 학과:', foundDept);
+    
+    // 2. 예상 문서 ID
+    if(foundDept){
+        var expectedId = date + '_' + foundDept + '_' + name;
+        console.log('예상 문서ID:', expectedId);
+        
+        // 3. Firestore에서 직접 조회
+        try{
+            var doc = await db.collection('submissions').doc(expectedId).get();
+            if(doc.exists){
+                console.log('Firestore에 존재함:', doc.data());
+            } else {
+                console.log('Firestore에 없음! 문서ID:', expectedId);
+            }
+        }catch(e){
+            console.log('조회 에러:', e.message);
+        }
+    }
+    
+    // 4. 해당 이름으로 전체 검색
+    try{
+        var snap = await db.collection('submissions').where('name','==',name).where('date','==',date).get();
+        console.log('이름으로 검색 결과:', snap.docs.length, '건');
+        snap.docs.forEach(function(d){
+            console.log('  문서ID:', d.id, '데이터:', d.data());
+        });
+    }catch(e){
+        console.log('검색 에러:', e.message);
+    }
+    
+    // 5. 메모리에 있는 submissions 확인
+    var memorySubs = submissions.filter(function(s){
+        return s.name === name && s.date === date;
+    });
+    console.log('메모리 submissions:', memorySubs.length, '건');
+    memorySubs.forEach(function(s){
+        console.log('  ', s.id, s.department, s.status, s.timestamp);
+    });
+    
+    console.log('=== 확인 끝 ===');
+}
 function lookupPassword(){
     var dept=document.getElementById('pwLookupDept').value;
     var name=document.getElementById('pwLookupName').value;
