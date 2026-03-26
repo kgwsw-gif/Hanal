@@ -852,51 +852,159 @@ function isSubmitAllowed(){
 }
 
 // ============ 제출 함수 ============
-async function submitStatus(dept,name,status){
-    if(!isOnline){showToast('오프라인 상태입니다. 인터넷 연결 후 다시 시도해주세요.','warning');return}
-    var sd=getSelectedDate();
-    var docId=sd+'_'+dept+'_'+name;
-    // 21시 이후 변경 제한 (교육생만, 관리자/학과대표는 제외)
-    if(currentMode==='student'){
-        var now=new Date();
-        var existingSub=submissions.find(function(s){return s.id===docId&&s.status!=='cancelled'});
-        if(existingSub&&now.getHours()>=21){
-            showToast('21시 이후에는 신청을 변경할 수 없습니다.','warning');
+async function submitStatus(dept, name, status) {
+    // 1단계: 오프라인이면 아예 차단
+    if (!navigator.onLine) {
+        showToast('인터넷 연결이 없습니다. Wi-Fi 또는 데이터를 확인 후 다시 시도해주세요.', 'error');
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+        return;
+    }
+
+    var sd = getSelectedDate();
+    var docId = sd + '_' + dept + '_' + name;
+
+    // 21시 이후 변경 제한 (교육생만)
+    if (currentMode === 'student') {
+        var now = new Date();
+        var existingSub = submissions.find(function(s) {
+            return s.id === docId && s.status !== 'cancelled';
+        });
+        if (existingSub && now.getHours() >= 21) {
+            showToast('21시 이후에는 신청을 변경할 수 없습니다.', 'warning');
             return;
         }
     }
-    try{
-        await db.collection('submissions').doc(docId).set({department:dept,name:name,status:status,date:sd,timestamp:new Date().toLocaleTimeString('ko-KR'),submitDate:new Date().toISOString()});
-        // 서버 저장 확인 (검증)
-        var verifyDoc=await db.collection('submissions').doc(docId).get();
-        if(verifyDoc.exists&&verifyDoc.data().status===status){
-            showToast(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료','success');
-            showSuccessAnimation(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료',name+' · '+new Date().toLocaleTimeString('ko-KR'));
-        }else{
-            showToast('⚠️ 신청이 서버에 저장되지 않았습니다. 다시 시도해주세요!','error');
-            if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
+
+    // 2단계: 제출 중 UI 잠금 (중복 클릭 방지)
+    if (window._submitLock) {
+        showToast('제출 처리 중입니다. 잠시만 기다려주세요.', 'info');
+        return;
+    }
+    window._submitLock = true;
+
+    // 로딩 표시
+    var loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'submitLoadingOverlay';
+    loadingOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10000';
+    loadingOverlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2)"><i class="fas fa-spinner fa-spin" style="font-size:32px;color:#6366f1;margin-bottom:12px"></i><div style="font-size:16px;font-weight:700;color:#374151">서버에 전송 중...</div><div style="font-size:13px;color:#6b7280;margin-top:4px">잠시만 기다려주세요</div></div>';
+    document.body.appendChild(loadingOverlay);
+
+    try {
+        // 3단계: 실제 서버 연결 가능 여부를 먼저 확인
+        var serverReachable = await checkServerConnection();
+        if (!serverReachable) {
+            throw new Error('SERVER_UNREACHABLE');
         }
+
+        // 4단계: Firestore에 저장
+        await db.collection('submissions').doc(docId).set({
+            department: dept,
+            name: name,
+            status: status,
+            date: sd,
+            timestamp: new Date().toLocaleTimeString('ko-KR'),
+            submitDate: new Date().toISOString()
+        });
+
+        // 5단계: 서버에서 직접 읽어서 검증 (캐시 우회)
+        var verified = false;
+        try {
+            var verifyDoc = await db.collection('submissions').doc(docId)
+                .get({ source: 'server' }); // ★ 핵심: 캐시가 아닌 서버에서 직접 읽기
+            if (verifyDoc.exists && verifyDoc.data().status === status) {
+                verified = true;
+            }
+        } catch (verifyErr) {
+            // 서버에서 직접 읽기 실패 = 네트워크 문제
+            console.log('서버 검증 실패:', verifyErr);
+            verified = false;
+        }
+
+        // 6단계: 검증 결과에 따른 처리
+        if (verified) {
+            // 성공 확인
+            showToast(
+                status === 'stay' ? '잔류(Stay) 신청 완료' : '외박(Out) 신청 완료',
+                'success'
+            );
+            showSuccessAnimation(
+                status === 'stay' ? '잔류(Stay) 신청 완료' : '외박(Out) 신청 완료',
+                name + ' · ' + new Date().toLocaleTimeString('ko-KR')
+            );
+        } else {
+            // 캐시에만 저장되고 서버에는 안 간 경우 → 캐시 데이터 삭제 시도
+            try {
+                await db.collection('submissions').doc(docId).delete();
+            } catch (e) { /* 무시 */ }
+
+            showToast(
+                '⚠️ 인터넷 연결이 불안정합니다! 신청이 서버에 저장되지 않았습니다. Wi-Fi 또는 데이터 연결을 확인 후 다시 시도해주세요.',
+                'error'
+            );
+            if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+
+            // 실패 알림 모달
+            openModal(
+                '<div class="p-6 text-center">'
+                + '<div style="width:70px;height:70px;margin:0 auto 16px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center">'
+                + '<i class="fas fa-wifi" style="font-size:28px;color:#dc2626"></i></div>'
+                + '<h3 class="text-xl font-bold text-danger-700 mb-2">신청 실패!</h3>'
+                + '<p class="text-sm text-gray-600 mb-4">인터넷 연결이 불안정하여<br>서버에 저장되지 않았습니다.</p>'
+                + '<div class="bg-danger-50 border border-danger-200 rounded-xl p-4 mb-4 text-left">'
+                + '<div class="text-sm font-bold text-danger-700 mb-1">해결 방법:</div>'
+                + '<div class="text-sm text-danger-600">1. Wi-Fi 또는 데이터 연결을 확인하세요<br>'
+                + '2. 브라우저를 새로고침하세요<br>'
+                + '3. 다시 잔류/외박 버튼을 눌러주세요</div></div>'
+                + '<button onclick="closeModal()" class="w-full py-3.5 bg-danger-500 text-white rounded-2xl font-bold text-base btn-press">확인</button>'
+                + '</div>'
+            );
+        }
+
         render();
-    }catch(e){
-        showToast('신청 실패: 인터넷 연결을 확인하고 다시 시도해주세요. ('+e.message+')','error');
-        if(navigator.vibrate)navigator.vibrate([300,100,300,100,300]);
+
+    } catch (e) {
+        // 네트워크 에러 처리
+        var errorMsg = '';
+        if (e.message === 'SERVER_UNREACHABLE') {
+            errorMsg = '서버에 연결할 수 없습니다. 인터넷 연결을 확인하세요.';
+        } else if (e.code === 'unavailable' || e.message.includes('offline')) {
+            errorMsg = '네트워크가 불안정합니다. 잠시 후 다시 시도하세요.';
+        } else {
+            errorMsg = '신청 실패: ' + e.message;
+        }
+
+        showToast(errorMsg, 'error');
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+
+        // 실패 시 캐시에 남은 데이터 정리
+        try {
+            await db.collection('submissions').doc(docId).delete();
+        } catch (delErr) { /* 무시 */ }
+
+    } finally {
+        // 잠금 해제 & 로딩 제거
+        window._submitLock = false;
+        var overlay = document.getElementById('submitLoadingOverlay');
+        if (overlay) overlay.remove();
     }
 }
-async function submitOuting(dept,name,t1,t2,reason){
-    if(!isOnline){showToast('오프라인 상태입니다','warning');return}
-    var sd=getSelectedDate();
-    try{await db.collection('outings').doc(sd+'_'+dept+'_'+name).set({department:dept,name:name,date:sd,outingTime:t1,returnTime:t2,reason:reason,timestamp:new Date().toLocaleTimeString('ko-KR')});showToast('외출(Go Out) 신청 완료','success');showSuccessAnimation('외출(Go Out) 신청 완료',name+' · '+new Date().toLocaleTimeString('ko-KR'));render()}catch(e){showToast('외출 신청 실패','error')}
-}
-async function submitResign(dept,name,resignDate,reason){
-    if(!isOnline){showToast('오프라인 상태입니다','warning');return}
-    await db.collection('resignRequests').doc(dept+'_'+name).set({department:dept,name:name,resignDate:resignDate,reason:reason,requestDate:getCurrentDate(),status:'pending'});
-    showToast('퇴사 신청 완료','success');render();
-}
-async function deleteSubmission(docId,name){openConfirmModal('제출 삭제',escapeHtml(name)+' 삭제?',async function(){await db.collection('submissions').doc(docId).delete();showToast('삭제 완료','success')})}
-async function deleteOuting(docId,name){openConfirmModal('외출(Go Out) 삭제',escapeHtml(name)+' 외출(Go Out) 삭제?',async function(){await db.collection('outings').doc(docId).delete();showToast('삭제 완료','success')})}
-async function approveResign(docId){var req=resignRequests.find(function(r){return r.id===docId});if(!req)return;var now=new Date(),ad=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');openConfirmModal('퇴사 승인',escapeHtml(req.name)+' 퇴사 승인?',async function(){await db.collection('resignRequests').doc(docId).update({status:'approved',approvedDate:ad});if(DEPARTMENT_LEADERS[req.department]&&DEPARTMENT_LEADERS[req.department].name===req.name)await db.collection('departmentLeaders').doc(req.department).delete();showToast(req.name+' 퇴사 승인','success')},'승인')}
-async function rejectResign(docId){var req=resignRequests.find(function(r){return r.id===docId});if(!req)return;openConfirmModal('퇴사 거부',escapeHtml(req.name)+' 퇴사 거부?',async function(){await db.collection('resignRequests').doc(docId).delete();showToast('거부됨','success')},'거부')}
 
+// 서버 연결 상태 확인 함수
+async function checkServerConnection() {
+    try {
+        // Firestore 서버에 가벼운 읽기 요청으로 연결 확인
+        var testDoc = await Promise.race([
+            db.collection('settings').doc('submitControl').get({ source: 'server' }),
+            new Promise(function(_, reject) {
+                setTimeout(function() { reject(new Error('TIMEOUT')); }, 5000);
+            })
+        ]);
+        return true;
+    } catch (e) {
+        console.log('서버 연결 확인 실패:', e.message);
+        return false;
+    }
+}
 // ============ 외출/퇴사 모달 ============
 function showOutingModal(dept,name){
     openInputModal('외출 신청',[
@@ -4748,6 +4856,98 @@ container.style.borderRadius = '12px';
         }, 50);
     };
 })();
+// ============ 서버 검증 강화 (덮어쓰기) ============
+async function checkServerConnection(){
+    try{
+        await Promise.race([
+            db.collection('settings').doc('submitControl').get({source:'server'}),
+            new Promise(function(_,reject){setTimeout(function(){reject(new Error('TIMEOUT'))},5000)})
+        ]);
+        return true;
+    }catch(e){return false}
+}
+
+async function submitStatus(dept, name, status) {
+    if (!navigator.onLine) {
+        showToast('인터넷 연결이 없습니다. Wi-Fi 또는 데이터를 확인 후 다시 시도해주세요.', 'error');
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+        return;
+    }
+    var sd = getSelectedDate();
+    var docId = sd + '_' + dept + '_' + name;
+    if (currentMode === 'student') {
+        var now = new Date();
+        var existingSub = submissions.find(function(s) { return s.id === docId && s.status !== 'cancelled'; });
+        if (existingSub && now.getHours() >= 21) {
+            showToast('21시 이후에는 신청을 변경할 수 없습니다.', 'warning');
+            return;
+        }
+    }
+    if (window._submitLock) {
+        showToast('제출 처리 중입니다.', 'info');
+        return;
+    }
+    window._submitLock = true;
+    var loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'submitLoadingOverlay';
+    loadingOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:10000';
+    loadingOverlay.innerHTML = '<div style="background:white;border-radius:20px;padding:32px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2)"><i class="fas fa-spinner fa-spin" style="font-size:32px;color:#6366f1;margin-bottom:12px"></i><div style="font-size:16px;font-weight:700;color:#374151">서버에 전송 중...</div><div style="font-size:13px;color:#6b7280;margin-top:4px">잠시만 기다려주세요</div></div>';
+    document.body.appendChild(loadingOverlay);
+    try {
+        var serverReachable = await checkServerConnection();
+        if (!serverReachable) { throw new Error('SERVER_UNREACHABLE'); }
+        await db.collection('submissions').doc(docId).set({department:dept,name:name,status:status,date:sd,timestamp:new Date().toLocaleTimeString('ko-KR'),submitDate:new Date().toISOString()});
+        var verified = false;
+        try {
+            var verifyDoc = await db.collection('submissions').doc(docId).get({source:'server'});
+            if (verifyDoc.exists && verifyDoc.data().status === status) { verified = true; }
+        } catch (verifyErr) { verified = false; }
+        if (verified) {
+            showToast(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료','success');
+            showSuccessAnimation(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료',name+' · '+new Date().toLocaleTimeString('ko-KR'));
+        } else {
+            try { await db.collection('submissions').doc(docId).delete(); } catch(e) {}
+            showToast('⚠️ 인터넷 연결이 불안정합니다! 신청이 서버에 저장되지 않았습니다.','error');
+            if (navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
+            openModal('<div class="p-6 text-center"><div style="width:70px;height:70px;margin:0 auto 16px;border-radius:50%;background:#fef2f2;display:flex;align-items:center;justify-content:center"><i class="fas fa-wifi" style="font-size:28px;color:#dc2626"></i></div><h3 class="text-xl font-bold text-danger-700 mb-2">신청 실패!</h3><p class="text-sm text-gray-600 mb-4">인터넷 연결이 불안정하여<br>서버에 저장되지 않았습니다.</p><div class="bg-danger-50 border border-danger-200 rounded-xl p-4 mb-4 text-left"><div class="text-sm font-bold text-danger-700 mb-1">해결 방법:</div><div class="text-sm text-danger-600">1. Wi-Fi 또는 데이터 연결 확인<br>2. 브라우저 새로고침<br>3. 다시 잔류/외박 버튼 누르기</div></div><button onclick="closeModal()" class="w-full py-3.5 bg-danger-500 text-white rounded-2xl font-bold text-base btn-press">확인</button></div>');
+        }
+        render();
+    } catch(e) {
+        var errorMsg = e.message==='SERVER_UNREACHABLE'?'서버에 연결할 수 없습니다. 인터넷 연결을 확인하세요.':'신청 실패: '+e.message;
+        showToast(errorMsg,'error');
+        if (navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
+        try { await db.collection('submissions').doc(docId).delete(); } catch(delErr) {}
+    } finally {
+        window._submitLock = false;
+        var overlay = document.getElementById('submitLoadingOverlay');
+        if (overlay) overlay.remove();
+    }
+}
+
+async function submitOuting(dept,name,t1,t2,reason){
+    if(!navigator.onLine){showToast('인터넷 연결이 없습니다.','error');return}
+    if(window._submitLock){showToast('처리 중입니다.','info');return}
+    window._submitLock=true;
+    var sd=getSelectedDate();var docId=sd+'_'+dept+'_'+name;
+    try{
+        var serverOk=await checkServerConnection();
+        if(!serverOk){showToast('서버에 연결할 수 없습니다.','error');return}
+        await db.collection('outings').doc(docId).set({department:dept,name:name,date:sd,outingTime:t1,returnTime:t2,reason:reason,timestamp:new Date().toLocaleTimeString('ko-KR')});
+        var verified=false;
+        try{var verify=await db.collection('outings').doc(docId).get({source:'server'});if(verify.exists)verified=true}catch(e){verified=false}
+        if(verified){
+            showToast('외출(Go Out) 신청 완료','success');
+            showSuccessAnimation('외출(Go Out) 신청 완료',name+' · '+new Date().toLocaleTimeString('ko-KR'));
+        }else{
+            try{await db.collection('outings').doc(docId).delete()}catch(e){}
+            showToast('⚠️ 서버에 저장되지 않았습니다. 다시 시도하세요.','error');
+        }
+        render();
+    }catch(e){
+        showToast('외출 신청 실패: 인터넷 연결을 확인하세요.','error');
+        try{await db.collection('outings').doc(docId).delete()}catch(de){}
+    }finally{window._submitLock=false}
+}
 </script>
 </body>
 </html>
