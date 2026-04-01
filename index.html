@@ -1837,6 +1837,89 @@ function deleteMyVehicle(){
     },'삭제');
 }
 function handleStudentResign(){var d=currentStudentDept();if(d)verifyAndSubmit(currentStudent,function(){showResignModal(d,currentStudent)})}
+// ============ 퇴사 승인/거부 ============
+async function approveResign(reqId){
+    var req=resignRequests.find(function(r){return r.id===reqId});
+    if(!req){showToast('퇴사 신청을 찾을 수 없습니다','error');return}
+    openConfirmModal('퇴사 승인',
+        '<b>'+escapeHtml(req.name)+'</b> ('+escapeHtml(req.department)+')<br>'+
+        '퇴사 예정일: '+escapeHtml(req.resignDate)+'<br>'+
+        '사유: '+escapeHtml(req.reason)+'<br><br>'+
+        '퇴사를 승인하시겠습니까?',
+        async function(){
+            try{
+                await db.collection('resignRequests').doc(reqId).update({
+                    status:'approved',
+                    approvedDate:req.resignDate||getCurrentDate(),
+                    approvedBy:'관리자',
+                    updatedAt:new Date().toISOString()
+                });
+                showToast(req.name+' 퇴사 승인 완료','success');
+                showSuccessAnimation('퇴사 승인 완료',req.name+' · '+req.department);
+                render();
+            }catch(e){showToast('승인 실패: '+e.message,'error')}
+        },'승인','취소');
+}
+
+async function rejectResign(reqId){
+    var req=resignRequests.find(function(r){return r.id===reqId});
+    if(!req){showToast('퇴사 신청을 찾을 수 없습니다','error');return}
+    openConfirmModal('퇴사 거부',
+        '<b>'+escapeHtml(req.name)+'</b> ('+escapeHtml(req.department)+')<br>'+
+        '퇴사 신청을 거부하시겠습니까?',
+        async function(){
+            try{
+                await db.collection('resignRequests').doc(reqId).update({
+                    status:'rejected',
+                    rejectedBy:'관리자',
+                    rejectedAt:new Date().toISOString(),
+                    updatedAt:new Date().toISOString()
+                });
+                showToast(req.name+' 퇴사 거부','success');
+                render();
+            }catch(e){showToast('거부 실패: '+e.message,'error')}
+        },'거부','취소');
+}
+
+async function submitResign(dept,name,resignDate,reason){
+    if(!navigator.onLine){showToast('인터넷 연결이 없습니다.','error');return}
+    var existing=resignRequests.find(function(r){return r.department===dept&&r.name===name&&r.status==='pending'});
+    if(existing){showToast('이미 퇴사 신청이 진행 중입니다','warning');return}
+    try{
+        var docId=dept+'_'+name+'_'+Date.now();
+        await db.collection('resignRequests').doc(docId).set({
+            department:dept,name:name,reason:reason,resignDate:resignDate,
+            status:'pending',createdAt:new Date().toISOString()
+        });
+        showToast('퇴사 신청이 접수되었습니다','success');
+        showSuccessAnimation('퇴사 신청 완료',name+' · 예정일 '+resignDate);
+        render();
+    }catch(e){showToast('퇴사 신청 실패: '+e.message,'error')}
+}
+
+async function deleteSubmission(docId,name){
+    openConfirmModal('제출 삭제',formatStudentName(name)+' 제출을 삭제하시겠습니까?',async function(){
+        try{await db.collection('submissions').doc(docId).delete();showToast(name+' 제출 삭제','success');render()}catch(e){showToast('삭제 실패','error')}
+    },'삭제');
+}
+
+async function deleteOuting(docId,name){
+    openConfirmModal('외출 삭제',formatStudentName(name)+' 외출을 삭제하시겠습니까?',async function(){
+        try{await db.collection('outings').doc(docId).delete();showToast(name+' 외출 삭제','success');render()}catch(e){showToast('삭제 실패','error')}
+    },'삭제');
+}
+
+async function autoCleanResign(reqId){
+    var req=resignRequests.find(function(r){return r.id===reqId});
+    if(!req)return;
+    try{
+        await db.collection('resignRequests').doc(reqId).update({
+            status:'approved',approvedDate:req.resignDate||getCurrentDate(),
+            approvedBy:'관리자 (수동 정리)',updatedAt:new Date().toISOString()
+        });
+        showToast(req.name+' 퇴사신청 정리 완료','success');render();
+    }catch(e){showToast('정리 실패','error')}
+}
 async function cancelStudentSubmission(){var dept=currentStudentDept();if(!dept)return;var sd=getSelectedDate();openConfirmModal('잔류 취소','잔류 신청을 취소하시겠습니까?<br>미신청 상태가 되어 외박으로 자동 처리됩니다.',async function(){try{await db.collection('submissions').doc(sd+'_'+dept+'_'+currentStudent).delete();showToast('잔류 취소 완료 (외박으로 자동 처리)','success');render()}catch(e){showToast('취소 실패','error')}},'취소하기','돌아가기')}
 // ============ 학과대표 함수 ============
 function changeLeaderPassword(){if(!leaderDepartment||!DEPARTMENT_LEADERS[leaderDepartment]){showToast('학과대표 정보 없음','error');return}openInputModal('학과대표 비밀번호 변경',[{label:'현재 비밀번호',type:'password',placeholder:'현재 비밀번호',maxLength:20,center:true},{label:'새 비밀번호',type:'password',placeholder:'새 비밀번호',maxLength:20,center:true},{label:'새 비밀번호 확인',type:'password',placeholder:'새 비밀번호 다시 입력',maxLength:20,center:true}],async function(){var cur=document.getElementById('modalInput0').value.trim();var np=document.getElementById('modalInput1').value.trim();var nc=document.getElementById('modalInput2').value.trim();if(!cur||!np||!nc){showToast('모든 항목을 입력하세요','warning');return}if(cur!==DEPARTMENT_LEADERS[leaderDepartment].password){showToast('현재 비밀번호가 틀립니다','error');return}if(np!==nc){showToast('새 비밀번호가 일치하지 않습니다','warning');return}if(np.length<4){showToast('새 비밀번호는 4자리 이상이어야 합니다','warning');return}if(cur===np){showToast('현재와 동일한 비밀번호입니다','warning');return}try{await db.collection('departmentLeaders').doc(leaderDepartment).update({password:np,updatedAt:new Date().toISOString()});closeModal();showToast('비밀번호가 변경되었습니다','success')}catch(e){showToast('변경 실패','error')}})}
@@ -2199,30 +2282,53 @@ function showManageTab(tab){['students','departments','leaders','passwords','dan
 async function addStudent(){var dept=document.getElementById('addStudentDept').value,name=document.getElementById('addStudentName').value.trim(),room=document.getElementById('addStudentRoom').value.trim(),pw=document.getElementById('addStudentPw').value.trim(),birthYear=document.getElementById('addStudentBirthYear')?document.getElementById('addStudentBirthYear').value.trim():'';if(!dept||!name||!pw){showToast('학과,이름,비밀번호 필수','warning');return}if(pw.length<4){showToast('비밀번호는 4자리 이상','warning');return}if(students[dept]&&students[dept].includes(name)){showToast('이미 존재','warning');return}if(room){var _rc=0;departments.forEach(function(d2){(students[d2]||[]).forEach(function(n2){if(window._secureData.getRoomNumber(n2)===room)_rc++})});if(_rc>=2){showToast(room+'호는 이미 2명이 배정되어 있습니다','warning');return}}try{var batch=db.batch();var todayDate=getCurrentDate();var ageVal=null;if(birthYear){var by=parseInt(birthYear);if(by>=1950&&by<=2015){ageVal=new Date().getFullYear()-by}else if(by>=0&&by<=99){var fullYear=by<=30?2000+by:1900+by;ageVal=new Date().getFullYear()-fullYear}}var roomData={department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()};if(room)roomData.room=room;if(ageVal)roomData.age=ageVal;if(room||ageVal)batch.set(db.collection('roomNumbers').doc(name),roomData,{merge:true});
 batch.set(db.collection('passwords').doc(name),{password:pw,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value='';if(document.getElementById('addStudentBirthYear'))document.getElementById('addStudentBirthYear').value=''}catch(e){showToast('추가 실패','error')}}
 function updateDelStudentList(){var dept=document.getElementById('delStudentDept').value,sel=document.getElementById('delStudentName');sel.innerHTML='<option value="">선택</option>';if(dept&&students[dept])students[dept].forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
-async function deleteStudentAction(){var dept=document.getElementById('delStudentDept').value,name=document.getElementById('delStudentName').value;if(!dept||!name){showToast('선택 필요','warning');return}openConfirmModal('교육생 삭제',formatStudentName(name)+' 삭제?<br><br><div class="text-left"><label class="block text-sm font-semibold text-gray-600 mb-1">퇴사 사유 (선택)</label><input type="text" id="deleteReasonInput" class="w-full px-3 py-2 bg-surface-50 border border-surface-200 rounded-xl text-sm" placeholder="예: 자진퇴사, 수료, 제적 등" style="font-size:14px"></div>',async function(){var reason='';var reasonInput=document.getElementById('deleteReasonInput');if(reasonInput)reason=reasonInput.value.trim();var updated=(window._secureData.getStudentsByDept(dept)||[]).filter(function(s){return s!==name});var batch=db.batch();batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});batch.delete(db.collection('roomNumbers').doc(name));batch.delete(db.collection('passwords').doc(name));var resignDocId=dept+'_'+name+'_'+Date.now();batch.set(db.collection('resignRequests').doc(resignDocId),{department:dept,name:name,reason:reason||'관리자 직접 삭제',resignDate:getCurrentDate(),status:'approved',approvedDate:getCurrentDate(),approvedBy:'관리자',createdAt:new Date().toISOString(),deletedByAdmin:true});try{await batch.commit()}catch(e){}var leaderSnap=await db.collection('departmentLeaders').doc(dept).get();if(leaderSnap.exists&&leaderSnap.data().name===name)await db.collection('departmentLeaders').doc(dept).delete();showToast(name+' 삭제 완료 (퇴사 이력 저장됨)','success');render()},'삭제')}
-async function addDepartment(){var name=document.getElementById('addDeptName').value.trim();if(!name){showToast('학과명 필요','warning');return}if(departments.includes(name)){showToast('이미 존재','warning');return}var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:departments.concat([name]),updatedAt:new Date().toISOString()});batch.set(db.collection('students').doc(name),{students:[],updatedAt:new Date().toISOString()});await batch.commit();showToast(name+' 추가 완료','success');document.getElementById('addDeptName').value=''}
-function showDeptOrderModal(){
-    var list=departments.slice();
-    var html='<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-2"><i class="fas fa-sort text-primary-500 mr-2"></i>학과 순서 변경</h3><p class="text-sm text-gray-500 mb-4">위/아래 버튼으로 순서를 변경하세요.</p><div id="deptOrderList" class="space-y-2 max-h-[60vh] overflow-y-auto mb-4">';
-    list.forEach(function(d,i){
-        html+='<div class="flex items-center gap-2 p-3 bg-surface-50 rounded-xl border border-surface-200"><span class="text-sm font-bold text-primary-600 w-8 text-center">'+(i+1)+'</span><span class="flex-1 text-sm font-medium text-gray-700">'+escapeHtml(d)+'</span><button onclick="moveDeptOrder('+i+',-1)" class="px-2 py-1 bg-surface-200 text-gray-600 rounded-lg text-xs font-bold btn-press'+(i===0?' opacity-30':'')+'"><i class="fas fa-chevron-up"></i></button><button onclick="moveDeptOrder('+i+',1)" class="px-2 py-1 bg-surface-200 text-gray-600 rounded-lg text-xs font-bold btn-press'+(i===list.length-1?' opacity-30':'')+'"><i class="fas fa-chevron-down"></i></button></div>';
-    });
-    html+='</div><div class="flex gap-3"><button onclick="closeModal()" class="flex-1 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button><button onclick="saveDeptOrder()" class="flex-1 py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-sm btn-press shadow-button">저장</button></div></div>';
-    openModal(html);
-}
-var _tempDeptOrder=[];
-function moveDeptOrder(idx,dir){
-    if(!_tempDeptOrder.length)_tempDeptOrder=departments.slice();
-    var newIdx=idx+dir;
-    if(newIdx<0||newIdx>=_tempDeptOrder.length)return;
-    var temp=_tempDeptOrder[idx];
-    _tempDeptOrder[idx]=_tempDeptOrder[newIdx];
-    _tempDeptOrder[newIdx]=temp;
-    departments=_tempDeptOrder.slice();
-    closeModal();
-    showDeptOrderModal();
-}
-async function saveDeptOrder(){
+async function deleteStudentAction(){
+    var dept=document.getElementById('delStudentDept').value,name=document.getElementById('delStudentName').value;
+    if(!dept||!name){showToast('선택 필요','warning');return}
+    openConfirmModal('교육생 삭제',formatStudentName(name)+' 삭제?<br><br><div class="text-left"><label class="block text-sm font-semibold text-gray-600 mb-1">퇴사 사유 (선택)</label><input type="text" id="deleteReasonInput" class="w-full px-3 py-2 bg-surface-50 border border-surface-200 rounded-xl text-sm" placeholder="예: 자진퇴사, 수료, 제적 등" style="font-size:14px"></div>',async function(){
+        var reason='';
+        var reasonInput=document.getElementById('deleteReasonInput');
+        if(reasonInput)reason=reasonInput.value.trim();
+        var updated=(window._secureData.getStudentsByDept(dept)||[]).filter(function(s){return s!==name});
+        var batch=db.batch();
+        batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});
+        batch.delete(db.collection('roomNumbers').doc(name));
+        batch.delete(db.collection('passwords').doc(name));
+
+        // ★ 핵심 수정: 기존 pending 퇴사신청이 있으면 승인 처리, 없으면 새로 생성
+        var existingPending=resignRequests.find(function(r){
+            return r.department===dept&&r.name===name&&r.status==='pending';
+        });
+        if(existingPending){
+            batch.update(db.collection('resignRequests').doc(existingPending.id),{
+                status:'approved',
+                approvedDate:getCurrentDate(),
+                approvedBy:'관리자 (삭제 시 자동승인)',
+                reason:reason||existingPending.reason||'관리자 직접 삭제',
+                deletedByAdmin:true,
+                updatedAt:new Date().toISOString()
+            });
+        }else{
+            var resignDocId=dept+'_'+name+'_'+Date.now();
+            batch.set(db.collection('resignRequests').doc(resignDocId),{
+                department:dept,name:name,
+                reason:reason||'관리자 직접 삭제',
+                resignDate:getCurrentDate(),
+                status:'approved',
+                approvedDate:getCurrentDate(),
+                approvedBy:'관리자',
+                createdAt:new Date().toISOString(),
+                deletedByAdmin:true
+            });
+        }
+
+        try{await batch.commit()}catch(e){}
+        var leaderSnap=await db.collection('departmentLeaders').doc(dept).get();
+        if(leaderSnap.exists&&leaderSnap.data().name===name)await db.collection('departmentLeaders').doc(dept).delete();
+        showToast(name+' 삭제 완료 (퇴사 이력 저장됨)','success');
+        render();
+    },'삭제');
+}async function saveDeptOrder(){
     if(!_tempDeptOrder.length)_tempDeptOrder=departments.slice();
     try{
         await db.collection('config').doc('departments').set({list:_tempDeptOrder,updatedAt:new Date().toISOString()});
@@ -2245,7 +2351,7 @@ async function resetAllData(){if(!isSuperAdmin){showToast('슈퍼 관리자만 �
 function downloadStudentTemplate(){
     loadExcelJS().then(function(){
         var wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('학생명단');
-        ws.columns=[{header:'학과',key:'dept',width:25},{header:'이름',key:'name',width:15},{header:'호실',key:'room',width:10},{header:'비밀번호',key:'password',width:15},{header:'생년월일',key:'birth',width:15}];
+        ws.columns=[{header:'학과',key:'dept',width:25},{header:'이름',key:'name',width:15},{header:'호실',key:'room',width:10},{header:'비밀번호',key:'password',width:15},{header:'생년월일',key:'birth',width:15},{header:'전화번호',key:'phone',width:18}];
         ws.getRow(1).font={bold:true};
         ws.getRow(1).fill={type:'pattern',pattern:'solidFill',fgColor:{argb:'FFE0E7FF'}};
         ws.getRow(1).eachCell(function(cell){cell.border={top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}});
@@ -2929,7 +3035,9 @@ function viewStudentPhoto(name) {
     }
     html += '<div class="font-black text-2xl text-gray-800 mb-1">' + (room ? escapeHtml(room) + '호 ' : '') + escapeHtml(name) + '</div>';
     if (dept) html += '<div class="text-sm text-gray-500 mb-1">' + escapeHtml(dept) + '</div>';
-    if (age) { var by = String((new Date().getFullYear() - age) % 100).padStart(2, '0'); html += '<div class="text-base text-purple-600 font-bold">' + age + '세 (' + by + '년생)</div>'; }
+     if (age) { var by = String((new Date().getFullYear() - age) % 100).padStart(2, '0'); html += '<div class="text-base text-purple-600 font-bold">' + age + '세 (' + by + '년생)</div>'; }
+    var regDate = window._secureData.getRegisteredDate(name);
+    if (regDate) html += '<div class="text-sm text-gray-500 mt-1"><i class="fas fa-calendar-check mr-1"></i>입사일: ' + regDate + '</div>';
     if (isAdminLoggedIn) {
         html += '<div class="flex gap-2 mt-5 justify-center">';
         html += '<button onclick="closeModal();uploadStudentPhoto(\'' + safeAttr(name) + '\')" class="px-6 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press shadow-button"><i class="fas fa-camera mr-1"></i>' + (photo ? '사진 변경' : '사진 등록') + '</button>';
@@ -3884,7 +3992,7 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
     '<div id="staySection">'+(stayList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-success-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'stay\')"><h2 class="text-xl font-bold text-success-700"><i class="fas fa-check-circle"></i> 현재 ('+stayList.length+'명)</h2><i class="fas '+(adminSectionOpen.stay?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.stay?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('stay')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(stayList,'stay').map(function(s){return'<div class="bg-success-50 border border-success-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-success-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-success-600 opacity-70">'+escapeHtml(s.department)+(staySortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
     '<div id="outSection">'+(outList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'out\')"><h2 class="text-xl font-bold text-warning-700"><i class="fas fa-moon"></i> 외박 ('+outList.length+'명)</h2><i class="fas '+(adminSectionOpen.out?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.out?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('out')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(outList,'out').map(function(s){return'<div class="bg-warning-50 border border-warning-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-warning-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-warning-600 opacity-70">'+escapeHtml(s.department)+(outSortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
     '<div id="outingSection" style="display:'+(menuControlSettings.showOutingRequest!==false?'block':'none')+'">'+(pureOut.length>0?'<div class="bg-white rounded-2xl shadow-card border border-info-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'outing\')"><h2 class="text-xl font-bold text-info-700"><i class="fas fa-walking"></i> 외출 ('+pureOut.length+'명)</h2><i class="fas '+(adminSectionOpen.outing?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.outing?renderSortToggle()+'<div class="space-y-2 mt-3">'+sortByMode(pureOut).map(function(o){return'<div class="bg-info-50 border border-info-100 rounded-xl px-4 py-2.5"><div class="flex items-center justify-between mb-1"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-info-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(o.name)+'\')">'+formatStudentName(o.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(o.department)+']</span></div><button onclick="deleteOuting(\''+safeAttr(o.id)+'\',\''+safeAttr(o.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0" style="font-size:10px"><i class="fas fa-times"></i></button></div><div class="text-xs text-gray-500">'+escapeHtml(o.outingTime)+'~'+escapeHtml(o.returnTime)+' | '+escapeHtml(o.reason)+(o.returnConfirmed?' <span class="text-success-600 font-bold">✓복귀 '+escapeHtml(o.returnConfirmedAt||'')+'</span>':'')+'</div></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div></div>'+'<div id="deptStatusSection" class="animate-fade-up stagger-3 mt-5"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4"><h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-th-list"></i> 학과별 총원 현황</h2>'+'<div class="flex gap-2 mb-3"><button onclick="toggleAllDeptCards(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllDeptCards(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+deptHtml+'<button onclick="scrollToTop()" class="w-full -mt-1 mb-4 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button></div></div>'+
-    (pR.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){return'<div class="bg-warning-50 rounded-2xl p-5 border border-warning-200"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span></div><div class="flex gap-2"><button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button></div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
+    (pR.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){var _isOrphaned=!(students[r.department]||[]).includes(r.name)&&!(window._secureData.getStudentsByDept(r.department)||[]).includes(r.name);return'<div class="'+(_isOrphaned?'bg-red-50 border-red-300':'bg-warning-50 border-warning-200')+' rounded-2xl p-5 border"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span>'+(_isOrphaned?'<span class="ml-2 px-2 py-0.5 bg-danger-100 text-danger-600 text-xs font-bold rounded-full">이미 삭제된 교육생</span>':'')+'</div><div class="flex gap-2"><button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button>'+(_isOrphaned?'<button onclick="autoCleanResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press">자동정리</button>':'')+'</div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
     '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="bg-white rounded-2xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-danger-700"><i class="fas fa-exclamation-triangle"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400 mr-6"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+(menuControlSettings.showLotteryEvent!==false?renderLotteryAdmin():'')+'</div>';
 }
 
@@ -4000,7 +4108,8 @@ function renderAdminSettings(){
     +'<div><label class="block text-sm font-semibold text-gray-600 mb-1">이름 변경</label><div class="flex gap-2"><input type="text" id="editStudentNewName" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 이름 입력" style="font-size:16px"><button onclick="updateStudentName()" class="px-5 py-3 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-user-edit mr-1"></i>변경</button></div></div>'
     +'<div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">호실 변경</label><input type="text" id="editStudentRoom" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="새 호실 번호" style="font-size:16px"></div>'
     +'<button onclick="updateStudentRoom()" class="w-full py-3 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-home mr-1"></i> 호실 변경</button>'
-    +'<div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">생년 (나이 계산용)</label><div class="flex gap-2"><input type="text" id="editStudentBirthYear2" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="updateStudentAge()" class="px-5 py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-birthday-cake mr-1"></i>저장</button></div><div class="text-xs text-gray-400 mt-1">생년만 입력하면 나이(숫자)로 변환 저장됩니다.</div></div>'
+    +'<div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">입사일 변경</label><div class="flex gap-2"><input type="date" id="editStudentRegDate" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><button onclick="updateStudentRegDate()" class="px-5 py-3 bg-info-50 border-2 border-info-200 text-info-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-calendar-check mr-1"></i>변경</button></div></div>'
++'<div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">생년 (나이 계산용)</label><div class="flex gap-2"><input type="text" id="editStudentBirthYear2" class="flex-1 px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" placeholder="예: 1997 또는 97" maxlength="4" style="font-size:16px"><button onclick="updateStudentAge()" class="px-5 py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press whitespace-nowrap"><i class="fas fa-birthday-cake mr-1"></i>저장</button></div><div class="text-xs text-gray-400 mt-1">생년만 입력하면 나이(숫자)로 변환 저장됩니다.</div></div>'
     +'<div class="border-t border-surface-200 pt-3"><label class="block text-sm font-semibold text-gray-600 mb-1">학과 이동</label><select id="editStudentNewDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">이동할 학과 선택</option>'+deptOpts+'</select></div>'
     +'<button onclick="moveStudentDept()" class="w-full py-3 bg-warning-50 border-2 border-warning-200 text-warning-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-exchange-alt mr-1"></i> 학과 이동</button>'
     +'</div></div></div></div>'
@@ -4316,23 +4425,55 @@ async function loadResignHistory(){
     try{
         var approved=resignRequests.filter(function(r){return r.status==='approved'});
         var pending=resignRequests.filter(function(r){return r.status==='pending'});
-        if(approved.length===0&&pending.length===0){area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">퇴사 이력이 없습니다</div>';return}
+
+        // ★ 중복 제거: 같은 학과+이름이면 교육생 직접 신청건 우선, 관리자 자동생성건 제거
+        var uniqueMap={};
+        approved.forEach(function(r){
+            var key=r.department+'_'+r.name;
+            if(!uniqueMap[key]){
+                uniqueMap[key]=r;
+            }else{
+                // 이미 있으면: deletedByAdmin이 아닌 건(교육생 직접신청)을 우선
+                if(r.deletedByAdmin&&!uniqueMap[key].deletedByAdmin){
+                    // 기존이 교육생 신청이면 유지, 현재(자동생성)는 무시
+                }else if(!r.deletedByAdmin&&uniqueMap[key].deletedByAdmin){
+                    // 현재가 교육생 신청이면 교체
+                    uniqueMap[key]=r;
+                }else{
+                    // 둘 다 같은 타입이면 최신 날짜 우선
+                    if((r.approvedDate||'')>(uniqueMap[key].approvedDate||'')){
+                        uniqueMap[key]=r;
+                    }
+                }
+            }
+        });
+        approved=Object.values(uniqueMap);
+
+        if(approved.length===0&&pending.length===0){
+            area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">퇴사 이력이 없습니다</div>';
+            return;
+        }
         var html='';
         if(pending.length>0){
             html+='<div class="mb-4"><div class="text-sm font-bold text-warning-600 mb-2">대기 중 '+pending.length+'건</div><div class="space-y-2">';
-            pending.forEach(function(r){html+='<div class="flex items-center justify-between bg-warning-50 px-4 py-3 rounded-xl border border-warning-200"><div><span class="font-bold text-gray-700">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-2">['+escapeHtml(r.department)+']</span><div class="text-xs text-gray-500 mt-1">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div><span class="text-xs font-bold text-warning-600">대기</span></div>'});
+            pending.forEach(function(r){
+                html+='<div class="flex items-center justify-between bg-warning-50 px-4 py-3 rounded-xl border border-warning-200"><div><span class="font-bold text-gray-700">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-2">['+escapeHtml(r.department)+']</span><div class="text-xs text-gray-500 mt-1">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div><span class="text-xs font-bold text-warning-600">대기</span></div>';
+            });
             html+='</div></div>';
         }
         if(approved.length>0){
             html+='<div><div class="text-sm font-bold text-gray-600 mb-2">승인 완료 '+approved.length+'건</div><div class="space-y-2">';
             approved.sort(function(a,b){return(b.approvedDate||'').localeCompare(a.approvedDate||'')});
-            approved.forEach(function(r){html+='<div class="flex items-center justify-between bg-surface-50 px-4 py-3 rounded-xl border border-surface-200"><div><span class="font-bold text-gray-700">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-2">['+escapeHtml(r.department)+']</span><div class="text-xs text-gray-500 mt-1">퇴사일: '+escapeHtml(r.approvedDate||'')+' · 사유: '+escapeHtml(r.reason)+'</div></div><span class="text-xs font-bold text-gray-500">승인</span></div>'});
+            approved.forEach(function(r){
+                html+='<div class="flex items-center justify-between bg-surface-50 px-4 py-3 rounded-xl border border-surface-200"><div><span class="font-bold text-gray-700">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-2">['+escapeHtml(r.department)+']</span><div class="text-xs text-gray-500 mt-1">퇴사일: '+escapeHtml(r.approvedDate||'')+' · 사유: '+escapeHtml(r.reason)+'</div></div><span class="text-xs font-bold text-gray-500">승인</span></div>';
+            });
             html+='</div></div>';
         }
         area.innerHTML=html;
-    }catch(e){area.innerHTML='<div class="text-sm text-danger-500 text-center py-3">조회 실패</div>'}
+    }catch(e){
+        area.innerHTML='<div class="text-sm text-danger-500 text-center py-3">조회 실패</div>';
+    }
 }
-
 async function downloadResignHistory(){
     try{
         await loadExcelJS();
@@ -4369,6 +4510,9 @@ function loadStudentInfo(){
     if(newNameInput) newNameInput.value=name;
     var ageInput=document.getElementById('editStudentBirthYear2');
     if(ageInput) ageInput.value=age?String(new Date().getFullYear()-age):'';
+    var regDateInput=document.getElementById('editStudentRegDate');
+    var regDate=window._secureData.getRegisteredDate(name);
+    if(regDateInput) regDateInput.value=regDate||'';
     // 사진 미리보기
     var photoArea=document.getElementById('editStudentPhotoArea');
     if(photoArea){
@@ -4390,6 +4534,17 @@ function loadStudentInfo(){
         await db.collection('roomNumbers').doc(name).set({room:newRoom,department:dept,updatedAt:new Date().toISOString()},{merge:true});
         showToast(name+' 호실 → '+newRoom+'호 변경 완료','success');
     }catch(e){showToast('변경 실패','error')}
+}
+async function updateStudentRegDate(){
+    var name=document.getElementById('editStudentName').value;
+    var newDate=document.getElementById('editStudentRegDate').value;
+    if(!name){showToast('교육생을 선택하세요','warning');return}
+    if(!newDate){showToast('날짜를 선택하세요','warning');return}
+    try{
+        await db.collection('roomNumbers').doc(name).set({registeredDate:newDate,updatedAt:new Date().toISOString()},{merge:true});
+        await db.collection('passwords').doc(name).set({registeredDate:newDate,updatedAt:new Date().toISOString()},{merge:true});
+        showToast(name+' 입사일 → '+newDate+' 변경 완료','success');
+    }catch(e){showToast('변경 실패: '+e.message,'error')}
 }
 async function updateStudentAge(){
     var name=document.getElementById('editStudentName').value;
