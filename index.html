@@ -2004,16 +2004,16 @@ async function confirmAdminBatch(){
     var cS=adminBatchMode,uS=adminBatchMode==='stay'?'out':'stay';
     openConfirmModal('일괄 제출','체크 '+checked.length+'명 → '+(cS==='stay'?'잔류':'외박')+'<br>나머지 '+unchecked.length+'명 → '+(uS==='stay'?'잔류':'외박'),async function(){
         try{var batch=db.batch(),ts=new Date().toLocaleTimeString('ko-KR');
-        checked.forEach(function(s){batch.set(db.collection('submissions').doc(currentDate+'_'+s.dept+'_'+s.name),{department:s.dept,name:s.name,status:cS,date:currentDate,timestamp:ts})});
-        unchecked.forEach(function(s){batch.set(db.collection('submissions').doc(currentDate+'_'+s.dept+'_'+s.name),{department:s.dept,name:s.name,status:uS,date:currentDate,timestamp:ts})});
+        checked.forEach(function(s){batch.set(db.collection('submissions').doc(currentDate+'_'+s.dept+'_'+s.name),{department:s.dept,name:s.name,status:cS,date:currentDate,timestamp:ts,modifiedBy:'admin'})});
+        unchecked.forEach(function(s){batch.set(db.collection('submissions').doc(currentDate+'_'+s.dept+'_'+s.name),{department:s.dept,name:s.name,status:uS,date:currentDate,timestamp:ts,modifiedBy:'admin'})});
         await batch.commit();showToast('일괄 제출 완료','success');adminBatchMode=null;render()}catch(e){showToast('일괄 제출 실패','error')}
     });
 }
 
 function quickSubmitAdmin(dept,name){
     var f1='_aqs_'+Date.now(),f2='_aqo_'+Date.now();
-    window[f1]=async function(){closeModal();delete window[f1];delete window[f2];await db.collection('submissions').doc(currentDate+'_'+dept+'_'+name).set({department:dept,name:name,status:'stay',date:currentDate,timestamp:new Date().toLocaleTimeString('ko-KR')});showToast(name+' → 잔류(Stay)','success')};
-    window[f2]=async function(){closeModal();delete window[f1];delete window[f2];await db.collection('submissions').doc(currentDate+'_'+dept+'_'+name).set({department:dept,name:name,status:'out',date:currentDate,timestamp:new Date().toLocaleTimeString('ko-KR')});showToast(name+' → 외박(Out)(Out)','success')};
+    window[f1]=async function(){closeModal();delete window[f1];delete window[f2];await db.collection('submissions').doc(currentDate+'_'+dept+'_'+name).set({department:dept,name:name,status:'stay',date:currentDate,timestamp:new Date().toLocaleTimeString('ko-KR'),modifiedBy:'admin'});showToast(name+' → 잔류(Stay)','success')};
+    window[f2]=async function(){closeModal();delete window[f1];delete window[f2];await db.collection('submissions').doc(currentDate+'_'+dept+'_'+name).set({department:dept,name:name,status:'out',date:currentDate,timestamp:new Date().toLocaleTimeString('ko-KR'),modifiedBy:'admin'});showToast(name+' → 외박(Out)(Out)','success')};
     openModal('<div class="p-6 md:p-8"><h3 class="text-xl font-bold text-gray-900 mb-2">개별 신청</h3><p class="text-base text-gray-500 mb-1">'+formatStudentName(name)+'</p><p class="text-sm text-gray-400 mb-6">'+escapeHtml(dept)+'</p><div class="flex gap-3"><button onclick="window[\''+f2+'\']()" class="flex-1 py-3.5 bg-warning-500 text-white rounded-2xl font-bold text-base btn-press">외박(Out)</button><button onclick="window[\''+f1+'\']()" class="flex-1 py-3.5 bg-success-500 text-white rounded-2xl font-bold text-base btn-press">잔류(Stay)</button></div><button onclick="closeModal()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">취소</button></div>');
 }
 
