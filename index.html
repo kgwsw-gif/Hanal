@@ -5162,7 +5162,6 @@ function showPenaltyModal(){
     var deptOpts=departments.map(function(d){return'<option value="'+safeAttr(d)+'">'+escapeHtml(d)+'</option>'}).join('');
     var penaltyOptions='<option value="">선택하세요</option>'+
         '<optgroup label="즉시 강제퇴사 (10점)">' +
-        '<option value="시설물 고의 파손" data-pts="10">시설물 고의 파손 (10점)</option>'+
         '<option value="강·절도 및 갈취" data-pts="10">강·절도 및 갈취 (10점)</option>'+
         '<option value="취사행위" data-pts="10">취사행위 - 조리기구 사용 (10점)</option>'+
         '<option value="이성 숙소 무단출입" data-pts="10">이성 숙소 무단출입 (10점)</option>'+
@@ -5172,7 +5171,7 @@ function showPenaltyModal(){
         '<option value="도박" data-pts="10">도박 및 사행성 행위 (10점)</option>'+
         '</optgroup>'+
         '<optgroup label="벌점 누적 + 학내봉사 5일 (5점)">' +
-        '<option value="호실 구조물 변경" data-pts="5">호실 구조물 임의 변경 (5점)</option>'+
+        '<option value="호실 구조물 변경" data-pts="5">호실 구조물 임의 변경 및 고의파손 (5점)</option>'+
         '<option value="전열기구 사용" data-pts="5">전열기구 무단 사용 (5점)</option>'+
         '<option value="외부인 무단 입실" data-pts="5">외부인 무단 입실 (5점)</option>'+
         '<option value="통제시간 무단출입" data-pts="5">통제시간(23~06시) 무단출입 또는 관여 (5점)</option>'+
@@ -5180,7 +5179,7 @@ function showPenaltyModal(){
         '<option value="수업기피 잔류" data-pts="5">수업 기피 목적 잔류 (5점)</option>'+
         '</optgroup>'+
         '<optgroup label="벌점 누적 + 학내봉사 3일 (3점)">' +
-        '<option value="도서실 면학방해" data-pts="3">도서실 소란/취식 (3점)</option>'+
+        '<option value="독서실 면학방해" data-pts="3">독서실 소란/취식 (3점)</option>'+
         '<option value="소란행위" data-pts="3">소란행위 - 공놀이/고성방가 (3점)</option>'+
         '<option value="호실 내 배달음식" data-pts="3">호실 내 배달 음식 반입 (3점)</option>'+
         '<option value="무단외박" data-pts="3">보고없이 무단외박 (3점)</option>'+
@@ -5188,7 +5187,7 @@ function showPenaltyModal(){
         '</optgroup>'+
         '<optgroup label="경고 + 벌점 (2점)">' +
         '<option value="퇴실시간 지각" data-pts="2">퇴실시간(08:40) 지각 (2점)</option>'+
-        '<option value="귀교시간 지각" data-pts="2">귀교시간(22:00) 지각 (2점)</option>'+
+        '<option value="귀교시간 지각" data-pts="2">귀교시간(23:00) 지각 (2점)</option>'+
         '<option value="점검 불참/지각" data-pts="2">점검 불참 및 상습 지각 (2점)</option>'+
         '<option value="침/가래 투기" data-pts="2">침/가래 투기 (2점)</option>'+
         '<option value="청소 정리정돈 불량" data-pts="2">청소 및 정리정돈 불량 (2점)</option>'+
@@ -5255,22 +5254,22 @@ function renderPenaltyAdmin(){
 
     if(window._penaltyViewMode==='table'){
         h+='<div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-list-alt mr-1"></i>기숙사 벌점 기준표</div>';
-h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl mb-3"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>벌점은 누적 합산되며, 3점 초과 시 학내봉사를 통해 차감할 수 있습니다.</div><div class="text-xs font-bold text-danger-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>단, 즉시 강제퇴사(10점) 행위는 차감 대상에서 제외됩니다.</div></div>';
+h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl mb-3"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>벌점은 누적 합산되며, 10점 도달 시 강제퇴사 대상입니다.</div><div class="text-xs font-bold text-danger-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>3점 초과 시 학내봉사로 차감 가능하나, 즉시 강제퇴사 대상은 제외.</div></div>';
         h+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-3"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>즉시 강제퇴사 (10점)</div>';
         h+='<div class="space-y-1 text-sm text-danger-600">';
-        ['시설물 고의 파손','강·절도 및 갈취','취사행위 (조리기구 사용)','이성 숙소 무단출입','사내 음주 및 주류 반입 (과도한 음주 후 귀사)','흡연 (금연구역 포함)','폭력 행사','도박 및 사행성 행위'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-danger-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        ['강·절도 및 갈취','취사행위 (조리기구 사용)','이성 숙소 무단출입','사내 음주 및 주류 반입 (과도한 음주 후 귀사)','흡연 (금연구역 포함)','폭력 행사','도박 및 사행성 행위'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-danger-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
         h+='</div></div>';
         h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-3"><div class="text-sm font-bold text-warning-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 5일 (5점)</div>';
         h+='<div class="space-y-1 text-sm text-warning-600">';
-        ['호실 구조물 임의 변경','전열기구 무단 사용','외부인 무단 입실','통제시간(23~06시) 무단출입 또는 관여','수업 중 부정 기숙사 출입','수업 기피 목적 잔류'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-warning-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        ['호실 구조물 임의 변경 및 고의파손','전열기구 무단 사용','외부인 무단 입실','통제시간(23~06시) 무단출입 또는 관여','수업 중 부정 기숙사 출입','수업 기피 목적 잔류'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-warning-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
         h+='</div></div>';
         h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4 mb-3"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 3일 (3점)</div>';
         h+='<div class="space-y-1 text-sm text-info-600">';
-        ['도서실 소란/취식','소란행위 (공놀이/고성방가)','호실 내 배달 음식 반입','보고없이 무단외박','정당한 지시 거부'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-info-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        ['독서실 소란/취식','소란행위 (공놀이/고성방가)','호실 내 배달 음식 반입','보고없이 무단외박','정당한 지시 거부'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-info-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
         h+='</div></div>';
         h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-info-circle mr-1"></i>경고 + 벌점 (2점)</div>';
         h+='<div class="space-y-1 text-sm text-gray-600">';
-        ['퇴실시간(08:40) 지각','귀교시간(22:00) 지각','점검 불참 및 상습 지각','침/가래 투기','청소 및 정리정돈 불량','벽/가구에 사진/못 부착'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-gray-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        ['퇴실시간(08:40) 지각','귀교시간(23:00) 지각','점검 불참 및 상습 지각','침/가래 투기','청소 및 정리정돈 불량','벽/가구에 사진/못 부착'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-gray-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
         h+='</div></div>';
 h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4 mt-3"><div class="text-sm font-bold text-gray-600 mb-2"><i class="fas fa-info-circle mr-1"></i>기타 (1점)</div>';
 h+='<div class="space-y-1 text-sm text-gray-600">';
@@ -5331,7 +5330,7 @@ function renderStudentPenalty(){
     var activePenalties=myPenalties.filter(function(p){return p.status==='active'});
     var totalScore=activePenalties.reduce(function(s,p){return s+(p.score||0)},0);
     var lc=totalScore>=10?'danger':totalScore>=5?'warning':totalScore>=1?'info':'success';
-var lt=totalScore>=10?'강제퇴사 대상':totalScore>=5?'주의':totalScore>=1?'양호':'우수';
+var lt=totalScore>=10?'강제퇴사 대상':totalScore>=5?'주의':totalScore>=1?'유의':'우수';
 var li=totalScore>=10?'fa-exclamation-triangle':totalScore>=5?'fa-exclamation-circle':totalScore>=1?'fa-info-circle':'fa-check-circle';
 
     var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up stagger-4">';
@@ -5374,18 +5373,17 @@ if(totalScore>=10){h+='<div class="text-xs text-danger-600 mt-2 p-2 bg-danger-10
 function showPenaltyTableModal(){
     var h='<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4"><i class="fas fa-list-alt text-danger-500 mr-2"></i>기숙사 벌점 기준표</h3>';
     h+='<div class="space-y-3 max-h-[70vh] overflow-y-auto">';
-h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>벌점은 누적 합산되며, 3점 초과 시 학내봉사를 통해 차감할 수 있습니다.</div><div class="text-xs font-bold text-danger-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>단, 즉시 강제퇴사(10점) 행위는 차감 대상에서 제외됩니다.</div></div>';
-    h+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>즉시 강제퇴사 (10점)</div><div class="space-y-1.5 text-sm text-danger-600">';
-    ['시설물 고의 파손','강·절도 및 갈취','취사행위 (조리기구 사용)','이성 숙소 무단출입','사내 음주 및 주류 반입 (과도한 음주 후 귀사)','흡연 (금연구역 포함)','폭력 행사','도박 및 사행성 행위'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-times-circle text-danger-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>벌점은 누적 합산되며, 10점 도달 시 강제퇴사 대상입니다.</div><div class="text-xs font-bold text-danger-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>3점 초과 시 학내봉사로 차감 가능하나, 즉시 강제퇴사 대상은 제외.</div></div>';    h+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>즉시 강제퇴사 (10점)</div><div class="space-y-1.5 text-sm text-danger-600">';
+    ['강·절도 및 갈취','취사행위 (조리기구 사용)','이성 숙소 무단출입','사내 음주 및 주류 반입 (과도한 음주 후 귀사)','흡연 (금연구역 포함)','폭력 행사','도박 및 사행성 행위'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-times-circle text-danger-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
     h+='</div></div>';
     h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4"><div class="text-sm font-bold text-warning-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 5일 (5점)</div><div class="space-y-1.5 text-sm text-warning-600">';
-    ['호실 구조물 임의 변경','전열기구 무단 사용','외부인 무단 입실','통제시간(23~06시) 무단출입 또는 관여','수업 중 부정 기숙사 출입','수업 기피 목적 잔류'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-exclamation-circle text-warning-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    ['호실 구조물 임의 변경 및 고의파손','전열기구 무단 사용','외부인 무단 입실','통제시간(23~06시) 무단출입 또는 관여','수업 중 부정 기숙사 출입','수업 기피 목적 잔류'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-exclamation-circle text-warning-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
     h+='</div></div>';
     h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 3일 (3점)</div><div class="space-y-1.5 text-sm text-info-600">';
-    ['도서실 소란/취식','소란행위 (공놀이/고성방가)','호실 내 배달 음식 반입','보고없이 무단외박','정당한 지시 거부'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-info-circle text-info-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    ['독서실 소란/취식','소란행위 (공놀이/고성방가)','호실 내 배달 음식 반입','보고없이 무단외박','정당한 지시 거부'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-info-circle text-info-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
     h+='</div></div>';
     h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-info-circle mr-1"></i>경고 + 벌점 (2점)</div><div class="space-y-1.5 text-sm text-gray-600">';
-    ['퇴실시간(08:40) 지각','귀교시간(22:00) 지각','점검 불참 및 상습 지각','침/가래 투기','청소 및 정리정돈 불량','벽/가구에 사진/못 부착'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-minus-circle text-gray-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    ['퇴실시간(08:40) 지각','귀교시간(23:00) 지각','점검 불참 및 상습 지각','침/가래 투기','청소 및 정리정돈 불량','벽/가구에 사진/못 부착'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-minus-circle text-gray-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
     h+='</div></div>';
 h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-600 mb-2"><i class="fas fa-info-circle mr-1"></i>기타 (1점)</div><div class="space-y-1.5 text-sm text-gray-600">';
 ['인원보고 미제출'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-minus-circle text-gray-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
@@ -5562,7 +5560,7 @@ function renderStudentDocuments(){
     h+='<div class="font-bold text-info-700 text-base mb-3"><i class="fas fa-broom mr-1"></i> 5. 청결 및 시설 관리</div>';
     h+='<div class="space-y-2 text-sm text-gray-700">';
     h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>쓰레기 배출:</b> 아침/저녁 시간에 기숙사1층 뒤편 테라스 분리수거장에 배출</span></div>';
-    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>정기 점검:</b> 매월 마지막 주 목요일 대청소 및 시설 점검 (22:00까지 전원 귀교 필수)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>정기 점검:</b> 매월 마지막 주 목요일 대청소 및 시설 점검 (상황별 탄력적 운영)</span></div>';
     h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>시설 훼손 금지:</b> 가구 무단 이동 및 변경 금지. 벽면 파손(못질, 접착제 등)이나 가구 파손 시 변상 조치</span></div>';
     h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>에너지 절약:</b> 외출 시 반드시 소등 및 전원 차단 (물은 24시간 공급)</span></div>';
     h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>호실 내 취식 금지:</b> 냄새가 나는 음식(라면, 배달 음식 등)은 반드시 휴게실을 이용</span></div>';
@@ -5576,15 +5574,34 @@ function renderStudentDocuments(){
     h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>인원 점검:</b> 매일 <b class="text-danger-600">21:00 전</b>, 인원 관리 앱으로 잔류 또는 외박을 보고 (주말(금,토,일)/공휴일(전날)은 잔류자만 보고)</span></div>';
     h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>외출·외박:</b> 인원 관리 앱을 통해 반드시 사전 신청 (주말/공휴일 제외)</span></div>';
     h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>입사 신청:</b> 매달 25일 전까지 사감실에 입사 의사 전달 후 스마트 포털 시스템 신청 및 승인 완료</span></div>';
-    h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>보안:</b> 도난 및 사고 예방을 위해 CCTV를 운영하며, 사감의 호실 방문 점검이 수시로 있을 수 있습니다.</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>보안:</b> 도난 및 사고 예방을 위해 CCTV를 운영 중이며, 사감의 호실 방문 점검이 있을 수 있습니다.</span></div>';
     h+='</div>';
     h+='<div class="mt-3 p-3 bg-primary-50 rounded-xl border border-primary-200">';
     h+='<div class="text-sm text-primary-700 font-bold text-center"><i class="fas fa-info-circle mr-1"></i>그 외 궁금한 사항은 사감실로 문의 바랍니다.</div>';
     h+='</div>';
     h+='</div>';
 
+     h+='</div>';
     h+='</div>';
-    h+='</div>';
+
+    if(dormDocuments.length>0){
+        h+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4">';
+        h+='<h3 class="font-bold text-gray-800 text-lg mb-4"><i class="fas fa-folder-open text-info-500 mr-1"></i> 기숙사 문서 자료</h3>';
+        h+='<div class="space-y-2">';
+        dormDocuments.forEach(function(doc){
+            var ti=getDocTypeInfo(doc.type);
+            h+='<a href="'+escapeHtml(doc.link)+'" target="_blank" class="flex items-center gap-3 p-4 bg-'+ti.color+'-50 rounded-2xl border border-'+ti.color+'-200 btn-press transition-all hover:shadow-md" style="text-decoration:none">';
+            h+='<div class="w-10 h-10 rounded-xl bg-'+ti.color+'-100 flex items-center justify-center flex-shrink-0"><i class="fas '+ti.icon+' text-'+ti.color+'-500"></i></div>';
+            h+='<div class="flex-1 min-w-0">';
+            h+='<div class="font-bold text-gray-800 truncate">'+escapeHtml(doc.title)+'</div>';
+            if(doc.description)h+='<div class="text-xs text-gray-500 truncate">'+escapeHtml(doc.description)+'</div>';
+            h+='<div class="text-xs text-'+ti.color+'-600 font-bold mt-0.5">'+escapeHtml(ti.label)+'</div>';
+            h+='</div>';
+            h+='<i class="fas fa-external-link-alt text-'+ti.color+'-400 flex-shrink-0"></i>';
+            h+='</a>';
+        });
+        h+='</div></div>';
+    }
 
     return h;
 }
