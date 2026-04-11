@@ -450,6 +450,8 @@ var submitManualOpen=true;
 var hvacRequests=[];
 var facilityRequests=[];
 var accessRequests=[];
+var penaltyPoints=[];
+var dormDocuments=[];
 window.addEventListener('online',function(){isOnline=true;document.getElementById('offlineBanner').classList.remove('show');showToast('네트워크 연결됨','success')});
 window.addEventListener('offline',function(){isOnline=false;document.getElementById('offlineBanner').classList.add('show');showToast('오프라인 상태입니다','warning')});
 
@@ -740,7 +742,7 @@ function refreshHvacListener() {
     });
 }
     var _loadCount=0,_loaded=false;
-    var TOTAL=15;
+    var TOTAL=17;
     function checkLoaded(){
         if(_loaded){debouncedRender();return}
         _loadCount++;
@@ -769,8 +771,11 @@ function refreshHvacListener() {
     db.collection('messages').orderBy('createdAt','desc').limit(50).onSnapshot(function(snap){messages=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()});
     refreshHvacListener(); checkLoaded();
     db.collection('facilityRequests').orderBy('createdAt','desc').limit(50).onSnapshot(function(snap){facilityRequests=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(typeof render==='function'&&document.getElementById('app')&&document.getElementById('app').style.display!=='none')debouncedRender()});
-db.collection('accessRequests').orderBy('createdAt','desc').limit(50).onSnapshot(function(snap){accessRequests=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(typeof render==='function'&&document.getElementById('app')&&document.getElementById('app').style.display!=='none')debouncedRender()});
+db.collection('penaltyPoints').orderBy('createdAt','desc').limit(300).onSnapshot(function(snap){penaltyPoints=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();checkLoaded()});
+    db.collection('dormDocuments').orderBy('order','asc').onSnapshot(function(snap){dormDocuments=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();checkLoaded()});
     loadOfficePassword();
+    loadMenuControl();
+
     db.collection('settings').doc('hvacControl').onSnapshot(function(doc){if(doc.exists&&doc.data().mode)hvacMode=doc.data().mode});
 var accessNotice='기숙사 출입을 원하는 학생은 학과교수님에게 기숙사 출입증을 발급받은 후 출입신청을 진행하세요.';
 db.collection('settings').doc('accessNotice').onSnapshot(function(doc){
@@ -1084,6 +1089,7 @@ async function confirmReadMessage(msgId){
 var isOfficeLoggedIn=false;
 var officePassword='1234';
 var hvacMode='heating';
+function loadMenuControl(){db.collection('settings').doc('menuControl').onSnapshot(function(doc){if(doc.exists){var data=doc.data();menuControlSettings.showOfficeMenu=data.showOfficeMenu===true;menuControlSettings.showHvacTab=data.showHvacTab===true;menuControlSettings.showLeaderMessage=data.showLeaderMessage!==undefined?data.showLeaderMessage:true;menuControlSettings.showFacilityRequest=data.showFacilityRequest!==undefined?data.showFacilityRequest:true;menuControlSettings.showAccessRequest=data.showAccessRequest!==undefined?data.showAccessRequest:true;menuControlSettings.showLotteryEvent=data.showLotteryEvent!==undefined?data.showLotteryEvent:true;menuControlSettings.showUnsubmittedAlert=data.showUnsubmittedAlert!==undefined?data.showUnsubmittedAlert:true;menuControlSettings.showOutingRequest=data.showOutingRequest!==undefined?data.showOutingRequest:true;menuControlSettings.showVehicleNumber=data.showVehicleNumber!==undefined?data.showVehicleNumber:true;menuControlSettings.showPenaltySystem=data.showPenaltySystem!==undefined?data.showPenaltySystem:true;menuControlSettings.showDormDocuments=data.showDormDocuments!==undefined?data.showDormDocuments:true}applyMenuControl();if(_loaded)debouncedRender()})}
 
 async function loadOfficePassword(){try{var doc=await db.collection('settings').doc('officeControl').get();if(doc.exists&&doc.data().password){officePassword=doc.data().password}}catch(e){}}
 async function saveOfficePassword(newPw){try{await db.collection('settings').doc('officeControl').set({password:newPw,updatedAt:new Date().toISOString()},{merge:true});officePassword=newPw;showToast('운영사무실 비밀번호 변경 완료','success')}catch(e){showToast('저장 실패','error')}}
@@ -2345,9 +2351,9 @@ async function deleteDepartmentAction(){var name=document.getElementById('delDep
 function updateLeaderStudentList(){var dept=document.getElementById('setLeaderDept').value,sel=document.getElementById('setLeaderStudent');sel.innerHTML='<option value="">선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
 async function setLeaderAction(){var dept=document.getElementById('setLeaderDept').value,name=document.getElementById('setLeaderStudent').value,pw=document.getElementById('setLeaderPw').value.trim();if(!dept||!name||!pw){showToast('모든 항목 입력','warning');return}await db.collection('departmentLeaders').doc(dept).set({name:name,password:pw,updatedAt:new Date().toISOString()});showToast(dept+' 학과대표 지정 완료','success');render()}
 async function deleteLeader(dept){openConfirmModal('학과대표 해제',dept+' 학과대표를 해제하시겠습니까?',async function(){await db.collection('departmentLeaders').doc(dept).delete();showToast(dept+' 학과대표 해제 완료','success');render()},'해제')}
-async function resetNewTerm(){if(!isSuperAdmin){showToast('슈퍼 관리자만 가능','error');return;}var fn1='_rt1_'+Date.now(),fn2='_rt2_'+Date.now(),fn3='_rt3_'+Date.now();window[fn1]=function(){closeModal();delete window[fn1];delete window[fn2];delete window[fn3];doResetNewTerm(true);};window[fn2]=function(){closeModal();delete window[fn1];delete window[fn2];delete window[fn3];doResetNewTerm(false);};window[fn3]=function(){closeModal();delete window[fn1];delete window[fn2];delete window[fn3];};openModal('<div class="p-6 md:p-8"><h3 class="text-xl font-bold text-gray-900 mb-2"><i class="fas fa-sync-alt text-primary-500 mr-2"></i>기수 전환 (신기수 초기화)</h3><p class="text-sm text-gray-500 mb-4">새 기수를 시작할 때 사용합니다.</p><div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-4"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>삭제되는 항목</div><div class="text-sm text-danger-600">- 모든 교육생 명단<br>- 모든 비밀번호 / 호실 정보<br>- 모든 학과대표 설정<br>- 퇴사 신청 내역<br>- 냉난방 / 시설 민원<br>- 전달사항</div></div><div class="bg-success-50 border border-success-200 rounded-2xl p-4 mb-4"><div class="text-sm font-bold text-success-700 mb-2"><i class="fas fa-check-circle mr-1"></i>유지되는 항목</div><div class="text-sm text-success-600">- 과거 잔류(Stay)/외박(Out)/외출 제출 이력<br>- 학과 목록 (선택 가능)<br>- 공지사항 / 로그인 기록</div></div><p class="text-sm text-gray-600 mb-4 font-bold">학과 목록도 초기화할까요?</p><div class="flex gap-3 mb-3"><button onclick="window[\''+fn1+'\']()" class="flex-1 py-3.5 bg-danger-500 text-white rounded-2xl font-bold text-sm btn-press">학과도 초기화</button><button onclick="window[\''+fn2+'\']()" class="flex-1 py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-sm btn-press">학과는 유지</button></div><button onclick="window[\''+fn3+'\']()" class="w-full py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">취소</button></div>');}async function doResetNewTerm(clearDepts){openConfirmModal('최종 확인','정말 기수 전환을 실행하시겠습니까?<br><br>교육생/비밀번호/호실/학과대표가 모두 삭제됩니다.<br>'+(clearDepts?'학과 목록도 삭제됩니다.':'학과 목록은 유지됩니다.')+'<br><br><b>과거 제출 이력은 보존됩니다.</b>',async function(){showToast('기수 전환 진행 중...','warning');try{var cols=['students','departmentLeaders','roomNumbers','passwords','resignRequests','hvacRequests','facilityRequests','messages','accessRequests','photos'];for(var ci=0;ci<cols.length;ci++){var snap=await db.collection(cols[ci]).get();var batch=db.batch();var count=0;for(var di2=0;di2<snap.docs.length;di2++){batch.delete(snap.docs[di2].ref);count++;if(count>=400){await batch.commit();batch=db.batch();count=0;}}if(count>0)await batch.commit();}if(clearDepts){await db.collection('config').doc('departments').set({list:[],updatedAt:new Date().toISOString()});}else{var deptList=departments.slice();for(var i=0;i<deptList.length;i++){await db.collection('students').doc(deptList[i]).set({students:[],updatedAt:new Date().toISOString()});}}await db.collection('passwordChangeLogs').get().then(function(snap2){var b=db.batch();snap2.docs.forEach(function(d){b.delete(d.ref)});return b.commit()}).catch(function(){});showToast('기수 전환 완료! 새 기수를 시작하세요.','success');showSuccessAnimation('기수 전환 완료','새 교육생을 등록해주세요');render();}catch(e){showToast('기수 전환 실패: '+e.message,'error')}},'실행','취소');}
+async function resetNewTerm(){if(!isSuperAdmin){showToast('슈퍼 관리자만 가능','error');return;}var fn1='_rt1_'+Date.now(),fn2='_rt2_'+Date.now(),fn3='_rt3_'+Date.now();window[fn1]=function(){closeModal();delete window[fn1];delete window[fn2];delete window[fn3];doResetNewTerm(true);};window[fn2]=function(){closeModal();delete window[fn1];delete window[fn2];delete window[fn3];doResetNewTerm(false);};window[fn3]=function(){closeModal();delete window[fn1];delete window[fn2];delete window[fn3];};openModal('<div class="p-6 md:p-8"><h3 class="text-xl font-bold text-gray-900 mb-2"><i class="fas fa-sync-alt text-primary-500 mr-2"></i>기수 전환 (신기수 초기화)</h3><p class="text-sm text-gray-500 mb-4">새 기수를 시작할 때 사용합니다.</p><div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-4"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>삭제되는 항목</div><div class="text-sm text-danger-600">- 모든 교육생 명단<br>- 모든 비밀번호 / 호실 정보<br>- 모든 학과대표 설정<br>- 퇴사 신청 내역<br>- 냉난방 / 시설 민원<br>- 전달사항</div></div><div class="bg-success-50 border border-success-200 rounded-2xl p-4 mb-4"><div class="text-sm font-bold text-success-700 mb-2"><i class="fas fa-check-circle mr-1"></i>유지되는 항목</div><div class="text-sm text-success-600">- 과거 잔류(Stay)/외박(Out)/외출 제출 이력<br>- 학과 목록 (선택 가능)<br>- 공지사항 / 로그인 기록</div></div><p class="text-sm text-gray-600 mb-4 font-bold">학과 목록도 초기화할까요?</p><div class="flex gap-3 mb-3"><button onclick="window[\''+fn1+'\']()" class="flex-1 py-3.5 bg-danger-500 text-white rounded-2xl font-bold text-sm btn-press">학과도 초기화</button><button onclick="window[\''+fn2+'\']()" class="flex-1 py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-sm btn-press">학과는 유지</button></div><button onclick="window[\''+fn3+'\']()" class="w-full py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">취소</button></div>');}async function doResetNewTerm(clearDepts){openConfirmModal('최종 확인','정말 기수 전환을 실행하시겠습니까?<br><br>교육생/비밀번호/호실/학과대표가 모두 삭제됩니다.<br>'+(clearDepts?'학과 목록도 삭제됩니다.':'학과 목록은 유지됩니다.')+'<br><br><b>과거 제출 이력은 보존됩니다.</b>',async function(){showToast('기수 전환 진행 중...','warning');try{var cols=['students','departmentLeaders','roomNumbers','passwords','resignRequests','hvacRequests','facilityRequests','messages','accessRequests','photos','penaltyPoints','dormDocuments','accessRequests','photos'];for(var ci=0;ci<cols.length;ci++){var snap=await db.collection(cols[ci]).get();var batch=db.batch();var count=0;for(var di2=0;di2<snap.docs.length;di2++){batch.delete(snap.docs[di2].ref);count++;if(count>=400){await batch.commit();batch=db.batch();count=0;}}if(count>0)await batch.commit();}if(clearDepts){await db.collection('config').doc('departments').set({list:[],updatedAt:new Date().toISOString()});}else{var deptList=departments.slice();for(var i=0;i<deptList.length;i++){await db.collection('students').doc(deptList[i]).set({students:[],updatedAt:new Date().toISOString()});}}await db.collection('passwordChangeLogs').get().then(function(snap2){var b=db.batch();snap2.docs.forEach(function(d){b.delete(d.ref)});return b.commit()}).catch(function(){});showToast('기수 전환 완료! 새 기수를 시작하세요.','success');showSuccessAnimation('기수 전환 완료','새 교육생을 등록해주세요');render();}catch(e){showToast('기수 전환 실패: '+e.message,'error')}},'실행','취소');}
  
-async function resetAllData(){if(!isSuperAdmin){showToast('슈퍼 관리자만 가능','error');return;}openConfirmModal('최종 확인','정말 모든 데이터를 초기화하시겠습니까?<br><br><b style="color:#dc2626">모든 교육생, 학과, 제출이력, 비밀번호, 호실, 학과대표, 퇴사신청, 냉난방, 시설민원, 전달사항, 공지사항이 삭제됩니다.</b><br><br>이 작업은 되돌릴 수 없습니다.',async function(){showToast('전체 초기화 진행 중...','warning');var cols=['students','departmentLeaders','roomNumbers','passwords','resignRequests','hvacRequests','facilityRequests','messages','accessRequests','submissions','outings','outingHistory','passwordChangeLogs','loginLogs','photos'];var errors=0;for(var ci=0;ci<cols.length;ci++){try{var snap=await db.collection(cols[ci]).get();if(snap.empty)continue;var batch=db.batch();var count=0;for(var di2=0;di2<snap.docs.length;di2++){batch.delete(snap.docs[di2].ref);count++;if(count>=400){await batch.commit();batch=db.batch();count=0;}}if(count>0)await batch.commit();}catch(e){errors++;console.log(cols[ci]+' 삭제 중 오류:',e.message);}}try{await db.collection('config').doc('departments').set({list:[],updatedAt:new Date().toISOString()})}catch(e){}try{await db.collection('announcement').doc('current').set({text:'',updatedAt:new Date().toISOString()})}catch(e){}showToast('전체 초기화 완료!'+(errors>0?' (일부 항목 '+errors+'건 오류)':''),'success');showSuccessAnimation('전체 초기화 완료','모든 데이터가 삭제되었습니다');render();},'초기화','취소');}
+async function resetAllData(){if(!isSuperAdmin){showToast('슈퍼 관리자만 가능','error');return;}openConfirmModal('최종 확인','정말 모든 데이터를 초기화하시겠습니까?<br><br><b style="color:#dc2626">모든 교육생, 학과, 제출이력, 비밀번호, 호실, 학과대표, 퇴사신청, 냉난방, 시설민원, 전달사항, 공지사항이 삭제됩니다.</b><br><br>이 작업은 되돌릴 수 없습니다.',async function(){showToast('전체 초기화 진행 중...','warning');var cols=['students','departmentLeaders','roomNumbers','passwords','resignRequests','hvacRequests','facilityRequests','messages','accessRequests','submissions','outings','outingHistory','passwordChangeLogs','loginLogs','photos','accessRequests','submissions','outings','outingHistory','passwordChangeLogs','loginLogs','photos'];var errors=0;for(var ci=0;ci<cols.length;ci++){try{var snap=await db.collection(cols[ci]).get();if(snap.empty)continue;var batch=db.batch();var count=0;for(var di2=0;di2<snap.docs.length;di2++){batch.delete(snap.docs[di2].ref);count++;if(count>=400){await batch.commit();batch=db.batch();count=0;}}if(count>0)await batch.commit();}catch(e){errors++;console.log(cols[ci]+' 삭제 중 오류:',e.message);}}try{await db.collection('config').doc('departments').set({list:[],updatedAt:new Date().toISOString()})}catch(e){}try{await db.collection('announcement').doc('current').set({text:'',updatedAt:new Date().toISOString()})}catch(e){}showToast('전체 초기화 완료!'+(errors>0?' (일부 항목 '+errors+'건 오류)':''),'success');showSuccessAnimation('전체 초기화 완료','모든 데이터가 삭제되었습니다');render();},'초기화','취소');}
 function downloadStudentTemplate(){
     loadExcelJS().then(function(){
         var wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('학생명단');
@@ -2790,6 +2796,17 @@ if(accessNotice){
         html += '<div id="lotteryContent"><button onclick="loadLotteryStatus()" class="w-full py-4 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-2xl font-bold text-lg btn-press shadow-button"><span style="font-size:20px">🎫</span> 내 참여 자격 확인하기</button></div>';
         html += '</div>';
     }
+
+    // 벌점 조회
+    if(menuControlSettings.showPenaltySystem!==false){
+        html += renderStudentPenalty();
+    }
+
+    // 기숙사 문서 안내
+    if(menuControlSettings.showDormDocuments!==false){
+        html += renderStudentDocuments();
+    }
+    
     // 차량번호 등록
     if(menuControlSettings.showVehicleNumber!==false){
         var myVehicle=vehicleNumbers[currentStudent]||'';
@@ -3994,7 +4011,7 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
     '<div id="outSection">'+(outList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'out\')"><h2 class="text-xl font-bold text-warning-700"><i class="fas fa-moon"></i> 외박 ('+outList.length+'명)</h2><i class="fas '+(adminSectionOpen.out?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.out?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('out')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(outList,'out').map(function(s){return'<div class="bg-warning-50 border border-warning-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-warning-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-warning-600 opacity-70">'+escapeHtml(s.department)+(outSortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
     '<div id="outingSection" style="display:'+(menuControlSettings.showOutingRequest!==false?'block':'none')+'">'+(pureOut.length>0?'<div class="bg-white rounded-2xl shadow-card border border-info-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'outing\')"><h2 class="text-xl font-bold text-info-700"><i class="fas fa-walking"></i> 외출 ('+pureOut.length+'명)</h2><i class="fas '+(adminSectionOpen.outing?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.outing?renderSortToggle()+'<div class="space-y-2 mt-3">'+sortByMode(pureOut).map(function(o){return'<div class="bg-info-50 border border-info-100 rounded-xl px-4 py-2.5"><div class="flex items-center justify-between mb-1"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-info-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(o.name)+'\')">'+formatStudentName(o.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(o.department)+']</span></div><button onclick="deleteOuting(\''+safeAttr(o.id)+'\',\''+safeAttr(o.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0" style="font-size:10px"><i class="fas fa-times"></i></button></div><div class="text-xs text-gray-500">'+escapeHtml(o.outingTime)+'~'+escapeHtml(o.returnTime)+' | '+escapeHtml(o.reason)+(o.returnConfirmed?' <span class="text-success-600 font-bold">✓복귀 '+escapeHtml(o.returnConfirmedAt||'')+'</span>':'')+'</div></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div></div>'+'<div id="deptStatusSection" class="animate-fade-up stagger-3 mt-5"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4"><h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-th-list"></i> 학과별 총원 현황</h2>'+'<div class="flex gap-2 mb-3"><button onclick="toggleAllDeptCards(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllDeptCards(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+deptHtml+'<button onclick="scrollToTop()" class="w-full -mt-1 mb-4 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button></div></div>'+
     (pR.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){var _isOrphaned=!(students[r.department]||[]).includes(r.name)&&!(window._secureData.getStudentsByDept(r.department)||[]).includes(r.name);return'<div class="'+(_isOrphaned?'bg-red-50 border-red-300':'bg-warning-50 border-warning-200')+' rounded-2xl p-5 border"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span>'+(_isOrphaned?'<span class="ml-2 px-2 py-0.5 bg-danger-100 text-danger-600 text-xs font-bold rounded-full">이미 삭제된 교육생</span>':'')+'</div><div class="flex gap-2"><button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button>'+(_isOrphaned?'<button onclick="autoCleanResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press">자동정리</button>':'')+'</div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
-    '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="bg-white rounded-2xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-danger-700"><i class="fas fa-exclamation-triangle"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400 mr-6"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+(menuControlSettings.showLotteryEvent!==false?renderLotteryAdmin():'')+'</div>';
+    '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="bg-white rounded-2xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-danger-700"><i class="fas fa-exclamation-triangle"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400 mr-6"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+(menuControlSettings.showPenaltySystem!==false?renderPenaltyAdmin():'')+(menuControlSettings.showDormDocuments!==false?renderDocumentsAdmin():'')+(menuControlSettings.showLotteryEvent!==false?renderLotteryAdmin():'')+'</div>';
 }
 
 // ============ 관리자 설정 ============
@@ -4186,8 +4203,7 @@ function renderAdminSettings(){
 </script>
 <script>
 // ============ 통합 후처리 (기존 3중 래핑 → 단일 함수) ============
-var menuControlSettings={showOfficeMenu:false,showHvacTab:false,showLeaderMessage:false,showFacilityRequest:false,showAccessRequest:false,showLotteryEvent:false,showUnsubmittedAlert:false,showOutingRequest:false};
-async function loadMenuControl(){try{var doc=await db.collection('settings').doc('menuControl').get();if(doc.exists){menuControlSettings=Object.assign({showOfficeMenu:true,showHvacTab:true,showLeaderMessage:true,showFacilityRequest:true,showAccessRequest:true,showLotteryEvent:true,showUnsubmittedAlert:true,showOutingRequest:true,showVehicleNumber:true},doc.data())}applyMenuControl()}catch(e){}}
+var menuControlSettings={showOfficeMenu:false,showHvacTab:false,showLeaderMessage:false,showFacilityRequest:false,showAccessRequest:false,showLotteryEvent:false,showUnsubmittedAlert:false,showOutingRequest:false,showVehicleNumber:false,showPenaltySystem:false,showDormDocuments:false};
 
 function applyMenuControl(){
     var officeBtn=document.querySelector('button[onclick="showOfficeLogin()"]');if(officeBtn)officeBtn.style.display=menuControlSettings.showOfficeMenu?'':'none';
@@ -4201,6 +4217,8 @@ function applyMenuControl(){
     var t7=document.getElementById('toggleAccessRequest');if(t7)t7.checked=menuControlSettings.showAccessRequest!==false;
     var t8=document.getElementById('toggleLotteryEvent');if(t8)t8.checked=menuControlSettings.showLotteryEvent!==false;
     var t9=document.getElementById('toggleVehicleNumber');if(t9)t9.checked=menuControlSettings.showVehicleNumber!==false;
+    var t10=document.getElementById('togglePenaltySystem');if(t10)t10.checked=menuControlSettings.showPenaltySystem!==false;
+    var t11=document.getElementById('toggleDormDocuments');if(t11)t11.checked=menuControlSettings.showDormDocuments!==false;
 }
 
 async function saveMenuControl(){
@@ -4213,7 +4231,9 @@ async function saveMenuControl(){
     var t7=document.getElementById('toggleAccessRequest');menuControlSettings.showAccessRequest=t7?t7.checked:true;
     var t8=document.getElementById('toggleLotteryEvent');menuControlSettings.showLotteryEvent=t8?t8.checked:true;
     var t9=document.getElementById('toggleVehicleNumber');menuControlSettings.showVehicleNumber=t9?t9.checked:true;
-    try{await db.collection('settings').doc('menuControl').set({showOfficeMenu:t1.checked,showHvacTab:t2.checked,showLeaderMessage:t3?t3.checked:true,showFacilityRequest:t4?t4.checked:true,showUnsubmittedAlert:t5?t5.checked:true,showOutingRequest:t6?t6.checked:true,showAccessRequest:t7?t7.checked:true,showLotteryEvent:t8?t8.checked:true,showVehicleNumber:t9?t9.checked:true,updatedAt:new Date().toISOString()},{merge:true});showToast('메뉴 설정 저장 완료','success');applyMenuControl()}catch(e){showToast('저장 실패','error')}
+    var t10=document.getElementById('togglePenaltySystem');menuControlSettings.showPenaltySystem=t10?t10.checked:true;
+    var t11=document.getElementById('toggleDormDocuments');menuControlSettings.showDormDocuments=t11?t11.checked:true;
+    try{await db.collection('settings').doc('menuControl').set({showOfficeMenu:t1.checked,showHvacTab:t2.checked,showLeaderMessage:t3?t3.checked:true,showFacilityRequest:t4?t4.checked:true,showUnsubmittedAlert:t5?t5.checked:true,showOutingRequest:t6?t6.checked:true,showAccessRequest:t7?t7.checked:true,showLotteryEvent:t8?t8.checked:true,showVehicleNumber:t9?t9.checked:true,showPenaltySystem:t10?t10.checked:true,showDormDocuments:t11?t11.checked:true,updatedAt:new Date().toISOString()},{merge:true});showToast('메뉴 설정 저장 완료','success');applyMenuControl()}catch(e){showToast('저장 실패','error')}
 }
 
 // ===== 섹션 병합 헬퍼 =====
@@ -4263,6 +4283,8 @@ function _buildMenuControlHTML(){
     +_menuToggleRow('fa-door-open text-teal-500','기숙사 출입신청','toggleAccessRequest')
     +_menuToggleRow('fa-ticket-alt text-yellow-500','출석 이벤트 (복권)','toggleLotteryEvent')
     +_menuToggleRow('fa-car text-blue-500','차량번호 등록','toggleVehicleNumber')
+    +_menuToggleRow('fa-gavel text-red-500','벌점 관리 시스템','togglePenaltySystem')
+    +_menuToggleRow('fa-folder-open text-blue-400','기숙사 문서 안내','toggleDormDocuments')
     +'</div>'
     +'</div>'
     +'<div class="mt-5 pt-5 border-t-2 border-primary-100"><h3 class="font-bold text-primary-700 text-base mb-3"><i class="fas fa-lock mr-1"></i> 인원보고 제어</h3><div class="space-y-2">'
@@ -5135,6 +5157,438 @@ async function submitOuting(dept,name,t1,t2,reason){
         try{await db.collection('outings').doc(docId).delete()}catch(de){}
     }finally{window._submitLock=false}
 }
+// ============ 벌점 관리 시스템 ============
+function showPenaltyModal(){
+    var deptOpts=departments.map(function(d){return'<option value="'+safeAttr(d)+'">'+escapeHtml(d)+'</option>'}).join('');
+    var penaltyOptions='<option value="">선택하세요</option>'+
+        '<optgroup label="즉시 강제퇴사 (10점)">' +
+        '<option value="시설물 고의 파손" data-pts="10">시설물 고의 파손 (10점)</option>'+
+        '<option value="강·절도 및 갈취" data-pts="10">강·절도 및 갈취 (10점)</option>'+
+        '<option value="취사행위" data-pts="10">취사행위 - 조리기구 사용 (10점)</option>'+
+        '<option value="이성 숙소 무단출입" data-pts="10">이성 숙소 무단출입 (10점)</option>'+
+        '<option value="음주" data-pts="10">사내 음주 및 주류 반입 (과도한 음주 후 귀사) (10점)</option>'+
+        '<option value="흡연" data-pts="10">흡연 - 금연구역 포함 (10점)</option>'+
+        '<option value="폭력" data-pts="10">폭력 행사 (10점)</option>'+
+        '<option value="도박" data-pts="10">도박 및 사행성 행위 (10점)</option>'+
+        '</optgroup>'+
+        '<optgroup label="벌점 누적 + 학내봉사 5일 (5점)">' +
+        '<option value="호실 구조물 변경" data-pts="5">호실 구조물 임의 변경 (5점)</option>'+
+        '<option value="전열기구 사용" data-pts="5">전열기구 무단 사용 (5점)</option>'+
+        '<option value="외부인 무단 입실" data-pts="5">외부인 무단 입실 (5점)</option>'+
+        '<option value="통제시간 무단출입" data-pts="5">통제시간(23~06시) 무단출입 또는 관여 (5점)</option>'+
+        '<option value="부정 기숙사 출입" data-pts="5">수업 중 부정 기숙사 출입 (5점)</option>'+
+        '<option value="수업기피 잔류" data-pts="5">수업 기피 목적 잔류 (5점)</option>'+
+        '</optgroup>'+
+        '<optgroup label="벌점 누적 + 학내봉사 3일 (3점)">' +
+        '<option value="도서실 면학방해" data-pts="3">도서실 소란/취식 (3점)</option>'+
+        '<option value="소란행위" data-pts="3">소란행위 - 공놀이/고성방가 (3점)</option>'+
+        '<option value="호실 내 배달음식" data-pts="3">호실 내 배달 음식 반입 (3점)</option>'+
+        '<option value="무단외박" data-pts="3">보고없이 무단외박 (3점)</option>'+
+        '<option value="정당지시 거부" data-pts="3">정당한 지시 거부 (3점)</option>'+
+        '</optgroup>'+
+        '<optgroup label="경고 + 벌점 (2점)">' +
+        '<option value="퇴실시간 지각" data-pts="2">퇴실시간(08:40) 지각 (2점)</option>'+
+        '<option value="귀교시간 지각" data-pts="2">귀교시간(22:00) 지각 (2점)</option>'+
+        '<option value="점검 불참/지각" data-pts="2">점검 불참 및 상습 지각 (2점)</option>'+
+        '<option value="침/가래 투기" data-pts="2">침/가래 투기 (2점)</option>'+
+        '<option value="청소 정리정돈 불량" data-pts="2">청소 및 정리정돈 불량 (2점)</option>'+
+        '<option value="벽면 훼손" data-pts="2">벽/가구에 사진/못 부착 (2점)</option>'+
+        '</optgroup>'+
+        '<optgroup label="기타">' +
+        '<option value="인원보고 미제출" data-pts="1">인원보고 미제출 (1점)</option>'+
+        '<option value="기타" data-pts="0">기타 (직접 입력)</option>'+
+        '</optgroup>';
+
+    openModal('<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4"><i class="fas fa-gavel text-danger-500 mr-2"></i>벌점 부여</h3>'+
+        '<div class="space-y-3">'+
+        '<select id="penaltyDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-medium" style="font-size:16px" onchange="updatePenaltyStudentList()"><option value="">학과 선택</option>'+deptOpts+'</select>'+
+        '<select id="penaltyStudent" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-medium" style="font-size:16px"><option value="">교육생 선택</option></select>'+
+        '<div><label class="block text-sm font-semibold text-gray-700 mb-1">벌점 유형</label>'+
+        '<select id="penaltyType" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-medium" style="font-size:16px" onchange="updatePenaltyPts()">'+penaltyOptions+'</select></div>'+
+        '<div class="flex gap-2"><div class="flex-1"><label class="block text-sm font-semibold text-gray-700 mb-1">점수</label>'+
+        '<input type="number" id="penaltyScore" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base text-center font-bold" value="0" min="0" max="50" style="font-size:16px"></div>'+
+        '<div class="flex-1"><label class="block text-sm font-semibold text-gray-700 mb-1">날짜</label>'+
+        '<input type="date" id="penaltyDate" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base" value="'+getCurrentDate()+'" style="font-size:16px"></div></div>'+
+        '<div><label class="block text-sm font-semibold text-gray-700 mb-1">사유 (상세)</label>'+
+        '<textarea id="penaltyReason" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base resize-none" rows="2" placeholder="벌점 사유를 입력하세요..." style="font-size:16px"></textarea></div>'+
+        '<div id="penaltyActionInfo"></div>'+
+        '</div>'+
+        '<div class="flex gap-3 mt-5">'+
+        '<button onclick="closeModal()" class="flex-1 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button>'+
+        '<button onclick="submitPenalty()" class="flex-1 py-3.5 bg-danger-500 text-white rounded-2xl font-bold text-sm btn-press shadow-button"><i class="fas fa-gavel mr-1"></i>부여</button>'+
+        '</div></div>');
+}
+function updatePenaltyStudentList(){var dept=document.getElementById('penaltyDept').value;var sel=document.getElementById('penaltyStudent');sel.innerHTML='<option value="">교육생 선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
+function updatePenaltyPts(){var sel=document.getElementById('penaltyType');var scoreInput=document.getElementById('penaltyScore');var infoEl=document.getElementById('penaltyActionInfo');var opt=sel.options[sel.selectedIndex];if(!opt||!opt.dataset.pts){scoreInput.value=0;if(infoEl)infoEl.innerHTML='';return}var pts=parseInt(opt.dataset.pts);if(pts>0){scoreInput.value=pts;scoreInput.readOnly=true;scoreInput.style.opacity='0.6'}else{scoreInput.value='';scoreInput.readOnly=false;scoreInput.style.opacity='1';scoreInput.focus()}var actionHtml='';if(pts>=10){actionHtml='<div class="p-3 bg-danger-50 border border-danger-200 rounded-xl mt-2"><div class="text-sm font-bold text-danger-700"><i class="fas fa-exclamation-triangle mr-1"></i>조치: 즉시 강제퇴사</div><div class="text-xs text-danger-600 mt-1">해당 행위는 예외 없이 즉시 퇴사 조치됩니다.</div></div>'}else if(pts>=5){actionHtml='<div class="p-3 bg-warning-50 border border-warning-200 rounded-xl mt-2"><div class="text-sm font-bold text-warning-700"><i class="fas fa-exclamation-circle mr-1"></i>조치: 벌점 누적 + 학내봉사 5일</div></div>'}else if(pts>=3){actionHtml='<div class="p-3 bg-warning-50 border border-warning-200 rounded-xl mt-2"><div class="text-sm font-bold text-warning-700"><i class="fas fa-exclamation-circle mr-1"></i>조치: 벌점 누적 + 학내봉사 3일</div></div>'}else if(pts>=2){actionHtml='<div class="p-3 bg-info-50 border border-info-200 rounded-xl mt-2"><div class="text-sm font-bold text-info-700"><i class="fas fa-info-circle mr-1"></i>조치: 경고 + 벌점 누적</div></div>'}if(infoEl)infoEl.innerHTML=actionHtml}
+async function submitPenalty(){var dept=document.getElementById('penaltyDept').value;var name=document.getElementById('penaltyStudent').value;var typeEl=document.getElementById('penaltyType');var type=typeEl.value;var score=parseInt(document.getElementById('penaltyScore').value);var date=document.getElementById('penaltyDate').value;var reason=document.getElementById('penaltyReason').value.trim();if(!dept||!name){showToast('학과와 교육생을 선택하세요','warning');return}if(!type){showToast('벌점 유형을 선택하세요','warning');return}if(!score||score<=0){showToast('벌점 점수를 입력하세요','warning');return}if(!date){showToast('날짜를 선택하세요','warning');return}var actionText='';if(score>=10)actionText='즉시 강제퇴사';else if(score>=5)actionText='벌점 누적 + 학내봉사 5일';else if(score>=3)actionText='벌점 누적 + 학내봉사 3일';else if(score>=2)actionText='경고 + 벌점 누적';else actionText='벌점 누적';try{await db.collection('penaltyPoints').add({department:dept,name:name,type:type,score:score,date:date,reason:reason||type,action:actionText,room:window._secureData.getRoomNumber(name)||'',givenBy:isSuperAdmin?'슈퍼관리자':'관리자',createdAt:new Date().toISOString(),status:'active'});closeModal();showToast(name+'에게 벌점 '+score+'점 부여 완료','success');showSuccessAnimation('벌점 부여 완료',name+' · '+type+' '+score+'점')}catch(e){showToast('벌점 부여 실패: '+e.message,'error')}}
+async function deletePenalty(penaltyId){openConfirmModal('벌점 삭제','이 벌점 내역을 삭제하시겠습니까?',async function(){try{await db.collection('penaltyPoints').doc(penaltyId).delete();showToast('벌점 삭제 완료','success')}catch(e){showToast('삭제 실패','error')}},'삭제')}
+async function cancelPenalty(penaltyId){openConfirmModal('벌점 취소','이 벌점을 취소 처리하시겠습니까?<br>(이력은 남지만 점수에서 제외됩니다)',async function(){try{await db.collection('penaltyPoints').doc(penaltyId).update({status:'cancelled',cancelledAt:new Date().toISOString(),cancelledBy:isSuperAdmin?'슈퍼관리자':'관리자'});showToast('벌점 취소 완료','success')}catch(e){showToast('취소 실패','error')}},'벌점 취소','돌아가기')}
+function getStudentPenaltyTotal(name){return penaltyPoints.filter(function(p){return p.name===name&&p.status==='active'}).reduce(function(sum,p){return sum+(p.score||0)},0)}
+function getStudentPenalties(name){return penaltyPoints.filter(function(p){return p.name===name}).sort(function(a,b){return(b.createdAt||'').localeCompare(a.createdAt||'')})}
+
+function renderPenaltyAdmin(){
+    if(!window._penaltyAdminDept)window._penaltyAdminDept='';
+    if(!window._penaltyViewMode)window._penaltyViewMode='recent';
+    var deptOpts='<option value="">전체 학과</option>'+departments.map(function(d){return'<option value="'+safeAttr(d)+'" '+(window._penaltyAdminDept===d?'selected':'')+'>'+escapeHtml(d)+'</option>'}).join('');
+    var activePoints=penaltyPoints.filter(function(p){return p.status==='active'});
+    var filtered=activePoints;
+    if(window._penaltyAdminDept)filtered=filtered.filter(function(p){return p.department===window._penaltyAdminDept});
+    var totalScore=activePoints.reduce(function(s,p){return s+(p.score||0)},0);
+
+    var h='<div class="bg-white rounded-2xl shadow-card border-2 border-danger-200 p-6 mb-5 animate-fade-up">';
+    h+='<div class="flex items-center gap-3 mb-5"><div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-danger-400 to-danger-600 flex items-center justify-center"><i class="fas fa-gavel text-white text-2xl"></i></div>';
+    h+='<div><h2 class="text-xl font-bold text-gray-800">벌점 관리</h2>';
+    h+='<div class="text-sm text-gray-500">총 '+activePoints.length+'건 · '+totalScore+'점</div></div></div>';
+
+    h+='<button onclick="showPenaltyModal()" class="w-full py-3.5 bg-danger-500 text-white rounded-2xl font-bold text-base btn-press shadow-button mb-5"><i class="fas fa-plus mr-2"></i>벌점 부여</button>';
+
+    h+='<div class="flex gap-2 mb-4">';
+    h+='<button onclick="window._penaltyViewMode=\'recent\';render()" class="flex-1 py-2.5 rounded-xl text-sm font-bold btn-press '+(window._penaltyViewMode==='recent'?'bg-danger-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-clock mr-1"></i>최근 내역</button>';
+    h+='<button onclick="window._penaltyViewMode=\'ranking\';render()" class="flex-1 py-2.5 rounded-xl text-sm font-bold btn-press '+(window._penaltyViewMode==='ranking'?'bg-danger-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-sort-amount-down mr-1"></i>순위</button>';
+    h+='<button onclick="window._penaltyViewMode=\'dept\';render()" class="flex-1 py-2.5 rounded-xl text-sm font-bold btn-press '+(window._penaltyViewMode==='dept'?'bg-danger-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-building mr-1"></i>학과별</button>';
+    h+='<button onclick="window._penaltyViewMode=\'table\';render()" class="flex-1 py-2.5 rounded-xl text-sm font-bold btn-press '+(window._penaltyViewMode==='table'?'bg-danger-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-table mr-1"></i>기준표</button>';
+    h+='</div>';
+
+    h+='<div class="flex items-center gap-2 mb-4">';
+    h+='<select onchange="window._penaltyAdminDept=this.value;render()" class="flex-1 px-3 py-2.5 bg-surface-50 border-2 border-surface-200 rounded-xl text-sm font-medium" style="font-size:14px">'+deptOpts+'</select>';
+    h+='</div>';
+
+    if(window._penaltyViewMode==='table'){
+        h+='<div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-list-alt mr-1"></i>기숙사 벌점 기준표</div>';
+h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl mb-3"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>벌점은 누적 합산되며, 3점 초과 시 학내봉사를 통해 차감할 수 있습니다.</div><div class="text-xs font-bold text-danger-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>단, 즉시 강제퇴사(10점) 행위는 차감 대상에서 제외됩니다.</div></div>';
+        h+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4 mb-3"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>즉시 강제퇴사 (10점)</div>';
+        h+='<div class="space-y-1 text-sm text-danger-600">';
+        ['시설물 고의 파손','강·절도 및 갈취','취사행위 (조리기구 사용)','이성 숙소 무단출입','사내 음주 및 주류 반입 (과도한 음주 후 귀사)','흡연 (금연구역 포함)','폭력 행사','도박 및 사행성 행위'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-danger-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        h+='</div></div>';
+        h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-3"><div class="text-sm font-bold text-warning-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 5일 (5점)</div>';
+        h+='<div class="space-y-1 text-sm text-warning-600">';
+        ['호실 구조물 임의 변경','전열기구 무단 사용','외부인 무단 입실','통제시간(23~06시) 무단출입 또는 관여','수업 중 부정 기숙사 출입','수업 기피 목적 잔류'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-warning-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        h+='</div></div>';
+        h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4 mb-3"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 3일 (3점)</div>';
+        h+='<div class="space-y-1 text-sm text-info-600">';
+        ['도서실 소란/취식','소란행위 (공놀이/고성방가)','호실 내 배달 음식 반입','보고없이 무단외박','정당한 지시 거부'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-info-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        h+='</div></div>';
+        h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-info-circle mr-1"></i>경고 + 벌점 (2점)</div>';
+        h+='<div class="space-y-1 text-sm text-gray-600">';
+        ['퇴실시간(08:40) 지각','귀교시간(22:00) 지각','점검 불참 및 상습 지각','침/가래 투기','청소 및 정리정돈 불량','벽/가구에 사진/못 부착'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-gray-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+        h+='</div></div>';
+h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4 mt-3"><div class="text-sm font-bold text-gray-600 mb-2"><i class="fas fa-info-circle mr-1"></i>기타 (1점)</div>';
+h+='<div class="space-y-1 text-sm text-gray-600">';
+['인원보고 미제출'].forEach(function(t){h+='<div class="flex items-center gap-2 py-1"><i class="fas fa-circle text-gray-400" style="font-size:5px"></i>'+escapeHtml(t)+'</div>'});
+h+='</div></div></div>';
+
+    }else if(window._penaltyViewMode==='recent'){
+        var recentList=filtered.slice(0,30);
+        if(recentList.length>0){
+            h+='<div class="space-y-2">';
+            recentList.forEach(function(p){
+                h+='<div class="flex items-center justify-between p-4 bg-danger-50 rounded-2xl border border-danger-200">';
+                h+='<div class="flex-1 min-w-0">';
+                h+='<div class="flex items-center gap-2 mb-1 flex-wrap">';
+                h+='<span class="font-bold text-gray-800">'+(p.room?escapeHtml(p.room)+'호 ':'')+escapeHtml(p.name)+'</span>';
+                h+='<span class="px-2 py-0.5 bg-danger-100 text-danger-700 text-xs font-bold rounded-full">'+escapeHtml(p.type)+'</span>';
+                h+='<span class="text-lg font-black text-danger-600">'+p.score+'점</span>';
+                h+='</div>';
+                h+='<div class="text-xs text-gray-500">['+escapeHtml(p.department)+'] '+escapeHtml(p.date);
+                if(p.action)h+=' · <span class="font-bold text-danger-600">'+escapeHtml(p.action)+'</span>';
+                h+='</div>';
+                if(p.reason&&p.reason!==p.type)h+='<div class="text-xs text-gray-400 mt-0.5">'+escapeHtml(p.reason)+'</div>';
+                h+='</div>';
+                h+='<div class="flex gap-1 flex-shrink-0 ml-2">';
+                h+='<button onclick="cancelPenalty(\''+safeAttr(p.id)+'\')" class="px-3 py-2 bg-warning-50 text-warning-600 rounded-lg text-xs font-bold btn-press border border-warning-200" title="취소"><i class="fas fa-undo"></i></button>';
+                h+='<button onclick="deletePenalty(\''+safeAttr(p.id)+'\')" class="px-3 py-2 bg-danger-50 text-danger-600 rounded-lg text-xs font-bold btn-press border border-danger-200" title="삭제"><i class="fas fa-trash"></i></button>';
+                h+='</div></div>';
+            });
+            h+='</div>';
+        }else{h+='<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-4xl mb-3"></i><div class="text-base">벌점 내역이 없습니다</div></div>'}
+        var cancelledList=penaltyPoints.filter(function(p){return p.status==='cancelled'}).slice(0,10);
+        if(cancelledList.length>0){h+='<div class="mt-5"><div class="text-sm font-bold text-gray-400 mb-3"><i class="fas fa-ban mr-1"></i>취소된 벌점</div><div class="space-y-1">';cancelledList.forEach(function(p){h+='<div class="flex items-center justify-between p-3 bg-surface-50 rounded-xl border border-surface-200 opacity-60"><div><span class="text-sm text-gray-500 line-through">'+escapeHtml(p.name)+' · '+escapeHtml(p.type)+' '+p.score+'점</span></div><span class="text-xs text-gray-400">취소됨</span></div>'});h+='</div></div>'}
+
+    }else if(window._penaltyViewMode==='ranking'){
+        var ranking={};activePoints.forEach(function(p){if(window._penaltyAdminDept&&p.department!==window._penaltyAdminDept)return;var key=p.department+'_'+p.name;if(!ranking[key])ranking[key]={name:p.name,dept:p.department,room:p.room,total:0,count:0};ranking[key].total+=(p.score||0);ranking[key].count++});
+        var rankList=Object.values(ranking).sort(function(a,b){return b.total-a.total});
+        if(rankList.length>0){h+='<div class="space-y-2">';rankList.forEach(function(r,idx){var lc=r.total>=20?'danger':r.total>=10?'warning':r.total>=5?'warning':'gray';h+='<div class="flex items-center gap-3 p-4 bg-'+lc+'-50 rounded-2xl border border-'+lc+'-200"><div class="w-8 h-8 rounded-full bg-'+lc+'-100 flex items-center justify-center flex-shrink-0"><span class="font-black text-'+lc+'-600">'+(idx+1)+'</span></div><div class="flex-1 min-w-0"><div class="font-bold text-gray-800">'+(r.room?escapeHtml(r.room)+'호 ':'')+escapeHtml(r.name)+'</div><div class="text-xs text-gray-500">['+escapeHtml(r.dept)+'] · '+r.count+'건</div></div><div class="text-right flex-shrink-0"><div class="text-2xl font-black text-'+lc+'-600">'+r.total+'</div><div class="text-xs text-'+lc+'-600 font-bold">점</div></div></div>'});h+='</div>'}
+        else{h+='<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-4xl mb-3"></i><div class="text-base">벌점 내역이 없습니다</div></div>'}
+
+    }else if(window._penaltyViewMode==='dept'){
+        var deptStats={};activePoints.forEach(function(p){if(!deptStats[p.department])deptStats[p.department]={total:0,count:0,students:{}};deptStats[p.department].total+=(p.score||0);deptStats[p.department].count++;if(!deptStats[p.department].students[p.name])deptStats[p.department].students[p.name]=0;deptStats[p.department].students[p.name]+=(p.score||0)});
+        var deptList=Object.keys(deptStats).sort(function(a,b){return deptStats[b].total-deptStats[a].total});
+        if(deptList.length>0){h+='<div class="space-y-3">';deptList.forEach(function(dept){var ds=deptStats[dept];var sc2=Object.keys(ds.students).length;h+='<div class="p-4 bg-surface-50 rounded-2xl border border-surface-200"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-gray-800">'+escapeHtml(dept)+'</span><span class="text-sm text-gray-500 ml-2">'+sc2+'명 · '+ds.count+'건</span></div><span class="text-xl font-black text-danger-600">'+ds.total+'점</span></div><div class="flex flex-wrap gap-1.5">';var topStudents=Object.entries(ds.students).sort(function(a,b){return b[1]-a[1]}).slice(0,5);topStudents.forEach(function(s){h+='<span class="px-2.5 py-1 bg-danger-50 text-danger-700 text-xs font-bold rounded-full border border-danger-200">'+escapeHtml(s[0])+' '+s[1]+'점</span>'});h+='</div></div>'});h+='</div>'}
+        else{h+='<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-4xl mb-3"></i><div class="text-base">벌점 내역이 없습니다</div></div>'}
+    }
+
+    h+='<button onclick="downloadPenaltyExcel()" class="w-full mt-5 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press border border-surface-200"><i class="fas fa-download mr-2"></i>벌점 내역 엑셀 다운로드</button>';
+    h+='</div>';
+    return h;
+}
+
+async function downloadPenaltyExcel(){try{await loadExcelJS();var wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('벌점내역');ws.columns=[{header:'날짜',key:'date',width:12},{header:'학과',key:'dept',width:25},{header:'호실',key:'room',width:8},{header:'이름',key:'name',width:12},{header:'유형',key:'type',width:20},{header:'점수',key:'score',width:8},{header:'조치',key:'action',width:20},{header:'사유',key:'reason',width:30},{header:'상태',key:'status',width:10},{header:'부여자',key:'givenBy',width:12}];ws.getRow(1).font={bold:true};penaltyPoints.forEach(function(p){ws.addRow({date:p.date||'',dept:p.department||'',room:p.room||'',name:p.name||'',type:p.type||'',score:p.score||0,action:p.action||'',reason:p.reason||'',status:p.status==='active'?'유효':'취소',givenBy:p.givenBy||''})});var buf=await wb.xlsx.writeBuffer();var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='벌점내역_'+getCurrentDate()+'.xlsx';a.click();showToast('다운로드 완료','success')}catch(e){showToast('다운로드 실패: '+e.message,'error')}}
+
+// --- 교육생 벌점 뷰 ---
+function renderStudentPenalty(){
+    var name=currentStudent;if(!name)return'';
+    var myPenalties=getStudentPenalties(name);
+    var activePenalties=myPenalties.filter(function(p){return p.status==='active'});
+    var totalScore=activePenalties.reduce(function(s,p){return s+(p.score||0)},0);
+    var lc=totalScore>=10?'danger':totalScore>=5?'warning':totalScore>=1?'info':'success';
+var lt=totalScore>=10?'강제퇴사 대상':totalScore>=5?'주의':totalScore>=1?'양호':'우수';
+var li=totalScore>=10?'fa-exclamation-triangle':totalScore>=5?'fa-exclamation-circle':totalScore>=1?'fa-info-circle':'fa-check-circle';
+
+    var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up stagger-4">';
+    h+='<h3 class="font-bold text-gray-800 text-lg mb-4"><i class="fas fa-gavel text-danger-500 mr-1"></i> 내 벌점</h3>';
+    h+='<div class="bg-'+lc+'-50 border border-'+lc+'-200 rounded-2xl p-5 text-center mb-4">';
+    h+='<i class="fas '+li+' text-'+lc+'-500 text-3xl mb-2"></i>';
+    h+='<div class="text-3xl font-black text-'+lc+'-700">'+totalScore+'<span class="text-lg font-bold">점</span></div>';
+    h+='<div class="text-sm font-bold text-'+lc+'-600 mt-1">'+lt+'</div>';
+    if(totalScore>=5&&totalScore<10){h+='<div class="text-xs text-warning-600 mt-2 p-2 bg-warning-100 rounded-lg"><i class="fas fa-exclamation-circle mr-1"></i>벌점이 누적되고 있습니다. 기숙사 규정을 준수해주세요.</div>'}
+if(totalScore>=10){h+='<div class="text-xs text-danger-600 mt-2 p-2 bg-danger-100 rounded-lg"><i class="fas fa-exclamation-triangle mr-1"></i>벌점 누적으로 강제퇴사 대상입니다. 사감실로 방문하세요.</div>'}
+    h+='</div>';
+
+    if(activePenalties.length>0){
+        h+='<div class="text-sm font-bold text-gray-600 mb-3">벌점 내역 ('+activePenalties.length+'건)</div>';
+        h+='<div class="space-y-2">';
+        activePenalties.forEach(function(p){
+            var pc=p.score>=10?'danger':p.score>=5?'warning':p.score>=3?'warning':'gray';
+            h+='<div class="flex items-center justify-between p-3 bg-'+pc+'-50 rounded-xl border border-'+pc+'-200">';
+            h+='<div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap">';
+            h+='<span class="px-2 py-0.5 bg-'+pc+'-100 text-'+pc+'-700 text-xs font-bold rounded-full">'+escapeHtml(p.type)+'</span>';
+            h+='<span class="text-base font-black text-'+pc+'-600">'+p.score+'점</span>';
+            h+='</div>';
+            h+='<div class="text-xs text-gray-500 mt-1">'+escapeHtml(p.date);
+            if(p.action)h+=' · '+escapeHtml(p.action);
+            h+='</div>';
+            if(p.reason&&p.reason!==p.type)h+='<div class="text-xs text-gray-400 mt-0.5">'+escapeHtml(p.reason)+'</div>';
+            h+='</div></div>';
+        });
+        h+='</div>';
+    }else{
+        h+='<div class="text-center py-6 text-gray-400"><i class="fas fa-smile-beam text-3xl mb-2"></i><div class="text-sm">벌점이 없습니다. 모범적인 기숙사 생활을 유지해주세요!</div></div>';
+    }
+
+    // 벌점 기준표 보기 버튼
+    h+='<button onclick="showPenaltyTableModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press border border-surface-200"><i class="fas fa-list-alt mr-2"></i>벌점 기준표 보기</button>';
+    h+='</div>';
+    return h;
+}
+
+function showPenaltyTableModal(){
+    var h='<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4"><i class="fas fa-list-alt text-danger-500 mr-2"></i>기숙사 벌점 기준표</h3>';
+    h+='<div class="space-y-3 max-h-[70vh] overflow-y-auto">';
+h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>벌점은 누적 합산되며, 3점 초과 시 학내봉사를 통해 차감할 수 있습니다.</div><div class="text-xs font-bold text-danger-600 mt-1"><i class="fas fa-exclamation-triangle mr-1"></i>단, 즉시 강제퇴사(10점) 행위는 차감 대상에서 제외됩니다.</div></div>';
+    h+='<div class="bg-danger-50 border border-danger-200 rounded-2xl p-4"><div class="text-sm font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>즉시 강제퇴사 (10점)</div><div class="space-y-1.5 text-sm text-danger-600">';
+    ['시설물 고의 파손','강·절도 및 갈취','취사행위 (조리기구 사용)','이성 숙소 무단출입','사내 음주 및 주류 반입 (과도한 음주 후 귀사)','흡연 (금연구역 포함)','폭력 행사','도박 및 사행성 행위'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-times-circle text-danger-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    h+='</div></div>';
+    h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4"><div class="text-sm font-bold text-warning-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 5일 (5점)</div><div class="space-y-1.5 text-sm text-warning-600">';
+    ['호실 구조물 임의 변경','전열기구 무단 사용','외부인 무단 입실','통제시간(23~06시) 무단출입 또는 관여','수업 중 부정 기숙사 출입','수업 기피 목적 잔류'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-exclamation-circle text-warning-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    h+='</div></div>';
+    h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>벌점 + 학내봉사 3일 (3점)</div><div class="space-y-1.5 text-sm text-info-600">';
+    ['도서실 소란/취식','소란행위 (공놀이/고성방가)','호실 내 배달 음식 반입','보고없이 무단외박','정당한 지시 거부'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-info-circle text-info-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    h+='</div></div>';
+    h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-info-circle mr-1"></i>경고 + 벌점 (2점)</div><div class="space-y-1.5 text-sm text-gray-600">';
+    ['퇴실시간(08:40) 지각','귀교시간(22:00) 지각','점검 불참 및 상습 지각','침/가래 투기','청소 및 정리정돈 불량','벽/가구에 사진/못 부착'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-minus-circle text-gray-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+    h+='</div></div>';
+h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-600 mb-2"><i class="fas fa-info-circle mr-1"></i>기타 (1점)</div><div class="space-y-1.5 text-sm text-gray-600">';
+['인원보고 미제출'].forEach(function(t){h+='<div class="flex items-center gap-2"><i class="fas fa-minus-circle text-gray-400" style="font-size:10px"></i><span>'+t+'</span></div>'});
+h+='</div></div>';
+h+='</div>';
+h+='<button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">닫기</button></div>';
+    openModal(h);
+}
+
+// ============ 기숙사 문서 안내 시스템 ============
+function showAddDocumentModal(){
+    openInputModal('문서 등록',[
+        {label:'문서 제목',type:'text',placeholder:'예: 기숙사 생활 안내문'},
+        {label:'문서 설명 (선택)',type:'text',placeholder:'예: 2025학년도 기숙사 규정'},
+        {label:'구글 드라이브 링크',type:'text',placeholder:'https://drive.google.com/...'},
+        {label:'문서 유형',type:'select',options:[
+            {value:'rule',label:'규정/안내문'},
+            {value:'form',label:'서식/양식'},
+            {value:'penalty',label:'벌점표'},
+            {value:'etc',label:'기타'}
+        ]}
+    ],async function(){
+        var title=document.getElementById('modalInput0').value.trim();
+        var desc=document.getElementById('modalInput1').value.trim();
+        var link=document.getElementById('modalInput2').value.trim();
+        var type=document.getElementById('modalInput3').value;
+        if(!title){showToast('문서 제목을 입력하세요','warning');return}
+        if(!link){showToast('구글 드라이브 링크를 입력하세요','warning');return}
+        if(!link.startsWith('http')){showToast('올바른 링크를 입력하세요 (https://...)','warning');return}
+        try{
+            await db.collection('dormDocuments').add({title:title,description:desc,link:link,type:type,order:dormDocuments.length,createdAt:new Date().toISOString(),createdBy:isSuperAdmin?'슈퍼관리자':'관리자'});
+            closeModal();showToast('문서 등록 완료','success')
+        }catch(e){showToast('등록 실패: '+e.message,'error')}
+    });
+}
+async function deleteDocument(docId){openConfirmModal('문서 삭제','이 문서를 삭제하시겠습니까?',async function(){try{await db.collection('dormDocuments').doc(docId).delete();showToast('문서 삭제 완료','success')}catch(e){showToast('삭제 실패','error')}},'삭제')}
+async function editDocument(docId){
+    var doc=dormDocuments.find(function(d){return d.id===docId});if(!doc)return;
+    openInputModal('문서 수정',[
+        {label:'문서 제목',type:'text',value:doc.title},
+        {label:'문서 설명',type:'text',value:doc.description||''},
+        {label:'구글 드라이브 링크',type:'text',value:doc.link},
+        {label:'문서 유형',type:'select',value:doc.type||'etc',options:[
+            {value:'rule',label:'규정/안내문'},
+            {value:'form',label:'서식/양식'},
+            {value:'penalty',label:'벌점표'},
+            {value:'etc',label:'기타'}
+        ]}
+    ],async function(){
+        var title=document.getElementById('modalInput0').value.trim();
+        var desc=document.getElementById('modalInput1').value.trim();
+        var link=document.getElementById('modalInput2').value.trim();
+        var type=document.getElementById('modalInput3').value;
+        if(!title||!link){showToast('제목과 링크는 필수입니다','warning');return}
+        try{await db.collection('dormDocuments').doc(docId).update({title:title,description:desc,link:link,type:type,updatedAt:new Date().toISOString()});closeModal();showToast('문서 수정 완료','success')}catch(e){showToast('수정 실패','error')}
+    });
+}
+function getDocTypeInfo(type){var types={rule:{label:'규정/안내',icon:'fa-book',color:'primary'},form:{label:'서식/양식',icon:'fa-file-alt',color:'success'},penalty:{label:'벌점표',icon:'fa-exclamation-triangle',color:'danger'},etc:{label:'기타',icon:'fa-folder',color:'gray'}};return types[type]||types.etc}
+
+function renderDocumentsAdmin(){
+    var h='<div class="bg-white rounded-2xl shadow-card border-2 border-info-200 p-6 mb-5 animate-fade-up">';
+    h+='<div class="flex items-center gap-3 mb-5"><div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-info-400 to-info-600 flex items-center justify-center"><i class="fas fa-folder-open text-white text-2xl"></i></div>';
+    h+='<div><h2 class="text-xl font-bold text-gray-800">기숙사 문서 안내</h2>';
+    h+='<div class="text-sm text-gray-500">등록된 문서 '+dormDocuments.length+'개</div></div></div>';
+    h+='<button onclick="showAddDocumentModal()" class="w-full py-3.5 bg-info-500 text-white rounded-2xl font-bold text-base btn-press shadow-button mb-5"><i class="fas fa-plus mr-2"></i>문서 등록</button>';
+    if(dormDocuments.length>0){
+        h+='<div class="space-y-2">';
+        dormDocuments.forEach(function(doc){
+            var ti=getDocTypeInfo(doc.type);
+            h+='<div class="flex items-center justify-between p-4 bg-surface-50 rounded-2xl border border-surface-200">';
+            h+='<div class="flex items-center gap-3 flex-1 min-w-0">';
+            h+='<div class="w-10 h-10 rounded-xl bg-'+ti.color+'-50 flex items-center justify-center flex-shrink-0"><i class="fas '+ti.icon+' text-'+ti.color+'-500"></i></div>';
+            h+='<div class="flex-1 min-w-0"><div class="font-bold text-gray-800 truncate">'+escapeHtml(doc.title)+'</div>';
+            if(doc.description)h+='<div class="text-xs text-gray-500 truncate">'+escapeHtml(doc.description)+'</div>';
+            h+='<div class="text-xs text-gray-400 mt-0.5"><span class="px-1.5 py-0.5 bg-'+ti.color+'-50 text-'+ti.color+'-600 rounded font-bold">'+escapeHtml(ti.label)+'</span></div>';
+            h+='</div></div>';
+            h+='<div class="flex gap-1 flex-shrink-0 ml-2">';
+            h+='<a href="'+escapeHtml(doc.link)+'" target="_blank" class="px-3 py-2 bg-info-50 text-info-600 rounded-lg text-xs font-bold btn-press border border-info-200"><i class="fas fa-external-link-alt"></i></a>';
+            h+='<button onclick="editDocument(\''+safeAttr(doc.id)+'\')" class="px-3 py-2 bg-warning-50 text-warning-600 rounded-lg text-xs font-bold btn-press border border-warning-200"><i class="fas fa-edit"></i></button>';
+            h+='<button onclick="deleteDocument(\''+safeAttr(doc.id)+'\')" class="px-3 py-2 bg-danger-50 text-danger-600 rounded-lg text-xs font-bold btn-press border border-danger-200"><i class="fas fa-trash"></i></button>';
+            h+='</div></div>';
+        });
+        h+='</div>';
+    }else{h+='<div class="text-center py-8 text-gray-400"><i class="fas fa-folder-open text-4xl mb-3"></i><div class="text-base">등록된 문서가 없습니다</div><div class="text-sm mt-1">구글 드라이브 링크로 문서를 등록하세요</div></div>'}
+    h+='</div>';
+    return h;
+}
+
+function renderStudentDocuments(){
+    var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up stagger-4">';
+    h+='<div class="flex items-center justify-between cursor-pointer select-none" onclick="var el=document.getElementById(\'dormGuideBody\');var ic=document.getElementById(\'dormGuideChev\');if(el.style.display===\'none\'){el.style.display=\'\';ic.className=\'fas fa-chevron-up text-gray-400\'}else{el.style.display=\'none\';ic.className=\'fas fa-chevron-down text-gray-400\'}">';
+    h+='<h3 class="font-bold text-gray-800 text-lg"><i class="fas fa-book text-info-500 mr-2"></i>기숙사 생활안내</h3>';
+    h+='<i id="dormGuideChev" class="fas fa-chevron-down text-gray-400"></i>';
+    h+='</div>';
+
+    h+='<div id="dormGuideBody" style="display:none" class="mt-4">';
+
+    // 제목
+    h+='<div class="text-center mb-5">';
+    h+='<div class="text-lg font-black text-primary-700">기숙사(행복관) 생활 및 이용 수칙 안내</div>';
+    h+='<div class="text-sm text-gray-500 mt-2 leading-relaxed">면학 분위기 조성과 안전하고 쾌적한 공동생활을 위해<br>아래 준칙을 반드시 준수하여 주시기 바라며,<br>시설 이용 중 불편사항은 사감실 및 운영사무실로 문의 바랍니다.</div>';
+    h+='</div>';
+
+    // 1. 일과 시간 안내
+    h+='<div class="mb-4 p-4 bg-primary-50 rounded-2xl border border-primary-200">';
+    h+='<div class="font-bold text-primary-700 text-base mb-3"><i class="fas fa-clock mr-1"></i> 1. 일과 시간 안내</div>';
+    h+='<div class="space-y-2 text-sm text-gray-700">';
+    h+='<div class="flex items-start gap-2"><span class="font-bold text-primary-600 flex-shrink-0">◉</span><span><b>기상 및 취침</b></span></div>';
+    h+='<div class="ml-5 space-y-1">';
+    h+='<div class="flex items-start gap-2"><span class="text-primary-500 flex-shrink-0">►</span><span>기상: <b>07:20</b> (약 3분간 음악 방송 송출)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-primary-500 flex-shrink-0">►</span><span>취침 및 입·출입 통제: <b class="text-danger-600">23:00 ~ 익일 06:00</b> (외부출입 전면 금지)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-primary-500 flex-shrink-0">►</span><span>일일 퇴실 시간: <b>08:40까지</b></span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-primary-500 flex-shrink-0">►</span><span>수업 시간(08:40 이후) 중 출입 시, <b>지도교수 확인(출입증)</b> 후 사감실 및 운영사무실 승인 필요</span></div>';
+    h+='</div>';
+    h+='</div>';
+    h+='</div>';
+
+    // 2. 식사 시간
+    h+='<div class="mb-4 p-4 bg-success-50 rounded-2xl border border-success-200">';
+    h+='<div class="font-bold text-success-700 text-base mb-3"><i class="fas fa-utensils mr-1"></i> 2. 식사 시간 (평일 기준)</div>';
+    h+='<div class="text-xs text-gray-500 mb-3">식당 위치: 어울림관 1층 (안내도 4번)</div>';
+    h+='<div class="space-y-2 text-sm text-gray-700 mb-3">';
+    h+='<div class="flex items-start gap-2"><span class="text-success-500 flex-shrink-0">►</span><span>조식: <b>08:00 ~ 08:30</b></span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-success-500 flex-shrink-0">►</span><span>중식: <b>12:30 ~ 13:00</b></span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-success-500 flex-shrink-0">►</span><span>석식: <b>17:20 ~ 17:50</b></span></div>';
+    h+='</div>';
+    h+='<div class="text-xs text-warning-600 space-y-1 mb-3">';
+    h+='<div><i class="fas fa-exclamation-circle mr-1"></i>식사 종료 5분 전까지 배식을 마쳐야 합니다.</div>';
+    h+='<div><i class="fas fa-exclamation-circle mr-1"></i>주말 및 공휴일은 식사가 제공되지 않습니다.</div>';
+    h+='</div>';
+    h+='<div class="p-3 bg-white rounded-xl border border-success-100">';
+    h+='<div class="text-sm text-gray-700"><i class="fas fa-key text-success-500 mr-1"></i><b>도어락 비밀번호:</b> 초기 비밀번호는 <b class="text-primary-600">11111*</b> 입니다. 입실 후 룸메이트와 상의하여 반드시 변경하세요.</div>';
+    h+='</div>';
+    h+='</div>';
+
+    // 3. 주요 금지 및 즉시 퇴사 사유
+    h+='<div class="mb-4 p-4 bg-danger-50 rounded-2xl border border-danger-200">';
+    h+='<div class="font-bold text-danger-700 text-base mb-3"><i class="fas fa-ban mr-1"></i> 3. 주요 금지 및 즉시 퇴사 사유</div>';
+    h+='<div class="p-3 bg-danger-100 rounded-xl mb-3"><div class="text-sm font-bold text-danger-700"><i class="fas fa-exclamation-triangle mr-1"></i>다음 사항 위반 시 예외 없이 즉시 퇴사 조치됩니다.</div></div>';
+    h+='<div class="space-y-2 text-sm text-gray-700">';
+    h+='<div class="flex items-start gap-2"><span class="text-danger-500 flex-shrink-0">►</span><span><b>음주:</b> 주류 반입, 실내 음주 적발 시</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-danger-500 flex-shrink-0">►</span><span><b>흡연:</b> 기숙사 내부 흡연 적발 시 (흡연 구역: 운동장 정자 옆 이용, 안내도 11번)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-danger-500 flex-shrink-0">►</span><span><b>폭력 및 범죄:</b> 폭행(쌍방 포함), 강도 및 절도 행위 (사안에 따라 형사 고발 병행)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-danger-500 flex-shrink-0">►</span><span><b>도박:</b> 사행성 도박 및 유사 행위</span></div>';
+    h+='</div>';
+    h+='</div>';
+
+    // 4. 냉·난방 신청 및 시설 이용
+    h+='<div class="mb-4 p-4 bg-warning-50 rounded-2xl border border-warning-200">';
+    h+='<div class="font-bold text-warning-700 text-base mb-3"><i class="fas fa-cog mr-1"></i> 4. 냉·난방 신청 및 시설 이용</div>';
+    h+='<div class="space-y-2 text-sm text-gray-700">';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span><b>냉·난방 신청 (중요):</b> 호실 내 냉·난방은 매일 일과 후 기숙사 입실 시 운영사무실에 개별적으로 신청</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span><b>외부인 출입 통제:</b> 기숙사생 외 외부인(타 학생, 가족 등) 무단 출입 금지. 부득이한 경우 사감실 허가 필수</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span><b>전열기구 반입 금지:</b> 전기장판, 휴대용 가스레인지, 냉장고, 조리기구 등 사용 금지 (적발 시 압수하며 퇴사 시 반환)</span></div>';
+    h+='</div>';
+    h+='<div class="mt-3 pt-3 border-t border-warning-200">';
+    h+='<div class="font-bold text-warning-700 text-sm mb-2"><i class="fas fa-soap mr-1"></i> 세탁실 및 여가시설</div>';
+    h+='<div class="space-y-1 text-sm text-gray-700 ml-1">';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span>세탁기 이용: <b>22:00까지</b></span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span>여가시설 개방: <b>06:00 ~ 21:30</b></span></div>';
+    h+='</div>';
+    h+='</div>';
+    h+='<div class="mt-3 pt-3 border-t border-warning-200">';
+    h+='<div class="font-bold text-warning-700 text-sm mb-2"><i class="fas fa-tv mr-1"></i> TV 및 컴퓨터</div>';
+    h+='<div class="space-y-1 text-sm text-gray-700 ml-1">';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span>TV 시청: <b>24:00까지</b> (타인의 취침에 방해되지 않는 볼륨 유지)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-warning-500 flex-shrink-0">►</span><span>호실 내 개인용 컴퓨터 사용 가능 (인터넷은 랜 포트 연결 / 무선 인터넷은 공개용 인터넷망 이용 가능)</span></div>';
+    h+='</div>';
+    h+='</div>';
+    h+='</div>';
+
+    // 5. 청결 및 시설 관리
+    h+='<div class="mb-4 p-4 bg-info-50 rounded-2xl border border-info-200">';
+    h+='<div class="font-bold text-info-700 text-base mb-3"><i class="fas fa-broom mr-1"></i> 5. 청결 및 시설 관리</div>';
+    h+='<div class="space-y-2 text-sm text-gray-700">';
+    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>쓰레기 배출:</b> 아침/저녁 시간에 기숙사1층 뒤편 테라스 분리수거장에 배출</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>정기 점검:</b> 매월 마지막 주 목요일 대청소 및 시설 점검 (22:00까지 전원 귀교 필수)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>시설 훼손 금지:</b> 가구 무단 이동 및 변경 금지. 벽면 파손(못질, 접착제 등)이나 가구 파손 시 변상 조치</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>에너지 절약:</b> 외출 시 반드시 소등 및 전원 차단 (물은 24시간 공급)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-info-500 flex-shrink-0">►</span><span><b>호실 내 취식 금지:</b> 냄새가 나는 음식(라면, 배달 음식 등)은 반드시 휴게실을 이용</span></div>';
+    h+='</div>';
+    h+='</div>';
+
+    // 6. 행정 및 기타 사항
+    h+='<div class="mb-2 p-4 bg-surface-50 rounded-2xl border border-surface-200">';
+    h+='<div class="font-bold text-gray-700 text-base mb-3"><i class="fas fa-clipboard-list mr-1"></i> 6. 행정 및 기타 사항</div>';
+    h+='<div class="space-y-2 text-sm text-gray-700">';
+    h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>인원 점검:</b> 매일 <b class="text-danger-600">21:00 전</b>, 인원 관리 앱으로 잔류 또는 외박을 보고 (주말(금,토,일)/공휴일(전날)은 잔류자만 보고)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>외출·외박:</b> 인원 관리 앱을 통해 반드시 사전 신청 (주말/공휴일 제외)</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>입사 신청:</b> 매달 25일 전까지 사감실에 입사 의사 전달 후 스마트 포털 시스템 신청 및 승인 완료</span></div>';
+    h+='<div class="flex items-start gap-2"><span class="text-gray-500 flex-shrink-0">►</span><span><b>보안:</b> 도난 및 사고 예방을 위해 CCTV를 운영하며, 사감의 호실 방문 점검이 수시로 있을 수 있습니다.</span></div>';
+    h+='</div>';
+    h+='<div class="mt-3 p-3 bg-primary-50 rounded-xl border border-primary-200">';
+    h+='<div class="text-sm text-primary-700 font-bold text-center"><i class="fas fa-info-circle mr-1"></i>그 외 궁금한 사항은 사감실로 문의 바랍니다.</div>';
+    h+='</div>';
+    h+='</div>';
+
+    h+='</div>';
+    h+='</div>';
+
+    return h;
+}
+
 </script>
 </body>
 </html>
