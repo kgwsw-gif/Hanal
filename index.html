@@ -427,7 +427,21 @@ html.dark #modalContent .bg-primary-500{color:#ffffff!important}
 })();
 // ============ XSS 방지 유틸 ============
 function showSuccessAnimation(title,subtitle){if(soundEnabled)playNotifSound();var overlay=document.createElement('div');overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;transition:opacity 0.3s';var card=document.createElement('div');card.style.cssText='background:white;border-radius:24px;padding:48px 40px;text-align:center;transform:scale(0.5);transition:transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275);box-shadow:0 25px 60px rgba(0,0,0,0.3)';card.innerHTML='<div style="width:80px;height:80px;margin:0 auto 20px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;animation:popIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275) 0.2s both"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" style="stroke-dasharray:30;stroke-dashoffset:30;animation:drawCheck 0.5s ease 0.5s forwards"/></svg></div><div style="font-size:22px;font-weight:700;color:#1f2937;margin-bottom:8px">'+title+'</div><div style="font-size:14px;color:#6b7280">'+subtitle+'</div><div id="confettiBox" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden"></div>';overlay.appendChild(card);document.body.appendChild(overlay);var style=document.createElement('style');style.textContent='@keyframes popIn{0%{transform:scale(0)}100%{transform:scale(1)}}@keyframes drawCheck{to{stroke-dashoffset:0}}@keyframes confettiFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(200px) rotate(720deg);opacity:0}}';document.head.appendChild(style);requestAnimationFrame(function(){overlay.style.opacity='1';card.style.transform='scale(1)'});var box=card.querySelector('#confettiBox');var colors=['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#ec4899'];for(var i=0;i<30;i++){var c=document.createElement('div');c.style.cssText='position:absolute;width:8px;height:8px;border-radius:'+((Math.random()>0.5)?'50%':'2px')+';background:'+colors[Math.floor(Math.random()*colors.length)]+';top:50%;left:'+Math.random()*100+'%;animation:confettiFall '+(0.8+Math.random()*1.2)+'s ease '+(Math.random()*0.3)+'s forwards';box.appendChild(c)}if(navigator.vibrate)navigator.vibrate([50,30,80]);overlay.addEventListener('click',function(){overlay.style.opacity='0';setTimeout(function(){overlay.remove()},300)});setTimeout(function(){overlay.style.opacity='0';setTimeout(function(){overlay.remove();style.remove()},300)},2200)}
-function formatDateTime(dateStr,createdAt){
+function penaltySearchHandler(val){
+    window._penaltySearch=val.trim();
+    window._penaltyShowCount=10;
+    if(val.trim()){
+        window._penaltyDate=null;
+        var df=document.getElementById('penaltyDateFilter');
+        if(df)df.value='';
+    }
+    clearTimeout(window._penaltySearchTimer);
+    window._penaltySearchTimer=setTimeout(function(){
+        render();
+        var s=document.getElementById('penaltySearchInput');
+        if(s){s.focus();s.setSelectionRange(s.value.length,s.value.length)}
+    },300);
+}function formatDateTime(dateStr,createdAt){
     if(createdAt){
         var d=new Date(createdAt);
         return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
@@ -5244,7 +5258,7 @@ async function deleteAllCancelledPenalties(){openConfirmModal('취소된 벌점 
 function renderPenaltyAdmin(){
     if(!window._penaltyAdminDept)window._penaltyAdminDept='';
 if(!window._penaltyViewMode)window._penaltyViewMode='recent';
-if(!window._penaltyDate)window._penaltyDate=getCurrentDate();
+if(!window._penaltyDate&&window._penaltyDate!=='ALL'&&!window._penaltySearch)window._penaltyDate=getCurrentDate();
 if(!window._penaltySearch)window._penaltySearch='';
 if(!window._penaltyShowCount)window._penaltyShowCount=10;
     var deptOpts='<option value="">전체 학과</option>'+departments.map(function(d){return'<option value="'+safeAttr(d)+'" '+(window._penaltyAdminDept===d?'selected':'')+'>'+escapeHtml(d)+'</option>'}).join('');
@@ -5300,15 +5314,15 @@ h+='</div></div></div>';
         h+='<div class="flex items-center gap-2 mb-3">';
         h+='<input type="date" id="penaltyDateFilter" value="'+window._penaltyDate+'" onchange="window._penaltyDate=this.value;window._penaltyShowCount=10;render()" class="flex-1 px-3 py-2.5 bg-surface-50 border-2 border-surface-200 rounded-xl text-sm font-medium" style="font-size:14px">';
         h+='<button onclick="window._penaltyDate=getCurrentDate();window._penaltyShowCount=10;render()" class="px-4 py-2.5 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">오늘</button>';
-        h+='<button onclick="window._penaltyDate=\'\';window._penaltyShowCount=10;render()" class="px-4 py-2.5 bg-surface-100 text-gray-600 rounded-xl text-sm font-bold btn-press">전체</button>';
+        h+='<button onclick="window._penaltyDate=\'ALL\';window._penaltyShowCount=10;render()" class="px-4 py-2.5 bg-surface-100 text-gray-600 rounded-xl text-sm font-bold btn-press">전체</button>';
         h+='</div>';
 
         // 검색
-        h+='<div class="flex items-center bg-surface-50 border-2 border-surface-200 rounded-xl px-3 py-2.5 mb-3"><i class="fas fa-search text-gray-400 mr-2"></i><input type="text" id="penaltySearchInput" placeholder="이름, 학과, 유형 검색" value="'+escapeHtml(window._penaltySearch)+'" oninput="window._penaltySearch=this.value.trim();window._penaltyShowCount=10;clearTimeout(window._penaltySearchTimer);window._penaltySearchTimer=setTimeout(function(){render()},500)" class="bg-transparent border-none outline-none text-sm font-medium flex-1" style="min-width:0"></div>';
+        h+='<div class="flex items-center bg-surface-50 border-2 border-surface-200 rounded-xl px-3 py-2.5 mb-3"><i class="fas fa-search text-gray-400 mr-2"></i><input type="text" id="penaltySearchInput" placeholder="이름, 학과, 유형 검색" value="'+escapeHtml(window._penaltySearch)+'" oninput="penaltySearchHandler(this.value)" class="bg-transparent border-none outline-none text-sm font-medium flex-1" style="min-width:0"></div>';
 
         // 필터링
         var recentList=filtered;
-        if(window._penaltyDate){recentList=recentList.filter(function(p){return p.date===window._penaltyDate})}
+        if(window._penaltyDate&&window._penaltyDate!=='ALL'&&!window._penaltySearch){recentList=recentList.filter(function(p){return p.date===window._penaltyDate})}
         if(window._penaltySearch){var kw=window._penaltySearch.toLowerCase();recentList=recentList.filter(function(p){return(p.name||'').toLowerCase().indexOf(kw)!==-1||(p.department||'').toLowerCase().indexOf(kw)!==-1||(p.type||'').toLowerCase().indexOf(kw)!==-1||(p.reason||'').toLowerCase().indexOf(kw)!==-1})}
 
         // 통계
