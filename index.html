@@ -3322,16 +3322,17 @@ function deleteRoomMemo(roomNum){
     var fl=floors[f];
     for(var r=fl.start;r<=fl.end;r++){
       var rs=String(r);
-      if(EXCLUDED.indexOf(rs)!==-1)continue;
+      var _isExcluded=EXCLUDED.indexOf(rs)!==-1;
 var members=roomMap[rs]||[];
-var isStaff=STAFF_ROOMS.indexOf(rs)!==-1;
-fl.rooms.push({room:rs,members:members,count:members.length,isStaff:isStaff});
+var isStaff=(window._staffRooms||[]).some(function(x){return (typeof x==='object'?x.room:x)===rs});
+var isRepair=(window._repairRooms||[]).indexOf(rs)!==-1;
+fl.rooms.push({room:rs,members:members,count:members.length,isStaff:isStaff,isRepair:isRepair||false});
     }
   });
   var total=0,empty=0,single=0,doubleUp=0,staffCount=0;
 var female={total:0,empty:0,single:0,doubleUp:0},male={total:0,empty:0,single:0,doubleUp:0};
 Object.keys(floors).forEach(function(fk){var fl=floors[fk];fl.rooms.forEach(function(r){
-    if(r.isStaff){staffCount++;return;}
+    if(r.isStaff||r.isRepair){staffCount++;return;}
     total++;if(r.count===0)empty++;else if(r.count===1)single++;else doubleUp++;
     if(fl.type==='female'){female.total++;if(r.count===0)female.empty++;else if(r.count===1)female.single++;else female.doubleUp++;}
     else{male.total++;if(r.count===0)male.empty++;else if(r.count===1)male.single++;else male.doubleUp++;}
@@ -3437,7 +3438,7 @@ function renderRoomStatus(){
   if(!window._roomStatusOpen)window._roomStatusOpen=false;
   if(!window._roomFloorOpen)window._roomFloorOpen={};
   var rs=getRoomStatus();
-  var _allRooms=rs.totalRooms+rs.staffRooms;
+  var _allRooms=rs.totalRooms;
   var _studentRooms=rs.totalRooms;
   var _emptyPct=_studentRooms>0?Math.round(rs.emptyRooms/_studentRooms*100):0;
   var _singlePct=_studentRooms>0?Math.round(rs.singleRooms/_studentRooms*100):0;
@@ -3460,14 +3461,14 @@ h+='<div class="pb-5 mt-4">';
 
   h+='<div class="flex items-center justify-between mb-4">';
   h+='<div class="flex items-center gap-2"><div class="w-9 h-9 rounded-lg bg-primary-500 flex items-center justify-center"><i class="fas fa-door-open text-white text-base"></i></div><span class="font-bold text-gray-800 text-lg">입실 현황</span></div>';
-  h+='<div class="text-right"><span class="text-3xl font-black text-primary-600">'+_occupyPct+'</span><span class="text-lg font-bold text-primary-400">%</span><div class="text-sm text-gray-500 font-medium">'+(rs.singleRooms+rs.doubleRooms)+' / '+_studentRooms+'실</div></div>';
+  h+='<div class="text-right"><span class="text-3xl font-black text-primary-600">'+_occupyPct+'</span><span class="text-lg font-bold text-primary-400">%</span><div class="text-sm text-gray-500 font-medium">'+_studentRooms+'실 / '+(rs.singleRooms+rs.doubleRooms)+'사용</div></div>';
   h+='</div>';
 
   h+='<div class="relative mb-4">';
   h+='<div class="flex rounded-full h-9 overflow-hidden" style="background:rgba(0,0,0,0.03)">';
   if(rs.singleRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'1인실\')" style="width:'+_singlePct+'%;background:linear-gradient(135deg,rgba(251,191,36,0.6),rgba(217,119,6,0.6));min-width:'+(rs.singleRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_singlePct>=8?_singlePct+'%':'')+'</span></div>';
   if(rs.doubleRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'2인실\')" style="width:'+_doublePct+'%;background:linear-gradient(135deg,rgba(52,211,153,0.6),rgba(5,150,105,0.6));min-width:'+(rs.doubleRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_doublePct>=8?_doublePct+'%':'')+'</span></div>';
-  if(rs.emptyRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'공실\')" style="width:'+_emptyPct+'%;background:linear-gradient(135deg,rgba(148,163,184,0.6),rgba(100,116,139,0.6));min-width:'+(rs.emptyRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_emptyPct>=8?_emptyPct+'%':'')+'</span></div>';
+  if(rs.emptyRooms>0) h+='<div class="h-full flex items-center justify-center transition-all duration-700 cursor-pointer hover:brightness-110" onclick="roomCardFilter(\'공실\')" style="width:'+_emptyPct+'%;background:linear-gradient(135deg,rgba(148,163,184,1),rgba(100,116,139,1));min-width:'+(rs.emptyRooms>0?'28px':'0')+'"><span class="text-white text-sm font-black drop-shadow" style="text-shadow:0 1px 2px rgba(0,0,0,0.2)">'+(_emptyPct>=8?_emptyPct+'%':'')+'</span></div>';
   h+='</div>';
   h+='</div>';
 
@@ -3481,7 +3482,7 @@ h+='<div class="pb-5 mt-4">';
   h+='<div class="min-w-0"><div class="text-2xl font-black text-success-700 leading-none">'+rs.doubleRooms+'</div><div class="text-sm text-success-600 font-bold mt-1">2인실 ('+_doublePct+'%)</div></div>';
   h+='</div>';
   h+='<div class="flex items-center gap-2.5 p-3.5 rounded-xl cursor-pointer transition-all hover:shadow-md btn-press" onclick="roomCardFilter(\'공실\')" style="background:rgba(100,116,139,0.04);border:1px solid rgba(100,116,139,0.12)">';
-  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,rgba(148,163,184,0.6),rgba(100,116,139,0.6))"></div>';
+  h+='<div class="w-3.5 h-3.5 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,rgba(148,163,184,1),rgba(100,116,139,1))"></div>';
   h+='<div class="min-w-0"><div class="text-2xl font-black text-gray-600 leading-none">'+rs.emptyRooms+'</div><div class="text-sm text-gray-500 font-bold mt-1">공실 ('+_emptyPct+'%)</div></div>';
   h+='</div>';
   h+='</div>';
@@ -3645,7 +3646,7 @@ h+='<div class="pb-5 mt-4">';
         }
         if(roomSearchKeyword&&_shouldShow){
           var _found=false;var _kw=roomSearchKeyword.toLowerCase();
-          if(_kw==='공실'){if(r.count===0&&!r.isStaff)_found=true;}
+          if(_kw==='공실'){if(r.count===0&&!r.isStaff&&!r.isRepair)_found=true;}
           else if(_kw==='1인실'||_kw==='1인'){if(r.count===1)_found=true;}
           else if(_kw==='2인실'||_kw==='2인'){if(r.count>=2)_found=true;}
           else if(_kw==='교직원'){if(r.isStaff)_found=true;}
@@ -3659,7 +3660,8 @@ h+='<div class="pb-5 mt-4">';
         }
         if(!_shouldShow) continue;
         var bg='bg-gray-100 border-gray-300',status='공실',color='text-gray-600';
-        if(r.isStaff){bg='bg-purple-50 border-purple-300';status='교직원';color='text-purple-700';}
+        if(r.isRepair){bg='bg-orange-50 border-orange-300';status='수리중';color='text-orange-700';}
+        else if(r.isStaff){bg='bg-purple-50 border-purple-300';status='관계자';color='text-purple-700';}
         else if(r.count===1){bg='bg-warning-50 border-warning-200';status='1인실';color='text-warning-700';}
         else if(r.count>=2){bg='bg-success-50 border-success-200';status='2인실';color='text-success-700';}
         h+='<div class="'+bg+' border rounded-xl p-3 room-card-match">';
@@ -3684,6 +3686,10 @@ h+='<div class="pb-5 mt-4">';
   h+=photoThumb(m.name, 28);
   h+='<div style="flex:1;min-width:0"><div class="text-sm text-gray-700 font-semibold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(m.name)+(_mAge?' <span style="color:#7c3aed;background:rgba(124,58,237,0.1);padding:2px 6px;border-radius:5px;margin-left:3px;font-size:13px;font-weight:800">'+_mAge+'<span style="font-size:11px;color:#9333ea;margin-left:1px;font-weight:700">('+_mBY+')</span></span>':'')+'</div><div style="font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">['+escapeHtml(m.dept)+']</div></div></div>';
 }
+        }else if(r.isRepair){
+          h+='<div class="flex flex-col items-center justify-center py-2"><i class="fas fa-wrench text-orange-500 text-xl mb-1"></i><span class="text-sm font-bold text-orange-700">수리중</span></div>';
+        }else if(r.isStaff){
+          h+='<div class="flex flex-col items-center justify-center py-2"><i class="fas fa-user-tie text-purple-500 text-xl mb-1"></i><span class="text-sm font-bold text-purple-700">관계자</span></div>';
         }else{
           h+='<div class="text-sm text-gray-500 italic">비어있음</div>';
         }
@@ -3793,7 +3799,7 @@ function renderFloorPlan(){
 
     var bg,borderColor,headerBg,headerColor,statusIcon;
     if(members.length===0){
-      bg='rgba(107,114,128,0.06)';borderColor='rgba(107,114,128,0.3)';headerBg='rgba(107,114,128,0.12)';headerColor='#4b5563';statusIcon='fa-door-open';
+      bg='#f8fafc';borderColor='rgba(100,116,139,0.5)';headerBg='rgba(100,116,139,0.15)';headerColor='#475569';statusIcon='fa-door-open';
     }else if(members.length===1){
       bg='rgba(245,158,11,0.05)';borderColor='rgba(245,158,11,0.25)';headerBg='rgba(245,158,11,0.1)';headerColor='#b45309';statusIcon='fa-user';
     }else{
