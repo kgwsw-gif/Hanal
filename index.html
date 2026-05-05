@@ -2732,6 +2732,8 @@ setInterval(function(){
         render();
     }
 },5000);}
+
+/* 사용량 폭증 방지 - 30초 동기화 제거 (2026.05.06)
 // 리스너 끊김 감지 - 30초마다 submissions 수 비교
 var _lastSubCount = -1;
 setInterval(async function(){
@@ -2748,6 +2750,7 @@ setInterval(async function(){
         }
     }catch(e){}
 },30000);
+*/
 
 // 탭 전환 시 동기화
 document.addEventListener('visibilitychange', async function(){
