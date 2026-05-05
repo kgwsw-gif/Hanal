@@ -493,11 +493,11 @@ loadVehicleNumbers();
 var DEPARTMENT_LEADERS={};window._updateDepartments=function(){if(!departments||departments.length===0)departments=window._secureData.getDepartments();updateStudentsList()};
 (function(){
 'use strict';
-var _pw={},_room={},_stu={},_regDate={},_age={};
+var _pw={},_room={},_stu={},_regDate={},_age={},_status={},_expectedDate={};
 function setup(){
 if(!db)return;
 db.collection('passwords').onSnapshot(function(s){_pw={};s.forEach(function(d){_pw[d.id]=d.data().password;if(d.data().registeredDate)_regDate[d.id]=d.data().registeredDate})});
-db.collection('roomNumbers').onSnapshot(function(s){_room={};_age={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age})});
+db.collection('roomNumbers').onSnapshot(function(s){_room={};_age={};_status={};_expectedDate={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate})});
 db.collection('students').onSnapshot(function(s){_stu={};s.forEach(function(d){_stu[d.id]=d.data().students});window._updateDepartments()});
 }
 window._secureData={
@@ -505,13 +505,15 @@ getPassword:function(n){return typeof n==='string'?(_pw[n]||null):null},
 getRoomNumber:function(n){return typeof n==='string'?(_room[n]||null):null},
 getRegisteredDate:function(n){return typeof n==='string'?(_regDate[n]||null):null},
 getAge:function(n){return typeof n==='string'?(_age[n]||null):null},
+getStatus:function(n){return typeof n==='string'?(_status[n]||'active'):'active'},
+getExpectedDate:function(n){return typeof n==='string'?(_expectedDate[n]||null):null},
+isPending:function(n){return typeof n==='string'&&_status[n]==='pending'},
 getStudentsByDept:function(d){return typeof d==='string'?(_stu[d]||[]):[]},
 getAllStudents:function(){return Object.assign({},_stu)},
 getDepartments:function(){return Object.keys(_stu)}
 };
 setup();
-})();
-window._updateDepartments=function(){if(!departments||departments.length===0)departments=window._secureData.getDepartments();updateStudentsList()};
+})();window._updateDepartments=function(){if(!departments||departments.length===0)departments=window._secureData.getDepartments();updateStudentsList()};
 
 var DEPARTMENT_LEADERS={};
 var departments=[];
@@ -852,7 +854,7 @@ function getStats(){
     var isAutoOut=isWeekendOrHoliday(currentDate);
     var allKeys=new Set(),femKeys=new Set();    var approvedBefore=resignRequests.filter(function(r){return r.status==='approved'&&r.approvedDate&&r.approvedDate<=currentDate});
     var approvedAfter=resignRequests.filter(function(r){return r.status==='approved'&&r.approvedDate&&r.approvedDate>currentDate});
-    departments.forEach(function(dept){var currentList=students[dept]||[];var deptList=currentList.slice();approvedAfter.forEach(function(r){if(r.department===dept&&!deptList.includes(r.name))deptList.push(r.name)});deptList=deptList.filter(function(name){return !approvedBefore.some(function(r){return r.department===dept&&r.name===name})});deptList=deptList.filter(function(name){var regDate=window._secureData.getRegisteredDate(name);return !regDate||regDate<=currentDate});deptList.forEach(function(name){allKeys.add(dept+'_'+name);if(name.includes('(여)'))femKeys.add(dept+'_'+name)})});
+    departments.forEach(function(dept){var currentList=students[dept]||[];var deptList=currentList.slice();approvedAfter.forEach(function(r){if(r.department===dept&&!deptList.includes(r.name))deptList.push(r.name)});deptList=deptList.filter(function(name){return !approvedBefore.some(function(r){return r.department===dept&&r.name===name})});deptList=deptList.filter(function(name){var regDate=window._secureData.getRegisteredDate(name);return !regDate||regDate<=currentDate});deptList=deptList.filter(function(name){return !window._secureData.isPending(name)});deptList.forEach(function(name){allKeys.add(dept+'_'+name);if(name.includes('(여)'))femKeys.add(dept+'_'+name)})});
     var uSub=new Map();ts.forEach(function(s){var k=s.department+'_'+s.name;if(allKeys.has(k))uSub.set(k,s.status)});
     var stayCount=0,outCount=0,femStay=0,femOut=0;
     uSub.forEach(function(v,k){if(v==='stay'){stayCount++;if(femKeys.has(k))femStay++}if(v==='out'){outCount++;if(femKeys.has(k))femOut++}});
@@ -6066,6 +6068,494 @@ function filterSubmitDetail(mode){
 }
 
 </script>
+<script>
+// ============ 예비입사자 시스템 ============
+
+// 호실 카드뷰의 학생 표시에 "예비" 뱃지 추가
+(function(){
+    var _origRender = window.render;
+    if (!_origRender) return;
+    
+    window.render = function() {
+        _origRender.apply(this, arguments);
+        // 렌더링 후 예비입사자 표시 적용
+        setTimeout(applyPendingBadges, 50);
+    };
+    
+    function applyPendingBadges() {
+        // 호실 카드뷰의 모든 멤버 div를 찾아서 예비 뱃지 추가
+        var allMemberDivs = document.querySelectorAll('[data-photo-name]');
+        allMemberDivs.forEach(function(thumbDiv) {
+            var name = thumbDiv.getAttribute('data-photo-name');
+            if (!name) return;
+            
+            // 부모 요소 (학생 한 명을 감싸는 div)
+            var parent = thumbDiv.parentElement;
+            if (!parent) return;
+            
+            // 이미 예비 뱃지가 있으면 스킵
+            if (parent.querySelector('.pending-badge')) return;
+            
+            var isPending = window._secureData.isPending(name);
+            if (!isPending) return;
+            
+            var expDate = window._secureData.getExpectedDate(name);
+            
+            // 부모에 점선 테두리 적용
+            parent.style.opacity = '0.7';
+            parent.style.borderLeft = '3px dashed #f59e0b';
+            parent.style.paddingLeft = '4px';
+            
+            // 이름 부분에 "예비" 뱃지 추가
+            var nameDiv = parent.querySelector('div[style*="font-weight"]');
+            if (nameDiv && !nameDiv.querySelector('.pending-badge')) {
+                var badge = document.createElement('span');
+                badge.className = 'pending-badge';
+                badge.style.cssText = 'display:inline-block;background:#fef3c7;color:#92400e;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-right:4px';
+                badge.textContent = '예비';
+                nameDiv.insertBefore(badge, nameDiv.firstChild);
+            }
+            
+            // 학과 표시 옆에 예정일 추가
+            if (expDate) {
+                var deptDivs = parent.querySelectorAll('div');
+                for (var i = 0; i < deptDivs.length; i++) {
+                    var d = deptDivs[i];
+                    if (d.textContent && d.textContent.indexOf('[') === 0 && !d.querySelector('.pending-date')) {
+                        var dateSpan = document.createElement('span');
+                        dateSpan.className = 'pending-date';
+                        dateSpan.style.cssText = 'color:#92400e;font-weight:700';
+                        dateSpan.textContent = ' · 예정: ' + expDate;
+                        d.appendChild(dateSpan);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+    
+    // 페이지 로드 후 한 번 실행
+    setTimeout(applyPendingBadges, 1000);
+})();
+
+// ============ 예비입사자 추가 함수 (관리자용) ============
+function showAddPendingStudentModal() {
+    var deptOpts = departments.map(function(d) {
+        return '<option value="' + safeAttr(d) + '">' + escapeHtml(d) + '</option>';
+    }).join('');
+    
+    var tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    var tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
+    
+    openModal(
+        '<div class="p-6">' +
+        '<h3 class="text-xl font-bold text-gray-900 mb-4"><i class="fas fa-clock text-yellow-500 mr-2"></i>예비 입사자 등록</h3>' +
+        '<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4 text-sm text-yellow-700"><i class="fas fa-info-circle mr-1"></i>예비 입사자는 통계와 인원보고에서 제외됩니다.</div>' +
+        '<div class="space-y-3">' +
+        '<select id="pendingDept" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base font-medium" style="font-size:16px"><option value="">학과 선택</option>' + deptOpts + '</select>' +
+        '<input type="text" id="pendingName" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base" placeholder="이름" style="font-size:16px">' +
+        '<input type="text" id="pendingRoom" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base" placeholder="호실 (예: 301)" style="font-size:16px">' +
+        '<input type="text" id="pendingPw" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base" placeholder="비밀번호 (4자리 이상)" maxlength="20" style="font-size:16px">' +
+        '<input type="text" id="pendingBirth" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base" placeholder="생년 (선택, 예: 1997 또는 97)" maxlength="4" style="font-size:16px">' +
+        '<div><label class="block text-sm font-semibold text-yellow-700 mb-1"><i class="fas fa-calendar-check mr-1"></i>입사 예정일 (필수)</label>' +
+        '<input type="date" id="pendingExpDate" value="' + tomorrowStr + '" class="w-full px-4 py-3 bg-yellow-50 border-2 border-yellow-300 rounded-2xl text-base" style="font-size:16px"></div>' +
+        '</div>' +
+        '<div class="flex gap-3 mt-5">' +
+        '<button onclick="closeModal()" class="flex-1 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button>' +
+        '<button onclick="submitPendingStudent()" class="flex-1 py-3.5 bg-yellow-500 text-white rounded-2xl font-bold text-sm btn-press shadow-button"><i class="fas fa-clock mr-1"></i>예비 등록</button>' +
+        '</div></div>'
+    );
+}
+
+async function submitPendingStudent() {
+    var dept = document.getElementById('pendingDept').value;
+    var name = document.getElementById('pendingName').value.trim();
+    var room = document.getElementById('pendingRoom').value.trim();
+    var pw = document.getElementById('pendingPw').value.trim();
+    var birthYear = document.getElementById('pendingBirth').value.trim();
+    var expDate = document.getElementById('pendingExpDate').value;
+    
+    if (!dept || !name || !pw) { showToast('학과, 이름, 비밀번호는 필수입니다', 'warning'); return; }
+    if (pw.length < 4) { showToast('비밀번호는 4자리 이상', 'warning'); return; }
+    if (!expDate) { showToast('입사 예정일을 선택하세요', 'warning'); return; }
+    
+    // 중복 체크
+    var exists = false;
+    departments.forEach(function(d) {
+        if ((students[d] || []).includes(name)) exists = true;
+    });
+    if (exists) { showToast('이미 존재하는 이름입니다', 'warning'); return; }
+    
+    // 호실 중복 체크
+    if (room) {
+        var rc = 0;
+        departments.forEach(function(d2) {
+            (students[d2] || []).forEach(function(n2) {
+                if (window._secureData.getRoomNumber(n2) === room) rc++;
+            });
+        });
+        if (rc >= 2) { showToast(room + '호는 이미 2명이 배정되어 있습니다 (예비 포함)', 'warning'); return; }
+    }
+    
+    try {
+        var batch = db.batch();
+        var todayDate = getCurrentDate();
+        var ageVal = null;
+        if (birthYear) {
+            var by = parseInt(birthYear);
+            if (by >= 1950 && by <= 2015) { ageVal = new Date().getFullYear() - by; }
+            else if (by >= 0 && by <= 99) { var fullYear = by <= 30 ? 2000 + by : 1900 + by; ageVal = new Date().getFullYear() - fullYear; }
+        }
+        
+        var roomData = {
+            department: dept,
+            registeredDate: todayDate,
+            status: 'pending',
+            expectedMoveInDate: expDate,
+            pendingCreatedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        if (room) roomData.room = room;
+        if (ageVal) roomData.age = ageVal;
+        batch.set(db.collection('roomNumbers').doc(name), roomData, { merge: true });
+        
+        batch.set(db.collection('passwords').doc(name), {
+            password: pw,
+            department: dept,
+            registeredDate: todayDate,
+            status: 'pending',
+            updatedAt: new Date().toISOString()
+        });
+        
+        var updated = (window._secureData.getStudentsByDept(dept) || []).concat([name]).sort(function(a, b) {
+            return parseInt(window._secureData.getRoomNumber(a) || '999') - parseInt(window._secureData.getRoomNumber(b) || '999');
+        });
+        batch.set(db.collection('students').doc(dept), { students: updated, updatedAt: new Date().toISOString() });
+        
+        await batch.commit();
+        closeModal();
+        showToast(name + ' 예비 입사자 등록 완료', 'success');
+        showSuccessAnimation('예비 입사자 등록', name + ' · 예정일 ' + expDate);
+    } catch (e) {
+        showToast('등록 실패: ' + e.message, 'error');
+    }
+}
+
+// ============ 예비입사자 입사 처리 ============
+async function confirmMoveIn(name) {
+    var dept = '';
+    departments.forEach(function(d) {
+        if ((students[d] || []).includes(name)) dept = d;
+    });
+    if (!dept) { showToast('학과 정보를 찾을 수 없습니다', 'error'); return; }
+    
+    var today = getCurrentDate();
+    var room = window._secureData.getRoomNumber(name) || '미배정';
+    
+    openConfirmModal('입사 처리',
+        '<b>' + escapeHtml(name) + '</b>님을 정식 입사 처리합니다.<br><br>' +
+        '학과: ' + escapeHtml(dept) + '<br>' +
+        '호실: ' + escapeHtml(room) + '<br>' +
+        '실제 입사일: <b>' + today + '</b>로 등록됩니다.',
+        async function() {
+            try {
+                var batch = db.batch();
+                batch.update(db.collection('roomNumbers').doc(name), {
+                    status: 'active',
+                    registeredDate: today,
+                    movedInAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                });
+                batch.update(db.collection('passwords').doc(name), {
+                    status: 'active',
+                    registeredDate: today,
+                    updatedAt: new Date().toISOString()
+                });
+                await batch.commit();
+                showToast(name + ' 입사 처리 완료', 'success');
+                showSuccessAnimation('입사 처리 완료', name + ' · ' + today + ' 입사');
+                render();
+            } catch (e) {
+                showToast('입사 처리 실패: ' + e.message, 'error');
+            }
+        }, '입사 처리'
+    );
+}
+
+// ============ 예비입사자 정보 수정 ============
+async function editPendingStudent(name) {
+    var currentRoom = window._secureData.getRoomNumber(name) || '';
+    var currentExpDate = window._secureData.getExpectedDate(name) || '';
+    
+    openInputModal('예비 입사자 수정', [
+        { label: '호실', type: 'text', value: currentRoom, placeholder: '예: 301' },
+        { label: '입사 예정일', type: 'date', value: currentExpDate }
+    ], async function() {
+        var newRoom = document.getElementById('modalInput0').value.trim();
+        var newDate = document.getElementById('modalInput1').value;
+        if (!newDate) { showToast('입사 예정일을 입력하세요', 'warning'); return; }
+        
+        if (newRoom && newRoom !== currentRoom) {
+            var rc = 0;
+            departments.forEach(function(d2) {
+                (students[d2] || []).forEach(function(n2) {
+                    if (n2 !== name && window._secureData.getRoomNumber(n2) === newRoom) rc++;
+                });
+            });
+            if (rc >= 2) { showToast(newRoom + '호는 이미 2명이 배정되어 있습니다', 'warning'); return; }
+        }
+        
+        try {
+            var updateData = {
+                expectedMoveInDate: newDate,
+                updatedAt: new Date().toISOString()
+            };
+            if (newRoom) updateData.room = newRoom;
+            await db.collection('roomNumbers').doc(name).update(updateData);
+            closeModal();
+            showToast(name + ' 정보 수정 완료', 'success');
+        } catch (e) {
+            showToast('수정 실패', 'error');
+        }
+    });
+}
+
+// ============ 예비입사자 등록 취소 ============
+async function cancelPendingStudent(name, dept) {
+    openConfirmModal('예비 등록 취소',
+        '<b>' + escapeHtml(name) + '</b>님의 예비 입사 등록을 취소합니다.<br><br>' +
+        '<span class="text-danger-600">이 학생의 모든 데이터가 삭제됩니다.</span><br>' +
+        '<span class="text-xs text-gray-500">(퇴사 이력에는 남지 않습니다)</span>',
+        async function() {
+            try {
+                var batch = db.batch();
+                var updated = (window._secureData.getStudentsByDept(dept) || []).filter(function(s) { return s !== name; });
+                batch.set(db.collection('students').doc(dept), { students: updated, updatedAt: new Date().toISOString() });
+                batch.delete(db.collection('roomNumbers').doc(name));
+                batch.delete(db.collection('passwords').doc(name));
+                await batch.commit();
+                showToast(name + ' 예비 등록 취소 완료', 'success');
+                render();
+            } catch (e) {
+                showToast('취소 실패: ' + e.message, 'error');
+            }
+        }, '취소', '돌아가기'
+    );
+}
+
+// ============ 입사 예정일 도래자 일괄 처리 ============
+async function autoConfirmDueMoveIns() {
+    var today = getCurrentDate();
+    var dueList = [];
+    departments.forEach(function(dept) {
+        (students[dept] || []).forEach(function(name) {
+            if (window._secureData.isPending(name)) {
+                var expDate = window._secureData.getExpectedDate(name);
+                if (expDate && expDate <= today) {
+                    dueList.push({ name: name, dept: dept, expDate: expDate });
+                }
+            }
+        });
+    });
+    
+    if (dueList.length === 0) {
+        showToast('입사 예정일이 도래한 예비입사자가 없습니다', 'info');
+        return;
+    }
+    
+    var listHtml = dueList.map(function(p) {
+        return '• ' + escapeHtml(p.name) + ' (' + escapeHtml(p.dept) + ') - 예정일: ' + escapeHtml(p.expDate);
+    }).join('<br>');
+    
+    openConfirmModal('일괄 입사 처리',
+        '<b>' + dueList.length + '명</b>의 입사 예정일이 도래했습니다.<br><br>' +
+        '<div class="text-sm text-left bg-surface-50 rounded-xl p-3 max-h-40 overflow-y-auto">' + listHtml + '</div><br>' +
+        '모두 입사 처리할까요?<br>(등록일은 오늘 ' + today + '로 갱신됩니다)',
+        async function() {
+            try {
+                var batch = db.batch();
+                dueList.forEach(function(p) {
+                    batch.update(db.collection('roomNumbers').doc(p.name), {
+                        status: 'active',
+                        registeredDate: today,
+                        movedInAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    });
+                    batch.update(db.collection('passwords').doc(p.name), {
+                        status: 'active',
+                        registeredDate: today,
+                        updatedAt: new Date().toISOString()
+                    });
+                });
+                await batch.commit();
+                showToast(dueList.length + '명 일괄 입사 처리 완료', 'success');
+                showSuccessAnimation('일괄 입사 처리', dueList.length + '명 입사 완료');
+                render();
+            } catch (e) {
+                showToast('일괄 처리 실패: ' + e.message, 'error');
+            }
+        }, '일괄 처리'
+    );
+}
+
+// ============ 예비입사자 관리 플로팅 버튼 ============
+function showPendingManagePanel() {
+    var pendingList = [];
+    departments.forEach(function(dept) {
+        (students[dept] || []).forEach(function(name) {
+            if (window._secureData.isPending(name)) {
+                pendingList.push({
+                    dept: dept,
+                    name: name,
+                    room: window._secureData.getRoomNumber(name) || '',
+                    expectedDate: window._secureData.getExpectedDate(name) || ''
+                });
+            }
+        });
+    });
+    
+    var today = getCurrentDate();
+    pendingList.sort(function(a, b) { return (a.expectedDate || '').localeCompare(b.expectedDate || ''); });
+    
+    var h = '<div class="p-6">';
+    h += '<div class="flex items-center justify-between mb-4">';
+    h += '<h3 class="text-xl font-bold text-gray-900"><i class="fas fa-clock text-yellow-500 mr-2"></i>예비 입사자 관리';
+    if (pendingList.length > 0) h += ' <span class="text-base text-yellow-600">(' + pendingList.length + '명)</span>';
+    h += '</h3></div>';
+    
+    h += '<div class="grid grid-cols-2 gap-2 mb-4">';
+    h += '<button onclick="closeModal();showAddPendingStudentModal()" class="py-3 bg-yellow-500 text-white rounded-xl font-bold text-sm btn-press shadow-button"><i class="fas fa-plus mr-1"></i>예비 등록</button>';
+    if (pendingList.length > 0) {
+        h += '<button onclick="closeModal();autoConfirmDueMoveIns()" class="py-3 bg-success-500 text-white rounded-xl font-bold text-sm btn-press shadow-button"><i class="fas fa-magic mr-1"></i>예정일 도래 일괄처리</button>';
+    } else {
+        h += '<button class="py-3 bg-surface-100 text-gray-400 rounded-xl font-bold text-sm" disabled><i class="fas fa-magic mr-1"></i>일괄처리</button>';
+    }
+    h += '</div>';
+    
+    if (pendingList.length === 0) {
+        h += '<div class="text-center py-8 text-gray-400 bg-surface-50 rounded-2xl border border-surface-200"><i class="fas fa-inbox text-3xl mb-2"></i><div class="text-sm">예비 입사자가 없습니다</div><div class="text-xs mt-1">"예비 등록" 버튼으로 등록하세요</div></div>';
+    } else {
+        h += '<div class="space-y-2 max-h-[55vh] overflow-y-auto">';
+        pendingList.forEach(function(p) {
+            var isDue = p.expectedDate && p.expectedDate <= today;
+            var bgClass = isDue ? 'bg-orange-50 border-orange-300' : 'bg-yellow-50 border-yellow-200';
+            
+            h += '<div class="p-4 rounded-xl border-2 ' + bgClass + '">';
+            h += '<div class="flex items-center justify-between mb-2 flex-wrap gap-2">';
+            h += '<div class="flex items-center gap-2 flex-wrap">';
+            if (p.room) h += '<span class="font-bold text-lg text-gray-800">' + escapeHtml(p.room) + '호</span>';
+            h += '<span class="text-base font-bold text-gray-700">' + escapeHtml(p.name) + '</span>';
+            h += '<span class="text-xs text-gray-500">[' + escapeHtml(p.dept) + ']</span>';
+            if (isDue) h += '<span class="px-2 py-0.5 bg-orange-500 text-white text-xs font-bold rounded-full"><i class="fas fa-bell mr-1"></i>입사일 도래</span>';
+            h += '</div></div>';
+            h += '<div class="text-sm text-gray-600 mb-3"><i class="fas fa-calendar-check mr-1 text-yellow-600"></i>입사 예정일: <b>' + escapeHtml(p.expectedDate || '미정') + '</b></div>';
+            h += '<div class="flex gap-2">';
+            h += '<button onclick="closeModal();confirmMoveIn(\'' + safeAttr(p.name) + '\')" class="flex-1 py-2.5 bg-success-500 text-white rounded-xl text-sm font-bold btn-press shadow-button"><i class="fas fa-check-circle mr-1"></i>입사 처리</button>';
+            h += '<button onclick="closeModal();editPendingStudent(\'' + safeAttr(p.name) + '\')" class="px-4 py-2.5 bg-info-50 text-info-600 rounded-xl text-sm font-bold btn-press border border-info-200"><i class="fas fa-edit"></i></button>';
+            h += '<button onclick="closeModal();cancelPendingStudent(\'' + safeAttr(p.name) + '\',\'' + safeAttr(p.dept) + '\')" class="px-4 py-2.5 bg-danger-50 text-danger-600 rounded-xl text-sm font-bold btn-press border border-danger-200"><i class="fas fa-times"></i></button>';
+            h += '</div></div>';
+        });
+        h += '</div>';
+    }
+    
+    h += '<button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">닫기</button>';
+    h += '</div>';
+    
+    openModal(h);
+}
+
+// ============ 예비입사자 본인 로그인 차단 ============
+(function(){
+    var _origShowStudentLogin = window.showStudentLogin;
+    if (!_origShowStudentLogin) return;
+    
+    // 로그인 시 예비입사자 체크는 _secureData가 처리하지만,
+    // 로그인 직후 강제 차단을 위한 추가 검사
+    var _checkInterval = setInterval(function() {
+        if (currentMode === 'student' && currentStudent && window._secureData.isPending(currentStudent)) {
+            var expDate = window._secureData.getExpectedDate(currentStudent);
+            showToast('아직 입사 전입니다. 입사 예정일: ' + (expDate || '미정'), 'warning');
+            currentMode = null;
+            currentStudent = null;
+            render();
+        }
+    }, 500);
+})();
+
+// ============ 관리자 화면에 "예비 입사자" 플로팅 버튼 추가 ============
+(function(){
+    function addPendingFloatBtn() {
+        // 관리자 모드가 아니면 버튼 제거
+        if (!isAdminLoggedIn || isOfficeLoggedIn || currentMode !== 'admin') {
+            var existing = document.getElementById('pendingFloatBtn');
+            if (existing) existing.remove();
+            return;
+        }
+        
+        // 이미 있으면 카운트만 업데이트
+        var existing = document.getElementById('pendingFloatBtn');
+        var pendingCount = 0;
+        var dueCount = 0;
+        var today = getCurrentDate();
+        
+        departments.forEach(function(dept) {
+            (students[dept] || []).forEach(function(name) {
+                if (window._secureData.isPending(name)) {
+                    pendingCount++;
+                    var expDate = window._secureData.getExpectedDate(name);
+                    if (expDate && expDate <= today) dueCount++;
+                }
+            });
+        });
+        
+        if (existing) {
+            var countEl = existing.querySelector('.pending-count');
+            var dueEl = existing.querySelector('.pending-due');
+            if (countEl) countEl.textContent = pendingCount;
+            if (dueEl) {
+                if (dueCount > 0) {
+                    dueEl.style.display = 'flex';
+                    dueEl.textContent = dueCount;
+                } else {
+                    dueEl.style.display = 'none';
+                }
+            }
+            return;
+        }
+        
+        // 버튼 생성
+        var btn = document.createElement('button');
+        btn.id = 'pendingFloatBtn';
+        btn.onclick = function() { showPendingManagePanel(); };
+        btn.style.cssText = 'position:fixed;bottom:24px;right:24px;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:white;border:none;box-shadow:0 8px 24px rgba(245,158,11,0.4);cursor:pointer;z-index:40;display:flex;align-items:center;justify-content:center;transition:transform 0.2s;font-size:0';
+        btn.innerHTML = 
+            '<i class="fas fa-clock" style="font-size:24px;color:white"></i>' +
+            '<span class="pending-count" style="position:absolute;top:-4px;right:-4px;min-width:24px;height:24px;background:#dc2626;color:white;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;padding:0 6px;border:2px solid white">' + pendingCount + '</span>' +
+            '<span class="pending-due" style="position:absolute;bottom:-4px;right:-4px;min-width:24px;height:24px;background:#ea580c;color:white;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;padding:0 6px;border:2px solid white;display:' + (dueCount > 0 ? 'flex' : 'none') + ';animation:pulseSoft 1.5s ease-in-out infinite">' + dueCount + '</span>';
+        
+        btn.onmouseover = function() { this.style.transform = 'scale(1.1)'; };
+        btn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+        
+        // 툴팁
+        btn.title = '예비 입사자 관리';
+        
+        document.body.appendChild(btn);
+    }
+    
+    // render 함수 후크
+    var _origRender = window.render;
+    window.render = function() {
+        _origRender.apply(this, arguments);
+        setTimeout(addPendingFloatBtn, 100);
+    };
+    
+    // 페이지 로드 후 한 번 실행
+    setTimeout(addPendingFloatBtn, 1500);
+})();
+
+</script>
+
 </body>
 </html>
 
