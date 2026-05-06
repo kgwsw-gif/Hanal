@@ -401,6 +401,7 @@ html.dark #modalContent .bg-primary-500{color:#ffffff!important}
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 <script>
 
 // ========== 새 로딩 애니메이션 ==========
@@ -478,11 +479,12 @@ window.addEventListener('offline',function(){isOnline=false;document.getElementB
 // ============ Firebase 초기화 ============
 var firebaseConfig={apiKey:"AIzaSyCrXIaNF3B_HAJmFFW4CF-8O_jKBry7i1I",authDomain:"kgwsw01.firebaseapp.com",projectId:"kgwsw01",storageBucket:"kgwsw01.firebasestorage.app",messagingSenderId:"625437682471",appId:"1:625437682471:web:d27d07043a506cd68ed702"};
 var db;
+var storage;
 try{
-    firebase.initializeApp(firebaseConfig);
-    db=firebase.firestore();
-    db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
-    console.log('Firebase OK');
+    firebase.initializeApp(firebaseConfig);    db=firebase.firestore();
+storage=firebase.storage();
+db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
+console.log('Firebase OK');
 loadRoomMemos();
 loadVehicleNumbers();
 }catch(e){
