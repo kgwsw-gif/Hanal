@@ -3237,7 +3237,15 @@ function preloadAllPhotos() {
     _photosLoaded = true;
     db.collection('photos').get().then(function(snap) {
         snap.docs.forEach(function(d) {
-            if (d.data().photo) studentPhotos[d.id] = d.data().photo;
+            var data = d.data();
+            // Storage URL 우선
+            if (data.photoUrl) {
+                studentPhotos[d.id] = data.photoUrl;
+            } 
+            // 기존 Base64
+            else if (data.photo) {
+                studentPhotos[d.id] = data.photo;
+            }
         });
         // 이미 호실현황이 열려있으면 썸네일 업데이트
         document.querySelectorAll('[data-photo-name]').forEach(function(el) {
@@ -3255,7 +3263,22 @@ function loadStudentPhoto(name, callback) {
         return;
     }
     db.collection('photos').doc(name).get().then(function(doc) {
-        studentPhotos[name] = (doc.exists && doc.data().photo) ? doc.data().photo : null;
+        if (doc.exists) {
+            var data = doc.data();
+            // Storage URL 우선
+            if (data.photoUrl) {
+                studentPhotos[name] = data.photoUrl;
+            } 
+            // 기존 Base64 (마이그레이션 전)
+            else if (data.photo) {
+                studentPhotos[name] = data.photo;
+            } 
+            else {
+                studentPhotos[name] = null;
+            }
+        } else {
+            studentPhotos[name] = null;
+        }
         if (callback) callback(studentPhotos[name]);
     }).catch(function() {
         studentPhotos[name] = null;
@@ -3292,12 +3315,33 @@ function uploadStudentPhoto(name) {
         if (file.size > 10 * 1024 * 1024) { showToast('10MB 이하만 가능', 'warning'); return; }
         showToast('사진 처리 중...', 'info');
         compressImage(file, 200, 0.6, function(dataUrl) {
-            if (dataUrl.length > 900000) { showToast('사진이 너무 큽니다', 'warning'); return; }
-            db.collection('photos').doc(name).set({ photo: dataUrl, updatedAt: new Date().toISOString() }).then(function() {
-                studentPhotos[name] = dataUrl;
-                showToast(name + ' 사진 등록 완료', 'success');
-                render();
-            }).catch(function(err) { showToast('저장 실패: ' + err.message, 'error'); });
+            // dataUrl을 Blob으로 변환하여 Storage에 업로드
+            fetch(dataUrl).then(function(res){return res.blob()}).then(function(blob){
+                var ref = storage.ref('student_photos/' + name);
+                ref.put(blob, {contentType: 'image/jpeg'}).then(function(snapshot){
+                    return snapshot.ref.getDownloadURL();
+                }).then(function(downloadURL){
+                    // Firestore에는 URL만 저장 (Base64 X)
+                    return db.collection('photos').doc(name).set({
+                        photoUrl: downloadURL,
+                        storagePath: 'student_photos/' + name,
+                        updatedAt: new Date().toISOString()
+                    });
+                }).then(function(){
+                    studentPhotos[name] = dataUrl; // 즉시 표시용 캐시
+                    showToast(name + ' 사진 등록 완료', 'success');
+                    render();
+                }).catch(function(err){
+                    console.error('Storage 업로드 실패:', err);
+                    // 실패 시 기존 방식으로 fallback
+                    if (dataUrl.length > 900000) { showToast('사진이 너무 큽니다', 'warning'); return; }
+                    db.collection('photos').doc(name).set({ photo: dataUrl, updatedAt: new Date().toISOString() }).then(function() {
+                        studentPhotos[name] = dataUrl;
+                        showToast(name + ' 사진 등록 완료 (Firestore)', 'success');
+                        render();
+                    }).catch(function(err) { showToast('저장 실패: ' + err.message, 'error'); });
+                });
+            });
         });
     };
     input.click();
@@ -3305,11 +3349,18 @@ function uploadStudentPhoto(name) {
 
 function deleteStudentPhoto(name) {
     openConfirmModal('사진 삭제', escapeHtml(name) + '의 사진을 삭제하시겠습니까?', function() {
-        db.collection('photos').doc(name).delete().then(function() {
-            delete studentPhotos[name];
-            showToast(name + ' 사진 삭제 완료', 'success');
-            render();
-        }).catch(function() { showToast('삭제 실패', 'error'); });
+        // Storage 먼저 삭제 시도
+        var storageRef = storage.ref('student_photos/' + name);
+        storageRef.delete().catch(function(){
+            // Storage에 없어도 무시 (기존 Base64 사진)
+        }).finally(function(){
+            // Firestore 문서 삭제
+            db.collection('photos').doc(name).delete().then(function() {
+                delete studentPhotos[name];
+                showToast(name + ' 사진 삭제 완료', 'success');
+                render();
+            }).catch(function() { showToast('삭제 실패', 'error'); });
+        });
     }, '삭제');
 }
 
