@@ -1087,14 +1087,14 @@ async function submitStatus(dept, name, status) {
     var sd = getSelectedDate();
     var docId = sd + '_' + dept + '_' + name;
 
-    // 21시 이후 변경 제한 (교육생만)
+    // 23시 이후 변경 제한 (교육생만)
     if (currentMode === 'student') {
         var now = new Date();
         var existingSub = submissions.find(function(s) {
             return s.id === docId && s.status !== 'cancelled';
         });
-        if (existingSub && now.getHours() >= 21) {
-            showToast('21시 이후에는 신청을 변경할 수 없습니다.', 'warning');
+        if (existingSub && now.getHours() >= 23) {
+            showToast('23시 이후에는 신청을 변경할 수 없습니다.', 'warning');
             return;
         }
     }
@@ -5608,10 +5608,10 @@ async function submitStatus(dept, name, status) {
     if (currentMode === 'student') {
         var now = new Date();
         var existingSub = submissions.find(function(s) { return s.id === docId && s.status !== 'cancelled'; });
-        if (existingSub && now.getHours() >= 21) {
-            showToast('21시 이후에는 신청을 변경할 수 없습니다.', 'warning');
-            return;
-        }
+        if (existingSub && now.getHours() >= 23) {
+    showToast('23시 이후에는 신청을 변경할 수 없습니다.', 'warning');
+    return;
+}
     }
     if (window._submitLock) {
         showToast('제출 처리 중입니다.', 'info');
