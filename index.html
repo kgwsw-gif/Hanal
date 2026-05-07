@@ -492,6 +492,100 @@ db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Pers
 console.log('Firebase OK');
 loadRoomMemos();
 loadVehicleNumbers();
+// === PWA 푸시 알림 설정 ===
+var fcmMessaging = null;
+var fcmToken = null;
+const VAPID_KEY = "BAU8GxbLRqNrIFU6_kkHf4h5W4aDCusfIDyfSOUJnbrZ0SoOVfIyMyKaJZAlcYmSQrNkdNE8WlcQL29RW12PCyw";
+
+async function initPushNotification() {
+  try {
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+      console.log('푸시 미지원 브라우저');
+      return;
+    }
+    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    console.log('SW 등록 OK');
+    
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.log('알림 권한 거부');
+      return;
+    }
+    
+    fcmMessaging = firebase.messaging();
+    fcmToken = await fcmMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    
+    if (fcmToken && currentStudent) {
+      await db.collection('fcmTokens').doc(currentStudent.name).set({
+        token: fcmToken,
+        name: currentStudent.name,
+        updatedAt: new Date().toISOString()
+      });
+      console.log('FCM 토큰 저장 완료');
+    }
+  } catch(e) {
+    console.error('푸시 초기화 실패:', e);
+  }
+}
+// === 미제출자 자동 푸시 발송 (관리자 PC) ===
+var _pushSchedule = [
+  {h:20, m:40}, {h:20, m:50}, {h:21, m:0}, {h:21, m:10}
+];
+var _pushSentToday = {};
+
+setInterval(function(){
+  if (currentMode !== 'admin') return;
+  if (typeof isWeekendOrHoliday === 'function' && isWeekendOrHoliday()) return;
+  
+  var now = new Date();
+  var day = now.getDay();
+  if (day < 1 || day > 4) return; // 월~목만
+  
+  var h = now.getHours(), m = now.getMinutes();
+  var key = h + ':' + m + '_' + now.toDateString();
+  
+  var match = _pushSchedule.some(function(t){ return t.h===h && t.m===m; });
+  if (!match || _pushSentToday[key]) return;
+  
+  _pushSentToday[key] = true;
+  sendReminderToUnsubmitted();
+}, 30000); // 30초마다 체크
+
+async function sendReminderToUnsubmitted() {
+  try {
+    var allStudents = [];
+    departments.forEach(function(d){ (students[d]||[]).forEach(function(n){ allStudents.push(n); }); });
+    
+    var today = new Date().toISOString().slice(0,10);
+    var submittedSnap = await db.collection('submissions').where('date','==',today).get();
+    var submitted = {};
+    submittedSnap.forEach(function(doc){ submitted[doc.data().name] = true; });
+    
+    var unsubmitted = allStudents.filter(function(n){ return !submitted[n]; });
+    
+    var tokensSnap = await db.collection('fcmTokens').get();
+    var tokens = [];
+    tokensSnap.forEach(function(doc){
+      if (unsubmitted.indexOf(doc.id) >= 0) tokens.push(doc.data().token);
+    });
+    
+    console.log('미제출자 ' + unsubmitted.length + '명, 푸시 대상 ' + tokens.length + '명');
+    
+    // 발송 기록 (실제 푸시는 Firestore trigger 또는 다음 단계)
+    await db.collection('pushLogs').add({
+      time: new Date().toISOString(),
+      unsubmittedCount: unsubmitted.length,
+      tokenCount: tokens.length,
+      tokens: tokens
+    });
+    
+    showToast('미제출자 ' + unsubmitted.length + '명에게 알림 발송 시도', 'info');
+  } catch(e) {
+    console.error('푸시 발송 실패:', e);
+  }
+}
+
+
 }catch(e){
     console.error('Firebase 실패:',e);
     document.getElementById('loading').innerHTML='<div class="text-center p-8"><div class="text-xl font-bold text-red-600 mb-4">연결 실패</div><button onclick="location.reload()" class="px-6 py-3 bg-primary-500 text-white rounded-2xl font-bold">새로고침</button></div>';
@@ -833,6 +927,219 @@ var _prevHvacCount=null;
 var _prevFacilityCount=null;
 var _prevMessageCount=null;
 var _prevAccessCount=null;
+// ============ 인원보고 미제출 알림 시스템 ============
+var _reminderConfig = {
+    startHour: 20, startMinute: 40,    // 시작: 20:40
+    endHour: 21, endMinute: 10,         // 종료: 21:10
+    intervalMin: 10,                    // 10분마다
+    snoozeMin: 10                       // 닫기 후 10분 대기
+};
+var _reminderState = {
+    lastShownAt: 0,        // 마지막 표시 시각 (timestamp)
+    snoozedUntil: 0,       // 스누즈 만료 시각
+    isShowing: false,      // 현재 모달 표시 중인지
+    testMode: false,       // 시뮬레이션 모드
+    testTime: null         // 시뮬레이션 시간 (분 단위, 0~1439)
+};
+
+// 시뮬레이션 시간 가져오기 (테스트용)
+function _getReminderNow() {
+    if (_reminderState.testMode && _reminderState.testTime !== null) {
+        var d = new Date();
+        d.setHours(Math.floor(_reminderState.testTime / 60));
+        d.setMinutes(_reminderState.testTime % 60);
+        d.setSeconds(0);
+        return d;
+    }
+    return new Date();
+}
+
+// 시뮬레이션 모드 ON (콘솔에서 호출)
+window.testReminder = function(hourMin) {
+    if (!hourMin) {
+        console.log('사용법: testReminder("20:40") 또는 testReminder("21:00")');
+        console.log('해제: testReminder(false)');
+        return;
+    }
+    if (hourMin === false) {
+        _reminderState.testMode = false;
+        _reminderState.testTime = null;
+        _reminderState.snoozedUntil = 0;
+        _reminderState.lastShownAt = 0;
+        console.log('✓ 시뮬레이션 모드 해제');
+        return;
+    }
+    var parts = hourMin.split(':');
+    var h = parseInt(parts[0]);
+    var m = parseInt(parts[1] || '0');
+    _reminderState.testMode = true;
+    _reminderState.testTime = h * 60 + m;
+    _reminderState.snoozedUntil = 0;
+    _reminderState.lastShownAt = 0;
+    console.log('✓ 시뮬레이션 시간 설정:', hourMin);
+    console.log('  → 5초 안에 알림이 뜨면 정상 동작');
+    setTimeout(checkSubmissionReminder, 1000);
+};
+
+// 알림 표시 조건 확인
+function _shouldShowReminder() {
+    // 1. 학생 모드만
+    if (currentMode !== 'student' || !currentStudent) return false;
+
+    // 2. 게스트는 제외
+    if (isGuestLoggedIn) return false;
+
+    // 3. 모달 이미 열려있으면 스킵
+    if (_reminderState.isShowing) return false;
+
+    var now = _getReminderNow();
+    var nowMin = now.getHours() * 60 + now.getMinutes();
+    var nowTimestamp = now.getTime();
+
+    // 4. 스누즈 중이면 스킵
+    if (nowTimestamp < _reminderState.snoozedUntil) return false;
+
+    // 5. 시간 범위 체크 (20:40 ~ 21:10)
+    var startMin = _reminderConfig.startHour * 60 + _reminderConfig.startMinute;
+    var endMin = _reminderConfig.endHour * 60 + _reminderConfig.endMinute;
+    if (nowMin < startMin || nowMin > endMin) return false;
+
+    // 6. 오늘이 외박/잔류 신청일인지 (잔류 확인만 하는 날 제외)
+    var todayStr = getCurrentDate();
+    if (isWeekendOrHoliday(todayStr)) return false;
+
+    // 7. 본인이 아직 제출 안 했는지 확인
+    var dept = currentStudentDept();
+    if (!dept) return false;
+    var mySub = submissions.find(function(s) {
+        return s.department === dept && s.name === currentStudent
+            && s.date === todayStr && s.status !== 'cancelled';
+    });
+    var myOuting = outings.find(function(o) {
+        return o.department === dept && o.name === currentStudent
+            && o.date === todayStr && (!o.status || o.status !== 'cancelled');
+    });
+    if (mySub || myOuting) return false; // 이미 제출함
+
+    // 8. 인원보고가 비활성화 상태면 알림 안 함
+    var check = isSubmitAllowed();
+    if (!check.allowed) return false;
+
+    return true;
+}
+
+// 알림 모달 표시
+function showSubmissionReminder() {
+    if (_reminderState.isShowing) return;
+    _reminderState.isShowing = true;
+    _reminderState.lastShownAt = _getReminderNow().getTime();
+
+    var now = _getReminderNow();
+    var timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+    // 진동 + 알림음
+    if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300, 100, 500]);
+    if (soundEnabled) {
+        try {
+            playNotifSound();
+            setTimeout(playNotifSound, 600);
+        } catch(e) {}
+    }
+
+    var overlay = document.createElement('div');
+    overlay.id = 'reminderOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(220,38,38,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:99999;opacity:0;transition:opacity 0.3s;animation:reminderPulse 1.5s infinite';
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:white;border-radius:24px;padding:36px 28px;text-align:center;max-width:90%;width:380px;transform:scale(0.7);transition:transform 0.4s cubic-bezier(0.175,0.885,0.32,1.275);box-shadow:0 25px 60px rgba(220,38,38,0.5);border:4px solid #dc2626';
+
+    card.innerHTML =
+        '<div style="width:80px;height:80px;margin:0 auto 16px;border-radius:50%;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;animation:reminderIconShake 0.6s ease infinite alternate;box-shadow:0 8px 20px rgba(220,38,38,0.4)">' +
+        '<i class="fas fa-exclamation-triangle" style="font-size:40px;color:white;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2))"></i>' +
+        '</div>' +
+        '<div style="font-size:24px;font-weight:900;color:#dc2626;margin-bottom:8px">⚠️ 인원보고 미제출!</div>' +
+        '<div style="font-size:16px;color:#7f1d1d;font-weight:700;margin-bottom:4px">현재 시간: ' + timeStr + '</div>' +
+        '<div style="font-size:14px;color:#991b1b;margin-bottom:20px">마감 시간이 다가옵니다 (21:00)</div>' +
+        '<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:16px;padding:16px;margin-bottom:20px">' +
+        '<div style="font-size:15px;color:#7f1d1d;font-weight:700;line-height:1.6">' +
+        '<i class="fas fa-bell" style="color:#dc2626;margin-right:6px"></i>' +
+        '지금 바로 잔류 또는 외박을<br>신청해주세요!' +
+        '</div></div>' +
+        '<button id="reminderSubmitBtn" style="width:100%;padding:16px;background:linear-gradient(135deg,#dc2626,#991b1b);color:white;border:none;border-radius:16px;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 6px 18px rgba(220,38,38,0.4);margin-bottom:10px">' +
+        '<i class="fas fa-paper-plane" style="margin-right:8px"></i>지금 보고하기' +
+        '</button>' +
+        '<button id="reminderSnoozeBtn" style="width:100%;padding:12px;background:#f3f4f6;color:#6b7280;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">' +
+        '10분 뒤 다시 알림' +
+        '</button>';
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(function() {
+        overlay.style.opacity = '1';
+        card.style.transform = 'scale(1)';
+    });
+
+    document.getElementById('reminderSubmitBtn').onclick = function() {
+        _reminderState.isShowing = false;
+        overlay.remove();
+        // 학생 페이지의 잔류/외박 버튼 영역으로 스크롤
+        setTimeout(function() {
+            var stayBtn = document.querySelector('button[onclick*="handleStudentStay"]');
+            if (stayBtn) {
+                stayBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                stayBtn.style.animation = 'reminderHighlight 1s 3';
+                setTimeout(function() { stayBtn.style.animation = ''; }, 3500);
+            }
+        }, 100);
+    };
+
+    document.getElementById('reminderSnoozeBtn').onclick = function() {
+        _reminderState.isShowing = false;
+        _reminderState.snoozedUntil = _getReminderNow().getTime() + (_reminderConfig.snoozeMin * 60 * 1000);
+        overlay.style.opacity = '0';
+        card.style.transform = 'scale(0.7)';
+        setTimeout(function() { overlay.remove(); }, 300);
+        showToast('10분 후 다시 알림이 표시됩니다', 'info');
+    };
+
+    // 스타일 추가 (1회만)
+    if (!document.getElementById('reminderStyle')) {
+        var style = document.createElement('style');
+        style.id = 'reminderStyle';
+        style.textContent =
+            '@keyframes reminderPulse {0%,100%{background:rgba(220,38,38,0.4)}50%{background:rgba(220,38,38,0.55)}}' +
+            '@keyframes reminderIconShake {0%{transform:rotate(-8deg)}100%{transform:rotate(8deg)}}' +
+            '@keyframes reminderHighlight {0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.7)}50%{box-shadow:0 0 0 12px rgba(220,38,38,0)}}';
+        document.head.appendChild(style);
+    }
+}
+
+// 알림 체크 (주기적 호출)
+function checkSubmissionReminder() {
+    if (!_shouldShowReminder()) return;
+    showSubmissionReminder();
+}
+
+// 1분마다 자동 체크
+setInterval(checkSubmissionReminder, 60 * 1000);
+
+// 학생 로그인 직후 즉시 체크 (5초 후)
+var _origRender_reminder = window.render;
+if (_origRender_reminder && !window._reminderHooked) {
+    window._reminderHooked = true;
+    var _renderCount = 0;
+    window.render = function() {
+        _origRender_reminder.apply(this, arguments);
+        _renderCount++;
+        // 학생 모드 진입 시 5초 뒤 1회 체크
+        if (currentMode === 'student' && _renderCount === 1) {
+            setTimeout(checkSubmissionReminder, 5000);
+        }
+    };
+}
+
+
 function checkNewNotifications(){
     var newSubCount=submissions.filter(function(s){return s.status!=='cancelled'}).length;
     var newOutCount=outings.filter(function(o){return !o.status||o.status!=='cancelled'}).length;
@@ -1273,7 +1580,7 @@ function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(i
 function showAdminDeptSelect(){var depts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'});openModal('<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4">학과 선택</h3><div class="space-y-2 max-h-[60vh] overflow-y-auto">'+depts.map(function(d){return'<button onclick="selectAdminDept(\''+safeAttr(d)+'\')" class="w-full text-left p-4 bg-surface-50 hover:bg-primary-50 rounded-2xl transition-all btn-press border border-surface-200"><div class="font-bold text-gray-800 text-base">'+escapeHtml(d)+'</div><div class="text-sm text-gray-500 mt-0.5">대표: '+escapeHtml(DEPARTMENT_LEADERS[d]?DEPARTMENT_LEADERS[d].name:'미설정')+' · '+(students[d]||[]).length+'명</div></button>'}).join('')+'</div><button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button></div>')}
 function selectAdminDept(dept){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(dept+' 학과대표 모드','success')}
 
-function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(!pw&&!name.includes('(여)')){name+='(여)';pw=window._secureData.getPassword(name)}if(!pw){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return}if(pw!==bd){showToast('비밀번호 불일치','error');return}if(remember){localStorage.setItem('saved_student_name',name);localStorage.setItem('saved_student_pw',bd)}else{localStorage.removeItem('saved_student_name');localStorage.removeItem('saved_student_pw')}var found=false;var isGuest=false;for(var i=0;i<departments.length;i++){if((students[departments[i]]||[]).includes(name)){found=true;break}}if(!found&&students['_guest']&&students['_guest'].includes(name)){found=true;isGuest=true}if(!found){showToast('퇴사한 교육생입니다','error');return}isGuestLoggedIn=isGuest;currentStudent=name;if(isGuest){currentMode='admin';isAdminLoggedIn=true;}else{currentMode='student';}closeModal();render();showToast(isGuest?name+' 게스트 로그인 (조회전용)':name+'님 환영합니다','success')})}
+function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(!pw&&!name.includes('(여)')){name+='(여)';pw=window._secureData.getPassword(name)}if(!pw){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return}if(pw!==bd){showToast('비밀번호 불일치','error');return}if(remember){localStorage.setItem('saved_student_name',name);localStorage.setItem('saved_student_pw',bd)}else{localStorage.removeItem('saved_student_name');localStorage.removeItem('saved_student_pw')}var found=false;var isGuest=false;for(var i=0;i<departments.length;i++){if((students[departments[i]]||[]).includes(name)){found=true;break}}if(!found&&students['_guest']&&students['_guest'].includes(name)){found=true;isGuest=true}if(!found){showToast('퇴사한 교육생입니다','error');return}isGuestLoggedIn=isGuest;currentStudent=name;if(isGuest){currentMode='admin';isAdminLoggedIn=true;}else{currentMode='student';initPushNotification();}closeModal();render();showToast(isGuest?name+' 게스트 로그인 (조회전용)':name+'님 환영합니다','success')})}
 async function logout(){try{await firebase.auth().signOut()}catch(e){}isAdminLoggedIn=false;isSuperAdmin=false;isLeaderLoggedIn=false;leaderDepartment=null;isGuestLoggedIn=false;currentStudent=null;currentMode=null;render();showToast('로그아웃 완료','info')}
 
 function currentStudentDept(){if(isGuestLoggedIn&&students['_guest']&&students['_guest'].includes(currentStudent))return '_guest';for(var i=0;i<departments.length;i++)if(students[departments[i]]&&students[departments[i]].includes(currentStudent))return departments[i];var all=window._secureData.getAllStudents();for(var dept in all)if(all[dept]&&all[dept].includes(currentStudent))return dept;return null}
