@@ -3617,6 +3617,16 @@ function compressImage(file, maxSize, quality, callback) {
     reader.readAsDataURL(file);
 }
 
+// 무작위 ID 생성 함수 (전역에 추가)
+function generatePhotoId() {
+    var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    var id = '';
+    for (var i = 0; i < 20; i++) {
+        id += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return id + Date.now().toString(36);
+}
+
 function uploadStudentPhoto(name) {
     var input = document.createElement('input');
     input.type = 'file';
@@ -3627,31 +3637,40 @@ function uploadStudentPhoto(name) {
         if (file.size > 10 * 1024 * 1024) { showToast('10MB 이하만 가능', 'warning'); return; }
         showToast('사진 처리 중...', 'info');
         compressImage(file, 200, 0.6, function(dataUrl) {
-            // dataUrl을 Blob으로 변환하여 Storage에 업로드
             fetch(dataUrl).then(function(res){return res.blob()}).then(function(blob){
-                var ref = storage.ref('student_photos/' + name);
+                // ★ 보안 강화: 이름 대신 무작위 ID 사용
+                var photoId = generatePhotoId();
+                var storagePath = 'student_photos/' + photoId;
+                var ref = storage.ref(storagePath);
+                
                 ref.put(blob, {contentType: 'image/jpeg'}).then(function(snapshot){
                     return snapshot.ref.getDownloadURL();
                 }).then(function(downloadURL){
-                    // Firestore에는 URL만 저장 (Base64 X)
-                    return db.collection('photos').doc(name).set({
-                        photoUrl: downloadURL,
-                        storagePath: 'student_photos/' + name,
-                        updatedAt: new Date().toISOString()
+                    // ★ 기존 사진이 있으면 Storage에서 삭제
+                    return db.collection('photos').doc(name).get().then(function(doc){
+                        if (doc.exists && doc.data().storagePath) {
+                            var oldPath = doc.data().storagePath;
+                            // 새 경로와 다르면 기존 파일 삭제
+                            if (oldPath !== storagePath) {
+                                storage.ref(oldPath).delete().catch(function(){
+                                    // 삭제 실패해도 무시 (없는 파일일 수 있음)
+                                });
+                            }
+                        }
+                        return db.collection('photos').doc(name).set({
+                            photoUrl: downloadURL,
+                            storagePath: storagePath,
+                            photoId: photoId,
+                            updatedAt: new Date().toISOString()
+                        });
                     });
                 }).then(function(){
-                    studentPhotos[name] = dataUrl; // 즉시 표시용 캐시
+                    studentPhotos[name] = dataUrl;
                     showToast(name + ' 사진 등록 완료', 'success');
                     render();
                 }).catch(function(err){
                     console.error('Storage 업로드 실패:', err);
-                    // 실패 시 기존 방식으로 fallback
-                    if (dataUrl.length > 900000) { showToast('사진이 너무 큽니다', 'warning'); return; }
-                    db.collection('photos').doc(name).set({ photo: dataUrl, updatedAt: new Date().toISOString() }).then(function() {
-                        studentPhotos[name] = dataUrl;
-                        showToast(name + ' 사진 등록 완료 (Firestore)', 'success');
-                        render();
-                    }).catch(function(err) { showToast('저장 실패: ' + err.message, 'error'); });
+                    showToast('업로드 실패: ' + err.message, 'error');
                 });
             });
         });
@@ -3877,6 +3896,144 @@ async function cleanupFirestorePhotos() {
         }, '정리 시작'
     );
 }
+// ============ Phase 2: 기존 사진 이름 → 무작위 ID 마이그레이션 ============
+async function migratePhotosToRandomId() {
+    if (!storage) {
+        showToast('Storage가 초기화되지 않았습니다', 'error');
+        return;
+    }
+    
+    openConfirmModal('사진 ID 무작위화',
+        '<b>기존 사진의 파일명을 무작위 ID로 변경</b>합니다.<br><br>' +
+        '🔒 보안 효과: 이름으로 URL 추측 불가능<br>' +
+        '⏱ 예상 시간: 약 10~15분<br>' +
+        '📊 사진 1장당 약 2~3초 소요<br><br>' +
+        '<span class="text-warning-600">⚠️ 작업 중 페이지 새로고침 금지!</span><br>' +
+        '<span class="text-success-600">✅ 기존 파일은 검증 후 자동 삭제됨</span><br><br>' +
+        '시작하시겠습니까?',
+        async function() {
+            var snap;
+            try {
+                snap = await db.collection('photos').get();
+            } catch (e) {
+                showToast('Firestore 조회 실패: ' + e.message, 'error');
+                return;
+            }
+            
+            // 무작위 ID가 아닌 사진만 대상
+            var targets = [];
+            snap.docs.forEach(function(doc) {
+                var data = doc.data();
+                // photoId가 없거나, storagePath가 이름 기반이면 대상
+                if (data.photoUrl && (!data.photoId || (data.storagePath && data.storagePath === 'student_photos/' + doc.id))) {
+                    targets.push({ name: doc.id, oldPath: data.storagePath || ('student_photos/' + doc.id), oldUrl: data.photoUrl });
+                }
+            });
+            
+            if (targets.length === 0) {
+                showToast('이미 모든 사진이 무작위 ID로 저장되어 있습니다', 'info');
+                return;
+            }
+            
+            // 진행 상황 표시
+            var overlay = document.createElement('div');
+            overlay.id = 'migrationOverlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10000';
+            overlay.innerHTML = 
+                '<div style="background:white;border-radius:24px;padding:40px;text-align:center;min-width:400px;max-width:500px">' +
+                '<i class="fas fa-shield-alt" style="font-size:48px;color:#10b981;margin-bottom:16px"></i>' +
+                '<div style="font-size:20px;font-weight:bold;color:#1f2937;margin-bottom:8px">사진 ID 무작위화 중...</div>' +
+                '<div id="migrationStatus" style="font-size:14px;color:#6b7280;margin-bottom:16px">준비 중...</div>' +
+                '<div style="background:#f3f4f6;border-radius:12px;padding:4px;margin-bottom:8px"><div id="migrationBar" style="background:linear-gradient(90deg,#34d399,#10b981);height:12px;border-radius:8px;width:0%;transition:width 0.3s"></div></div>' +
+                '<div id="migrationCount" style="font-size:14px;color:#374151;font-weight:bold">0 / ' + targets.length + '</div>' +
+                '<div id="migrationLog" style="margin-top:16px;text-align:left;max-height:200px;overflow-y:auto;background:#f9fafb;border-radius:8px;padding:8px;font-size:12px;color:#4b5563"></div>' +
+                '</div>';
+            document.body.appendChild(overlay);
+            
+            var success = 0;
+            var fail = 0;
+            var failList = [];
+            
+            for (var i = 0; i < targets.length; i++) {
+                var target = targets[i];
+                var pct = Math.round((i / targets.length) * 100);
+                
+                document.getElementById('migrationStatus').textContent = '이전 중: ' + target.name;
+                document.getElementById('migrationBar').style.width = pct + '%';
+                document.getElementById('migrationCount').textContent = i + ' / ' + targets.length;
+                
+                try {
+                    // 1) 기존 사진 다운로드
+                    var oldRef = storage.ref(target.oldPath);
+                    var blob = await fetch(target.oldUrl).then(function(r){ return r.blob(); });
+                    
+                    // 2) 새 무작위 ID로 업로드
+                    var newPhotoId = generatePhotoId();
+                    var newPath = 'student_photos/' + newPhotoId;
+                    var newRef = storage.ref(newPath);
+                    var snapshot = await newRef.put(blob, { contentType: 'image/jpeg' });
+                    var newUrl = await snapshot.ref.getDownloadURL();
+                    
+                    // 3) Firestore 업데이트
+                    await db.collection('photos').doc(target.name).set({
+                        photoUrl: newUrl,
+                        storagePath: newPath,
+                        photoId: newPhotoId,
+                        migratedFromName: target.name,
+                        migratedAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    
+                    // 4) 기존 파일 삭제 (성공 시에만)
+                    try {
+                        await oldRef.delete();
+                    } catch (delErr) {
+                        // 삭제 실패해도 마이그레이션 자체는 성공
+                        console.log('기존 파일 삭제 실패 (무시 가능):', target.name);
+                    }
+                    
+                    success++;
+                    var logEl = document.getElementById('migrationLog');
+                    if (logEl) logEl.innerHTML = '<div style="color:#059669">✓ ' + target.name + ' → ' + newPhotoId.substring(0,12) + '...</div>' + logEl.innerHTML;
+                } catch (err) {
+                    fail++;
+                    failList.push(target.name);
+                    var logEl2 = document.getElementById('migrationLog');
+                    if (logEl2) logEl2.innerHTML = '<div style="color:#dc2626">✗ ' + target.name + ': ' + err.message + '</div>' + logEl2.innerHTML;
+                }
+            }
+            
+            // 완료
+            document.getElementById('migrationStatus').textContent = '✅ 마이그레이션 완료!';
+            document.getElementById('migrationBar').style.width = '100%';
+            document.getElementById('migrationCount').textContent = targets.length + ' / ' + targets.length;
+            
+            setTimeout(function() {
+                overlay.remove();
+                
+                var msg = '✅ 성공: ' + success + '명<br>';
+                if (fail > 0) {
+                    msg += '❌ 실패: ' + fail + '명<br>';
+                    msg += '<div class="text-xs text-gray-500 mt-2">실패 목록: ' + failList.slice(0,10).join(', ') + (failList.length > 10 ? ' 외 ' + (failList.length-10) + '명' : '') + '</div>';
+                }
+                msg += '<br><span class="text-success-600">🔒 이제 학생 이름으로 URL 추측이 불가능합니다!</span>';
+                
+                openModal(
+                    '<div class="p-6 text-center">' +
+                    '<i class="fas fa-shield-alt text-success-500" style="font-size:48px;margin-bottom:16px"></i>' +
+                    '<h3 class="text-xl font-bold text-gray-900 mb-3">사진 보안 강화 완료</h3>' +
+                    '<div class="text-sm text-gray-600 mb-4">' + msg + '</div>' +
+                    '<button onclick="closeModal()" class="w-full py-3 bg-success-500 text-white rounded-2xl font-bold btn-press">확인</button>' +
+                    '</div>'
+                );
+                
+                showToast('보안 강화 완료: ' + success + '/' + targets.length, 'success');
+                render();
+            }, 1500);
+        }, '시작'
+    );
+}
+
 
 function uploadPhotoBatch() {
     var input = document.createElement('input');
