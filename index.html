@@ -2478,7 +2478,12 @@ async function deleteSubmission(docId,name){
 
 async function deleteOuting(docId,name){
     openConfirmModal('외출 삭제',formatStudentName(name)+' 외출을 삭제하시겠습니까?',async function(){
-        try{await db.collection('outings').doc(docId).delete();showToast(name+' 외출 삭제','success');render()}catch(e){showToast('삭제 실패','error')}
+        try{
+            await db.collection('outings').doc(docId).delete();
+            outings=outings.filter(function(o){return o.id!==docId});
+            showToast(name+' 외출 삭제','success');
+            render();
+        }catch(e){showToast('삭제 실패','error')}
     },'삭제');
 }
 
