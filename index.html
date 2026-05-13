@@ -490,6 +490,20 @@ try{
 storage=firebase.storage();
 db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
 console.log('Firebase OK');
+
+// === 익명 인증 자동 로그인 (보안 강화) ===
+firebase.auth().onAuthStateChanged(function(user){
+    if(!user){
+        firebase.auth().signInAnonymously().then(function(){
+            console.log('익명 인증 완료');
+        }).catch(function(err){
+            console.error('익명 인증 실패:', err);
+        });
+    } else {
+        console.log('인증됨:', user.isAnonymous ? '익명' : '관리자');
+    }
+});
+
 loadRoomMemos();
 loadVehicleNumbers();
 // === PWA 푸시 알림 설정 ===
