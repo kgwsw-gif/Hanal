@@ -4116,6 +4116,7 @@ html += '<button onclick="showVehicleModal()" class="w-full py-3 bg-blue-500 tex
 }
 
 
+
 function renderLanding(){
     var _c=isSubmitAllowed();
     var isDark=document.documentElement.classList.contains('dark');
@@ -5827,10 +5828,11 @@ function renderAdminSettings(){
         superSection += '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2">';
         superSection += '<div class="flex items-center justify-between cursor-pointer select-none mb-5" onclick="toggleManageSection(\'sec-super\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-crown text-amber-500 mr-2"></i>슈퍼관리자</h2><i id="secIcon-sec-super" class="fas '+_si('sec-super',true)+' text-gray-400 mr-6"></i></div>';
         superSection += '<div id="sec-super" style="display:'+_sd('sec-super',true)+'">';
-        superSection += '<div class="grid grid-cols-3 gap-2 mb-5">';
+        superSection += '<div class="grid grid-cols-4 gap-2 mb-5">';
         superSection += '<button onclick="superAdminTab=(superAdminTab===\'menu\'?null:\'menu\');render()" class="py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='menu'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-sliders-h '+(superAdminTab==='menu'?'text-primary-500':'text-gray-400')+' text-2xl mb-1"></i><div class="text-sm font-bold '+(superAdminTab==='menu'?'text-primary-600':'text-gray-500')+'">메뉴 제어</div></button>';
         superSection += '<button onclick="superAdminTab=(superAdminTab===\'login\'?null:\'login\');render()" class="py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='login'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-shield-alt '+(superAdminTab==='login'?'text-primary-500':'text-gray-400')+' text-2xl mb-1"></i><div class="text-sm font-bold '+(superAdminTab==='login'?'text-primary-600':'text-gray-500')+'">로그인 기록</div></button>';
         superSection += '<button onclick="superAdminTab=(superAdminTab===\'danger\'?null:\'danger\');render()" class="py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='danger'?'bg-danger-50 border-2 border-danger-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-exclamation-triangle '+(superAdminTab==='danger'?'text-danger-500':'text-gray-400')+' text-2xl mb-1"></i><div class="text-sm font-bold '+(superAdminTab==='danger'?'text-danger-600':'text-gray-500')+'">위험</div></button>';
+superSection += '<button onclick="window.open(\'https://github.com/kgwsw-gif/Hanal/blob/main/SECURITY_REPORT.md\',\'_blank\')" class="py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200"><i class="fas fa-file-shield text-success-500 text-2xl mb-1"></i><div class="text-sm font-bold text-success-600">보안 보고서</div></button>';
         superSection += '</div>';
         superSection += '<div style="display:'+(superAdminTab==='menu'?'block':'none')+'">' + _buildMenuControlHTML() + '</div>';
         superSection += '<div style="display:'+(superAdminTab==='login'?'block':'none')+'">';
@@ -5852,7 +5854,12 @@ function renderAdminSettings(){
         superSection += '</div>'; // 카드 닫기
     }
 
-    return announceSection + manageSection + superSection;
+    // ===== 개인정보처리방침 (모든 관리자 공통) =====
+    var privacySection = '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up stagger-5">';
+    privacySection += '<button onclick="showPrivacyPolicyModal()" class="w-full py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press border border-surface-200"><i class="fas fa-shield-alt mr-2 text-primary-500"></i>개인정보처리방침</button>';
+    privacySection += '</div>';
+
+    return announceSection + manageSection + superSection + privacySection;
 }
 </script>
 <script>
