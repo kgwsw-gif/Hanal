@@ -6810,10 +6810,22 @@ async function submitStatus(dept, name, status) {
             }
         }
 
-        if (verified) {
+                if (verified) {
+            // 로컬 submissions 배열 동기화 (간헐적 화면 미반영 방지)
+            try {
+                var newData = {id:docId, department:dept, name:name, status:status, date:sd, timestamp:new Date().toLocaleTimeString('ko-KR'), submitDate:new Date().toISOString()};
+                var existingIdx = submissions.findIndex(function(s){return s.id===docId});
+                if(existingIdx !== -1){
+                    submissions[existingIdx] = newData;
+                } else {
+                    submissions.push(newData);
+                }
+            } catch(syncErr){ console.warn('로컬 동기화 경고:', syncErr.message); }
+            
             showToast(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료','success');
             showSuccessAnimation(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료',name+' · '+new Date().toLocaleTimeString('ko-KR'));
         } else {
+
             try { await db.collection('submissions').doc(docId).delete(); } catch(e) {}
             showToast('⚠️ 인터넷 연결이 불안정합니다! 신청이 서버에 저장되지 않았습니다.','error');
             if (navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
