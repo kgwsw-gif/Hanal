@@ -6505,7 +6505,15 @@ async function updateStudentName(){
                     });
                     await pwBatch.commit();
                 }
-                
+                 // 로컬 캐시 동기화 (Firestore와 즉시 일치)
+                if(students[dept]){
+                    var localIdx = students[dept].indexOf(oldName);
+                    if(localIdx !== -1) students[dept][localIdx] = newName;
+                }
+                if(DEPARTMENT_LEADERS[dept] && DEPARTMENT_LEADERS[dept].name === oldName){
+                    DEPARTMENT_LEADERS[dept].name = newName;
+                }
+
                 showToast(oldName + ' → ' + newName + ' 이름 변경 완료', 'success');
                 showSuccessAnimation('이름 변경 완료', oldName + ' → ' + newName);
                 
