@@ -6754,7 +6754,7 @@ async function checkServerConnection(){
     try{
         await Promise.race([
             db.collection('settings').doc('submitControl').get({source:'server'}),
-            new Promise(function(_,reject){setTimeout(function(){reject(new Error('TIMEOUT'))},5000)})
+            new Promise(function(_,reject){setTimeout(function(){reject(new Error('TIMEOUT'))},8000)})
         ]);
         return true;
     }catch(e){return false}
@@ -6791,10 +6791,25 @@ async function submitStatus(dept, name, status) {
         if (!serverReachable) { throw new Error('SERVER_UNREACHABLE'); }
         await db.collection('submissions').doc(docId).set({department:dept,name:name,status:status,date:sd,timestamp:new Date().toLocaleTimeString('ko-KR'),submitDate:new Date().toISOString()});
         var verified = false;
+        // 검증 재조회: 서버 우선 → 실패 시 1초 후 재시도 → 그래도 안되면 기본(캐시 포함) 조회
         try {
             var verifyDoc = await db.collection('submissions').doc(docId).get({source:'server'});
             if (verifyDoc.exists && verifyDoc.data().status === status) { verified = true; }
-        } catch (verifyErr) { verified = false; }
+        } catch (verifyErr) {
+            console.warn('검증 1차 실패, 재시도:', verifyErr.message);
+            try {
+                await new Promise(function(r){setTimeout(r,1000)});
+                var retryDoc = await db.collection('submissions').doc(docId).get({source:'server'});
+                if (retryDoc.exists && retryDoc.data().status === status) { verified = true; }
+            } catch (retryErr) {
+                console.warn('검증 2차 실패, 캐시 확인:', retryErr.message);
+                try {
+                    var cacheDoc = await db.collection('submissions').doc(docId).get();
+                    if (cacheDoc.exists && cacheDoc.data().status === status) { verified = true; }
+                } catch (cacheErr) {}
+            }
+        }
+
         if (verified) {
             showToast(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료','success');
             showSuccessAnimation(status==='stay'?'잔류(Stay) 신청 완료':'외박(Out) 신청 완료',name+' · '+new Date().toLocaleTimeString('ko-KR'));
