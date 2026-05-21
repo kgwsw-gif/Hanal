@@ -1379,9 +1379,8 @@ function refreshHvacListener() {
     db.collection('config').doc('departments').onSnapshot(function(doc){if(doc.exists&&doc.data().list)departments=doc.data().list;else departments=window._secureData.getDepartments();checkLoaded()});
     db.collection('students').onSnapshot(function(){updateStudentsList();checkLoaded()});
     db.collection('departmentLeaders').onSnapshot(function(snap){var nl={};snap.docs.forEach(function(doc){if(doc.data().name&&doc.data().password)nl[doc.id]={name:doc.data().name,password:doc.data().password}});Object.keys(DEPARTMENT_LEADERS).forEach(function(k){delete DEPARTMENT_LEADERS[k]});Object.assign(DEPARTMENT_LEADERS,nl);checkLoaded()});
- loadCourses().then(function(){ 
-  setTimeout(showCourseAlertToast, 1000); 
-});
+ loadCourses().then(function(){ setTimeout(function(){ if(typeof isAdminLoggedIn !== 'undefined' && isAdminLoggedIn) showCourseAlertToast(); }, 1000); });
+
 
     db.collection('submissions').onSnapshot(function(snap){var oldData=JSON.stringify(submissions);submissions=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(submissions);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}updateStudentsList();checkLoaded();if(_loaded&&oldData!==newData)render();});
     db.collection('outings').onSnapshot(function(snap){var oldData=JSON.stringify(outings);outings=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(outings);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}checkLoaded();if(_loaded&&oldData!==newData)render();});
@@ -3562,8 +3561,10 @@ function getCourseAlerts(){
 
 // 배너 HTML 생성
 function renderCourseAlertBanner(){
+  if(typeof isAdminLoggedIn === 'undefined' || !isAdminLoggedIn) return '';
   var alerts = getCourseAlerts();
   if(alerts.length === 0) return '';
+
   
   var html = '<div id="courseAlertBanner" class="mb-4 space-y-2">';
   alerts.forEach(function(a){
@@ -3599,7 +3600,9 @@ var _courseToastShown = false;
 
 function showCourseAlertToast(){
   if(_courseToastShown) return;
+  if(typeof isAdminLoggedIn === 'undefined' || !isAdminLoggedIn) return;
   var alerts = getCourseAlerts();
+
   if(!alerts || alerts.length === 0) return;
   _courseToastShown = true;
   
