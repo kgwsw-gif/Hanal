@@ -3159,22 +3159,39 @@ var completed = courses.filter(function(c){ return c.status==='completed'; })
 
   
   // 모집 정보 HTML 생성 헬퍼
-  function recruitInfoHtml(c){
+    function recruitInfoHtml(c){
     var hasRecruit = c.recruitStart || c.recruitEnd || c.recruitCount || c.announceDate;
-    if(!hasRecruit) return '';
-    var html = '<div class="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600 space-y-0.5">';
-    if(c.recruitStart || c.recruitEnd){
-      html += '<div>📅 <span class="font-medium">모집기간:</span> ' + (c.recruitStart || '?') + ' ~ ' + (c.recruitEnd || '?') + '</div>';
+    var hasRecruit2 = c.recruitStart2 || c.recruitEnd2 || c.recruitCount2 || c.announceDate2;
+    if(!hasRecruit && !hasRecruit2) return '';
+        var html = '<div class="mt-2 pt-2 border-t border-gray-200 text-sm text-gray-700 space-y-1">';
+
+    if(hasRecruit){
+      if(c.recruitStart || c.recruitEnd){
+        html += '<div>📅 <span class="font-medium">모집기간:</span> ' + (c.recruitStart || '?') + ' ~ ' + (c.recruitEnd || '?') + '</div>';
+      }
+      if(c.recruitCount){
+        html += '<div>👥 <span class="font-medium">모집인원:</span> ' + c.recruitCount + '명</div>';
+      }
+      if(c.announceDate){
+        html += '<div>📢 <span class="font-medium">합격자발표:</span> ' + c.announceDate + '</div>';
+      }
     }
-    if(c.recruitCount){
-      html += '<div>👥 <span class="font-medium">모집인원:</span> ' + c.recruitCount + '명</div>';
-    }
-    if(c.announceDate){
-      html += '<div>📢 <span class="font-medium">합격자발표:</span> ' + c.announceDate + '</div>';
+    if(hasRecruit2){
+      if(hasRecruit){ html += '<div class="border-t border-gray-100 mt-1 pt-1"></div>'; }
+      if(c.recruitStart2 || c.recruitEnd2){
+        html += '<div>📅 <span class="font-medium text-warning-700">추가 모집기간:</span> ' + (c.recruitStart2 || '?') + ' ~ ' + (c.recruitEnd2 || '?') + '</div>';
+      }
+      if(c.recruitCount2){
+        html += '<div>👥 <span class="font-medium text-warning-700">추가 모집인원:</span> ' + c.recruitCount2 + '명</div>';
+      }
+      if(c.announceDate2){
+        html += '<div>📢 <span class="font-medium text-warning-700">추가 합격자발표:</span> ' + c.announceDate2 + '</div>';
+      }
     }
     html += '</div>';
     return html;
   }
+
   
   // 진행 중
   if(active.length > 0){
@@ -3252,7 +3269,7 @@ var completed = courses.filter(function(c){ return c.status==='completed'; })
   html += '<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleCourseSection()">';
   html += '<div class="flex items-center gap-2">';
   html += '<i class="fas fa-graduation-cap text-primary-500"></i>';
-  html += '<span class="font-bold text-gray-700">교육과정 관리</span>';
+  html += '<span class="font-bold text-gray-700">교육과정</span>';
   if(courses.length > 0){
     html += '<span class="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">' + courses.length + '</span>';
   }
@@ -3290,7 +3307,7 @@ function openCourseModal(courseId){
   modalHtml += '<input id="courseEndInput" type="date" value="' + (c ? c.endDate : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
   modalHtml += '</div>';
   
-  // 모집 정보 (선택 입력)
+  // 모집 정보 (1차)
   modalHtml += '<div class="border-t pt-3 mt-3">';
   modalHtml += '<div class="text-xs font-bold text-gray-500 mb-2">📋 모집 정보 (선택)</div>';
   
@@ -3306,6 +3323,25 @@ function openCourseModal(courseId){
   modalHtml += '<input id="courseRecruitCount" type="number" min="0" placeholder="예: 20" value="' + (c && c.recruitCount ? c.recruitCount : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
   modalHtml += '<div><label class="text-sm font-medium text-gray-700">합격자 발표일</label>';
   modalHtml += '<input id="courseAnnounceDate" type="date" value="' + (c && c.announceDate ? c.announceDate : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '</div>';
+  modalHtml += '</div>';
+  
+  // 추가 모집 정보 (2차)
+  modalHtml += '<div class="border-t pt-3 mt-3">';
+  modalHtml += '<div class="text-xs font-bold text-gray-500 mb-2">➕ 추가 모집 정보 (선택)</div>';
+  
+  modalHtml += '<div class="grid grid-cols-2 gap-2">';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">추가 모집 시작일</label>';
+  modalHtml += '<input id="courseRecruitStart2" type="date" value="' + (c && c.recruitStart2 ? c.recruitStart2 : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">추가 모집 마감일</label>';
+  modalHtml += '<input id="courseRecruitEnd2" type="date" value="' + (c && c.recruitEnd2 ? c.recruitEnd2 : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '</div>';
+  
+  modalHtml += '<div class="grid grid-cols-2 gap-2 mt-2">';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">추가 모집 인원</label>';
+  modalHtml += '<input id="courseRecruitCount2" type="number" min="0" placeholder="예: 5" value="' + (c && c.recruitCount2 ? c.recruitCount2 : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">추가 합격자 발표일</label>';
+  modalHtml += '<input id="courseAnnounceDate2" type="date" value="' + (c && c.announceDate2 ? c.announceDate2 : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
   modalHtml += '</div>';
   modalHtml += '</div>';
   
@@ -3332,12 +3368,19 @@ async function saveCourse(courseId){
   var recruitEnd = document.getElementById('courseRecruitEnd').value;
   var recruitCountRaw = document.getElementById('courseRecruitCount').value;
   var announceDate = document.getElementById('courseAnnounceDate').value;
+  var recruitStart2 = document.getElementById('courseRecruitStart2').value;
+  var recruitEnd2 = document.getElementById('courseRecruitEnd2').value;
+  var recruitCountRaw2 = document.getElementById('courseRecruitCount2').value;
+  var announceDate2 = document.getElementById('courseAnnounceDate2').value;
   
   if(!name){ showToast('기수명을 입력하세요', 'warning'); return; }
   if(!startDate || !endDate){ showToast('시작일과 수료일을 모두 입력하세요', 'warning'); return; }
   if(startDate >= endDate){ showToast('수료일은 시작일보다 뒤여야 합니다', 'warning'); return; }
   if(recruitStart && recruitEnd && recruitStart > recruitEnd){
     showToast('모집 마감일은 모집 시작일보다 뒤여야 합니다', 'warning'); return;
+  }
+  if(recruitStart2 && recruitEnd2 && recruitStart2 > recruitEnd2){
+    showToast('추가 모집 마감일은 추가 모집 시작일보다 뒤여야 합니다', 'warning'); return;
   }
   
   var today = new Date().toISOString().split('T')[0];
@@ -3352,7 +3395,11 @@ async function saveCourse(courseId){
       recruitStart: recruitStart || '',
       recruitEnd: recruitEnd || '',
       recruitCount: recruitCountRaw ? parseInt(recruitCountRaw, 10) : 0,
-      announceDate: announceDate || ''
+      announceDate: announceDate || '',
+      recruitStart2: recruitStart2 || '',
+      recruitEnd2: recruitEnd2 || '',
+      recruitCount2: recruitCountRaw2 ? parseInt(recruitCountRaw2, 10) : 0,
+      announceDate2: announceDate2 || ''
     };
     
     if(courseId){
