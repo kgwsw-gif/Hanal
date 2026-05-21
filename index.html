@@ -3159,12 +3159,12 @@ var completed = courses.filter(function(c){ return c.status==='completed'; })
 
   
   // 모집 정보 HTML 생성 헬퍼
-    function recruitInfoHtml(c){
+      function recruitInfoHtml(c){
     var hasRecruit = c.recruitStart || c.recruitEnd || c.recruitCount || c.announceDate;
     var hasRecruit2 = c.recruitStart2 || c.recruitEnd2 || c.recruitCount2 || c.announceDate2;
-    if(!hasRecruit && !hasRecruit2) return '';
-        var html = '<div class="mt-2 pt-2 border-t border-gray-200 text-sm text-gray-700 space-y-1">';
-
+    var hasManager = c.manager || c.managerPhone;
+    if(!hasRecruit && !hasRecruit2 && !hasManager) return '';
+    var html = '<div class="mt-2 pt-2 border-t border-gray-200 text-sm text-gray-700 space-y-1">';
     if(hasRecruit){
       if(c.recruitStart || c.recruitEnd){
         html += '<div>📅 <span class="font-medium">모집기간:</span> ' + (c.recruitStart || '?') + ' ~ ' + (c.recruitEnd || '?') + '</div>';
@@ -3188,9 +3188,17 @@ var completed = courses.filter(function(c){ return c.status==='completed'; })
         html += '<div>📢 <span class="font-medium text-warning-700">추가 합격자발표:</span> ' + c.announceDate2 + '</div>';
       }
     }
+    if(hasManager){
+      if(hasRecruit || hasRecruit2){ html += '<div class="border-t border-gray-100 mt-1 pt-1"></div>'; }
+      var parts = [];
+      if(c.manager){ parts.push('<span class="font-medium">담당자:</span> ' + escapeHtml(c.manager)); }
+      if(c.managerPhone){ parts.push('<span class="font-medium">내선:</span> ' + escapeHtml(c.managerPhone)); }
+      html += '<div>👤 ' + parts.join(' &nbsp;|&nbsp; ') + '</div>';
+    }
     html += '</div>';
     return html;
   }
+
 
   
   // 진행 중
@@ -3321,10 +3329,17 @@ function openCourseModal(courseId){
   modalHtml += '<div class="grid grid-cols-2 gap-2 mt-2">';
   modalHtml += '<div><label class="text-sm font-medium text-gray-700">모집 인원</label>';
   modalHtml += '<input id="courseRecruitCount" type="number" min="0" placeholder="예: 20" value="' + (c && c.recruitCount ? c.recruitCount : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
-  modalHtml += '<div><label class="text-sm font-medium text-gray-700">합격자 발표일</label>';
+    modalHtml += '<div><label class="text-sm font-medium text-gray-700">합격자 발표일</label>';
   modalHtml += '<input id="courseAnnounceDate" type="date" value="' + (c && c.announceDate ? c.announceDate : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
   modalHtml += '</div>';
+  modalHtml += '<div class="grid grid-cols-2 gap-2 mt-2">';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">담당자</label>';
+  modalHtml += '<input id="courseManager" type="text" placeholder="예: 홍길동" value="' + (c && c.manager ? escapeHtml(c.manager) : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">내선번호</label>';
+  modalHtml += '<input id="courseManagerPhone" type="text" placeholder="예: 1234" value="' + (c && c.managerPhone ? escapeHtml(c.managerPhone) : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
   modalHtml += '</div>';
+  modalHtml += '</div>';
+
   
   // 추가 모집 정보 (2차)
   modalHtml += '<div class="border-t pt-3 mt-3">';
@@ -3368,6 +3383,8 @@ async function saveCourse(courseId){
   var recruitEnd = document.getElementById('courseRecruitEnd').value;
   var recruitCountRaw = document.getElementById('courseRecruitCount').value;
   var announceDate = document.getElementById('courseAnnounceDate').value;
+  var manager = document.getElementById('courseManager').value.trim();
+  var managerPhone = document.getElementById('courseManagerPhone').value.trim();
   var recruitStart2 = document.getElementById('courseRecruitStart2').value;
   var recruitEnd2 = document.getElementById('courseRecruitEnd2').value;
   var recruitCountRaw2 = document.getElementById('courseRecruitCount2').value;
@@ -3395,7 +3412,9 @@ async function saveCourse(courseId){
       recruitStart: recruitStart || '',
       recruitEnd: recruitEnd || '',
       recruitCount: recruitCountRaw ? parseInt(recruitCountRaw, 10) : 0,
-      announceDate: announceDate || '',
+            announceDate: announceDate || '',
+      manager: manager || '',
+      managerPhone: managerPhone || '',
       recruitStart2: recruitStart2 || '',
       recruitEnd2: recruitEnd2 || '',
       recruitCount2: recruitCountRaw2 ? parseInt(recruitCountRaw2, 10) : 0,
