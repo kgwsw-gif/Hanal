@@ -4238,7 +4238,7 @@ function initIntervals(){if(intervalsInit)return;intervalsInit=true;setInterval(
 setInterval(function(){
     refreshHvacListener();
     var nd=getCurrentDate();
-    if(currentDate!==nd && !isAdminLoggedIn){
+    if(currentDate<nd && !isAdminLoggedIn){
         currentDate=nd;
         render();
     }
