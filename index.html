@@ -1379,10 +1379,12 @@ function refreshHvacListener() {
     db.collection('config').doc('departments').onSnapshot(function(doc){if(doc.exists&&doc.data().list)departments=doc.data().list;else departments=window._secureData.getDepartments();checkLoaded()});
     db.collection('students').onSnapshot(function(){updateStudentsList();checkLoaded()});
     db.collection('departmentLeaders').onSnapshot(function(snap){var nl={};snap.docs.forEach(function(doc){if(doc.data().name&&doc.data().password)nl[doc.id]={name:doc.data().name,password:doc.data().password}});Object.keys(DEPARTMENT_LEADERS).forEach(function(k){delete DEPARTMENT_LEADERS[k]});Object.assign(DEPARTMENT_LEADERS,nl);checkLoaded()});
-    db.collection('submissions').onSnapshot(function(snap){var oldData=JSON.stringify(submissions);submissions=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(submissions);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}updateStudentsList();checkLoaded()});
-    db.collection('roomNumbers').onSnapshot(function(){checkLoaded()});
-    db.collection('passwords').onSnapshot(function(){checkLoaded()});
-    db.collection('outings').onSnapshot(function(snap){var oldData=JSON.stringify(outings);outings=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(outings);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}checkLoaded()});
+ loadCourses().then(function(){ 
+  setTimeout(showCourseAlertToast, 1000); 
+});
+
+    db.collection('submissions').onSnapshot(function(snap){var oldData=JSON.stringify(submissions);submissions=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(submissions);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}updateStudentsList();checkLoaded();if(_loaded&&oldData!==newData)render();});
+    db.collection('outings').onSnapshot(function(snap){var oldData=JSON.stringify(outings);outings=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(outings);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}checkLoaded();if(_loaded&&oldData!==newData)render();});
     db.collection('outingHistory').onSnapshot(function(snap){outingHistory=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()});
     db.collection('resignRequests').onSnapshot(function(snap){resignRequests=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});updateStudentsList();checkLoaded();
         // ★ 자가진단: orphan 퇴사이력 감지 시 콘솔 경고 (관리자만)
@@ -1685,7 +1687,21 @@ function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(i
 function showAdminDeptSelect(){var depts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'});openModal('<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4">학과 선택</h3><div class="space-y-2 max-h-[60vh] overflow-y-auto">'+depts.map(function(d){return'<button onclick="selectAdminDept(\''+safeAttr(d)+'\')" class="w-full text-left p-4 bg-surface-50 hover:bg-primary-50 rounded-2xl transition-all btn-press border border-surface-200"><div class="font-bold text-gray-800 text-base">'+escapeHtml(d)+'</div><div class="text-sm text-gray-500 mt-0.5">대표: '+escapeHtml(DEPARTMENT_LEADERS[d]?DEPARTMENT_LEADERS[d].name:'미설정')+' · '+(students[d]||[]).length+'명</div></button>'}).join('')+'</div><button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button></div>')}
 function selectAdminDept(dept){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(dept+' 학과대표 모드','success')}
 
-function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(!pw&&!name.includes('(여)')){name+='(여)';pw=window._secureData.getPassword(name)}if(!pw){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return}if(pw!==bd){showToast('비밀번호 불일치','error');return}if(remember){localStorage.setItem('saved_student_name',name);localStorage.setItem('saved_student_pw',bd)}else{localStorage.removeItem('saved_student_name');localStorage.removeItem('saved_student_pw')}var found=false;var isGuest=false;for(var i=0;i<departments.length;i++){if((students[departments[i]]||[]).includes(name)){found=true;break}}if(!found&&students['_guest']&&students['_guest'].includes(name)){found=true;isGuest=true}if(!found){showToast('퇴사한 교육생입니다','error');return}isGuestLoggedIn=isGuest;currentStudent=name;if(isGuest){currentMode='admin';isAdminLoggedIn=true;}else{currentMode='student';try{if(typeof initPushNotification==='function')initPushNotification();}catch(e){console.error('푸시 호출 실패:',e);}}closeModal();render();showToast(isGuest?name+' 게스트 로그인 (조회전용)':name+'님 환영합니다','success')})}
+function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(!pw&&!name.includes('(여)')){name+='(여)';pw=window._secureData.getPassword(name)}if(!pw){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return}if(pw!==bd){showToast('비밀번호 불일치','error');return}if(remember){localStorage.setItem('saved_student_name',name);localStorage.setItem('saved_student_pw',bd)}else{localStorage.removeItem('saved_student_name');localStorage.removeItem('saved_student_pw')}var found=false;var isGuest=false;
+// 데이터 로드 상태 확인
+var totalStudents=0;for(var k in students){if(Array.isArray(students[k]))totalStudents+=students[k].length;}
+if(totalStudents===0){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return;}
+if(!departments||departments.length===0){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return;}
+for(var i=0;i<departments.length;i++){if((students[departments[i]]||[]).includes(name)){found=true;break}}
+if(!found&&students['_guest']&&students['_guest'].includes(name)){found=true;isGuest=true}
+if(!found){
+  // 퇴사 이력 확인
+  var isResigned=resignRequests&&resignRequests.some(function(r){return r.status==='approved'&&r.name===name;});
+  if(isResigned){showToast('퇴사한 교육생입니다','error');}
+  else{showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error');}
+  return;
+}
+isGuestLoggedIn=isGuest;currentStudent=name;if(isGuest){currentMode='admin';isAdminLoggedIn=true;}else{currentMode='student';try{if(typeof initPushNotification==='function')initPushNotification();}catch(e){console.error('푸시 호출 실패:',e);}}closeModal();render();showToast(isGuest?name+' 게스트 로그인 (조회전용)':name+'님 환영합니다','success')})}
 async function logout(){try{await firebase.auth().signOut()}catch(e){}isAdminLoggedIn=false;isSuperAdmin=false;isLeaderLoggedIn=false;leaderDepartment=null;isGuestLoggedIn=false;currentStudent=null;currentMode=null;render();showToast('로그아웃 완료','info')}
 
 function currentStudentDept(){if(isGuestLoggedIn&&students['_guest']&&students['_guest'].includes(currentStudent))return '_guest';for(var i=0;i<departments.length;i++)if(students[departments[i]]&&students[departments[i]].includes(currentStudent))return departments[i];var all=window._secureData.getAllStudents();for(var dept in all)if(all[dept]&&all[dept].includes(currentStudent))return dept;return null}
@@ -3124,6 +3140,440 @@ async function downloadLoginLogs(){
     }catch(e){
         showToast('다운로드 실패: '+e.message,'error');
     }
+}// ============ 교육과정 관리 (Phase 1) ============
+var courses = [];
+var courseSectionOpen = false;
+function toggleCourseSection(){
+  courseSectionOpen = !courseSectionOpen;
+  render();
+}
+
+function renderCourseAccordion(){
+  var inner = '';
+  var active = courses.filter(function(c){ return c.status==='active'; })
+  .sort(function(a, b){ return (a.endDate || '').localeCompare(b.endDate || ''); });
+var upcoming = courses.filter(function(c){ return c.status==='upcoming'; })
+  .sort(function(a, b){ return (a.startDate || '').localeCompare(b.startDate || ''); });
+var completed = courses.filter(function(c){ return c.status==='completed'; })
+  .sort(function(a, b){ return (b.endDate || '').localeCompare(a.endDate || ''); });
+
+  
+  // 모집 정보 HTML 생성 헬퍼
+  function recruitInfoHtml(c){
+    var hasRecruit = c.recruitStart || c.recruitEnd || c.recruitCount || c.announceDate;
+    if(!hasRecruit) return '';
+    var html = '<div class="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600 space-y-0.5">';
+    if(c.recruitStart || c.recruitEnd){
+      html += '<div>📅 <span class="font-medium">모집기간:</span> ' + (c.recruitStart || '?') + ' ~ ' + (c.recruitEnd || '?') + '</div>';
+    }
+    if(c.recruitCount){
+      html += '<div>👥 <span class="font-medium">모집인원:</span> ' + c.recruitCount + '명</div>';
+    }
+    if(c.announceDate){
+      html += '<div>📢 <span class="font-medium">합격자발표:</span> ' + c.announceDate + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+  
+  // 진행 중
+  if(active.length > 0){
+    active.forEach(function(c){
+      var today = new Date(); today.setHours(0,0,0,0);
+      var end = new Date(c.endDate+'T00:00:00');
+      var start = new Date(c.startDate+'T00:00:00');
+      var totalDays = Math.ceil((end-start)/(1000*60*60*24)) + 1;
+      var passedDays = Math.ceil((today-start)/(1000*60*60*24)) + 1;
+      var remainDays = Math.ceil((end-today)/(1000*60*60*24));
+      var progress = Math.max(0, Math.min(100, Math.round(passedDays/totalDays*100)));
+      var dDayText = remainDays > 0 ? 'D-'+remainDays+' (수료까지 '+remainDays+'일)' : (remainDays === 0 ? '오늘이 수료일입니다' : '수료 완료');
+      var dDayColor = (remainDays >= 0 && remainDays <= 3) ? 'text-danger-600' : 'text-primary-700';
+      
+      inner += '<div class="border-2 border-primary-300 bg-primary-50 rounded-xl p-4 mt-3">';
+      inner += '<div class="flex items-center justify-between mb-1">';
+      inner += '<div class="text-xs font-bold text-primary-700">진행중</div>';
+      inner += '<div><button onclick="editCourse(\''+c.id+'\')" class="text-xs text-primary-600 hover:underline mr-2">수정</button>';
+      inner += '<button onclick="deleteCourse(\''+c.id+'\')" class="text-xs text-danger-600 hover:underline">삭제</button></div>';
+      inner += '</div>';
+      inner += '<div class="text-lg font-bold text-gray-800 mb-1">' + escapeHtml(c.name) + '</div>';
+      inner += '<div class="text-sm text-gray-600 mb-2">' + c.startDate + ' ~ ' + c.endDate + '</div>';
+      inner += '<div class="text-sm font-bold '+dDayColor+' mb-2">' + dDayText + '</div>';
+      inner += '<div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">';
+      inner += '<div class="bg-primary-500 h-3" style="width:' + progress + '%"></div>';
+      inner += '</div>';
+      inner += '<div class="text-sm font-bold text-primary-700 mt-2 text-right">' + passedDays + '/' + totalDays + '일 (' + progress + '%)</div>';
+      inner += recruitInfoHtml(c);
+      inner += '</div>';
+    });
+  } else {
+    inner += '<div class="text-center text-gray-400 py-4 text-sm mt-3">진행 중인 교육과정이 없습니다</div>';
+  }
+  
+  // 예정
+  if(upcoming.length > 0){
+    inner += '<div class="text-sm font-bold text-gray-600 mt-4 mb-2">예정</div>';
+    upcoming.forEach(function(c){
+      var startD = new Date(c.startDate+'T00:00:00');
+      var today2 = new Date(); today2.setHours(0,0,0,0);
+      var daysUntil = Math.ceil((startD-today2)/(1000*60*60*24));
+      inner += '<div class="border-2 border-warning-300 bg-warning-50 rounded-xl p-4 mb-2">';
+      inner += '<div class="flex items-center justify-between">';
+      inner += '<div class="flex-1 min-w-0">';
+      inner += '<div class="text-xs font-bold text-warning-700 mb-1">예정</div>';
+      inner += '<div class="font-bold text-base text-gray-800 mb-1">' + escapeHtml(c.name) + '</div>';
+      inner += '<div class="text-sm text-gray-600">' + c.startDate + ' ~ ' + c.endDate + ' <span class="font-bold text-warning-700">(D-' + daysUntil + ')</span></div>';
+      inner += '</div>';
+      inner += '<div class="flex gap-2 flex-shrink-0 ml-3">';
+      inner += '<button onclick="editCourse(\''+c.id+'\')" class="text-sm font-bold text-primary-600 hover:underline">수정</button>';
+      inner += '<button onclick="deleteCourse(\''+c.id+'\')" class="text-sm font-bold text-danger-600 hover:underline">삭제</button>';
+      inner += '</div></div>';
+      inner += recruitInfoHtml(c);
+      inner += '</div>';
+    });
+  }
+  
+  // 완료
+  if(completed.length > 0){
+    inner += '<details class="mt-4"><summary class="text-xs font-bold text-gray-500 cursor-pointer">완료된 과정 ('+completed.length+')</summary>';
+    completed.forEach(function(c){
+      inner += '<div class="border border-gray-100 rounded-xl p-3 mt-2 flex items-center justify-between opacity-70">';
+      inner += '<div><div class="font-medium text-sm">' + escapeHtml(c.name) + '</div>';
+      inner += '<div class="text-xs text-gray-500">' + c.startDate + ' ~ ' + c.endDate + '</div></div>';
+      inner += '<button onclick="deleteCourse(\''+c.id+'\')" class="text-xs text-danger-600 hover:underline">삭제</button>';
+      inner += '</div>';
+    });
+    inner += '</details>';
+  }
+  
+  // 추가 버튼
+  inner += '<button onclick="showAddCourseModal()" class="w-full mt-3 py-3 bg-primary-500 text-white rounded-xl font-bold text-sm btn-press"><i class="fas fa-plus mr-1"></i> 교육과정 추가</button>';
+  
+  var html = '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5">';
+  html += '<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleCourseSection()">';
+  html += '<div class="flex items-center gap-2">';
+  html += '<i class="fas fa-graduation-cap text-primary-500"></i>';
+  html += '<span class="font-bold text-gray-700">교육과정 관리</span>';
+  if(courses.length > 0){
+    html += '<span class="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">' + courses.length + '</span>';
+  }
+  html += '</div>';
+  html += '<i class="fas ' + (courseSectionOpen ? 'fa-chevron-up' : 'fa-chevron-down') + ' text-gray-400"></i>';
+  html += '</div>';
+  if(courseSectionOpen){
+    html += inner;
+  }
+  html += '</div>';
+  return html;
+}
+
+
+function showAddCourseModal(){ openCourseModal(null); }
+function editCourse(id){ openCourseModal(id); }
+
+function openCourseModal(courseId){
+  var c = courseId ? courses.find(function(x){ return x.id === courseId; }) : null;
+  var isEdit = !!c;
+  
+  var modalHtml = '<div id="courseModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onclick="if(event.target===this)closeCourseModal()">';
+  modalHtml += '<div class="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">';
+  modalHtml += '<h3 class="text-xl font-bold mb-4">' + (isEdit ? '교육과정 수정' : '교육과정 추가') + '</h3>';
+  modalHtml += '<div class="space-y-3">';
+  
+  // 기본 정보
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">기수명 <span class="text-danger-500">*</span></label>';
+  modalHtml += '<input id="courseNameInput" type="text" placeholder="예: 2026년 1학기" value="' + (c ? escapeHtml(c.name) : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  
+  modalHtml += '<div class="grid grid-cols-2 gap-2">';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">시작일 <span class="text-danger-500">*</span></label>';
+  modalHtml += '<input id="courseStartInput" type="date" value="' + (c ? c.startDate : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">수료일 <span class="text-danger-500">*</span></label>';
+  modalHtml += '<input id="courseEndInput" type="date" value="' + (c ? c.endDate : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '</div>';
+  
+  // 모집 정보 (선택 입력)
+  modalHtml += '<div class="border-t pt-3 mt-3">';
+  modalHtml += '<div class="text-xs font-bold text-gray-500 mb-2">📋 모집 정보 (선택)</div>';
+  
+  modalHtml += '<div class="grid grid-cols-2 gap-2">';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">모집 시작일</label>';
+  modalHtml += '<input id="courseRecruitStart" type="date" value="' + (c && c.recruitStart ? c.recruitStart : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">모집 마감일</label>';
+  modalHtml += '<input id="courseRecruitEnd" type="date" value="' + (c && c.recruitEnd ? c.recruitEnd : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '</div>';
+  
+  modalHtml += '<div class="grid grid-cols-2 gap-2 mt-2">';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">모집 인원</label>';
+  modalHtml += '<input id="courseRecruitCount" type="number" min="0" placeholder="예: 20" value="' + (c && c.recruitCount ? c.recruitCount : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '<div><label class="text-sm font-medium text-gray-700">합격자 발표일</label>';
+  modalHtml += '<input id="courseAnnounceDate" type="date" value="' + (c && c.announceDate ? c.announceDate : '') + '" class="w-full border rounded-lg px-3 py-2 mt-1"/></div>';
+  modalHtml += '</div>';
+  modalHtml += '</div>';
+  
+  modalHtml += '</div>';
+  modalHtml += '<div class="flex gap-2 mt-5">';
+  modalHtml += '<button onclick="closeCourseModal()" class="flex-1 py-2 bg-gray-200 rounded-lg font-bold">취소</button>';
+  modalHtml += '<button onclick="saveCourse(' + (isEdit ? '\'' + c.id + '\'' : 'null') + ')" class="flex-1 py-2 bg-primary-500 text-white rounded-lg font-bold">저장</button>';
+  modalHtml += '</div>';
+  modalHtml += '</div></div>';
+  
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closeCourseModal(){
+  var m = document.getElementById('courseModal');
+  if(m) m.remove();
+}
+
+async function saveCourse(courseId){
+  var name = document.getElementById('courseNameInput').value.trim();
+  var startDate = document.getElementById('courseStartInput').value;
+  var endDate = document.getElementById('courseEndInput').value;
+  var recruitStart = document.getElementById('courseRecruitStart').value;
+  var recruitEnd = document.getElementById('courseRecruitEnd').value;
+  var recruitCountRaw = document.getElementById('courseRecruitCount').value;
+  var announceDate = document.getElementById('courseAnnounceDate').value;
+  
+  if(!name){ showToast('기수명을 입력하세요', 'warning'); return; }
+  if(!startDate || !endDate){ showToast('시작일과 수료일을 모두 입력하세요', 'warning'); return; }
+  if(startDate >= endDate){ showToast('수료일은 시작일보다 뒤여야 합니다', 'warning'); return; }
+  if(recruitStart && recruitEnd && recruitStart > recruitEnd){
+    showToast('모집 마감일은 모집 시작일보다 뒤여야 합니다', 'warning'); return;
+  }
+  
+  var today = new Date().toISOString().split('T')[0];
+  var status = today < startDate ? 'upcoming' : (today > endDate ? 'completed' : 'active');
+  
+  try {
+    var data = { 
+      name: name, 
+      startDate: startDate, 
+      endDate: endDate, 
+      status: status,
+      recruitStart: recruitStart || '',
+      recruitEnd: recruitEnd || '',
+      recruitCount: recruitCountRaw ? parseInt(recruitCountRaw, 10) : 0,
+      announceDate: announceDate || ''
+    };
+    
+    if(courseId){
+      await db.collection('courses').doc(courseId).update(data);
+      var idx = courses.findIndex(function(c){ return c.id === courseId; });
+      if(idx !== -1) courses[idx] = Object.assign(courses[idx], data);
+      showToast('교육과정이 수정되었습니다', 'success');
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      var ref = await db.collection('courses').add(data);
+      courses.push(Object.assign({id: ref.id}, data));
+      showToast('교육과정이 등록되었습니다', 'success');
+    }
+    
+    closeCourseModal();
+    render();
+  } catch(e){
+    console.error(e);
+    showToast('저장 실패: ' + e.message, 'error');
+  }
+}
+
+async function deleteCourse(id){
+  if(!confirm('이 교육과정을 삭제하시겠습니까?')) return;
+  try {
+    await db.collection('courses').doc(id).delete();
+    courses = courses.filter(function(c){ return c.id !== id; });
+    showToast('삭제되었습니다', 'success');
+    render();
+  } catch(e){
+    showToast('삭제 실패: ' + e.message, 'error');
+  }
+}
+// render 후처리 - 교육과정 관리 박스 자동 삽입
+(function(){
+  if(window._courseRenderWrapped) return;
+  window._courseRenderWrapped = true;
+  
+  var _originalRender = window.render;
+  window.render = function(){
+    var result = _originalRender.apply(this, arguments);
+    setTimeout(insertCourseAccordion, 50);
+    return result;
+  };
+})();
+
+function insertCourseAccordion(){
+  try {
+    var historyInput = document.getElementById('historyDateInput');
+    if(!historyInput) return;
+    
+    var innerBox = historyInput.closest('.bg-white.rounded-2xl');
+    if(!innerBox) return;
+    
+    // 교육과정 박스
+    var existing = document.getElementById('courseAccordionWrapper');
+    if(existing) existing.remove();
+    
+    var wrapper = document.createElement('div');
+    wrapper.id = 'courseAccordionWrapper';
+    wrapper.innerHTML = renderCourseAccordion();
+    innerBox.parentNode.insertBefore(wrapper.firstChild, innerBox);
+    
+        // 알림 배너 (관리자 화면 최상단에 표시)
+    var existingBanner = document.getElementById('courseAlertBanner');
+    if(existingBanner) existingBanner.remove();
+    
+    var bannerHtml = renderCourseAlertBanner();
+    if(bannerHtml){
+      var appContainer = document.getElementById('app');
+      if(appContainer){
+        var firstBox = appContainer.querySelector('.rounded-2xl');
+        if(firstBox){
+          var bannerWrapper = document.createElement('div');
+          bannerWrapper.innerHTML = bannerHtml;
+          firstBox.parentNode.insertBefore(bannerWrapper.firstChild, firstBox);
+        }
+      }
+    }
+
+  } catch(e){
+    console.warn('교육과정 박스/배너 삽입 실패:', e.message);
+  }
+}
+
+// ===== 교육과정 알림 계산 =====
+
+// 가장 빨리 수료하는 진행중 과정 (메인 알림 대상)
+function getMainActiveCourse(){
+  var active = courses.filter(function(c){ return c.status === 'active'; });
+  if(active.length === 0) return null;
+  active.sort(function(a, b){ return a.endDate.localeCompare(b.endDate); });
+  return active[0];
+}
+
+// 가장 빨리 시작하는 예정 과정
+function getMainUpcomingCourse(){
+  var upcoming = courses.filter(function(c){ return c.status === 'upcoming'; });
+  if(upcoming.length === 0) return null;
+  upcoming.sort(function(a, b){ return a.startDate.localeCompare(b.startDate); });
+  return upcoming[0];
+}
+
+// 알림 메시지 생성 (배너용)
+function getCourseAlerts(){
+  var alerts = [];
+  var today = new Date(); today.setHours(0,0,0,0);
+  
+  // 수료 임박 (D-3 ~ D-0)
+  var mainActive = getMainActiveCourse();
+  if(mainActive){
+    var endD = new Date(mainActive.endDate + 'T00:00:00');
+    var dDay = Math.ceil((endD - today) / (1000*60*60*24));
+    if(dDay >= 0 && dDay <= 3){
+      var level = dDay === 0 ? 'critical' : (dDay === 1 ? 'high' : (dDay === 2 ? 'mid' : 'low'));
+      var icon = dDay === 0 ? '🎓' : '⏰';
+      var msg = dDay === 0 
+        ? '오늘은 ' + mainActive.name + ' 수료식입니다!' 
+        : mainActive.name + ' 수료 D-' + dDay + ' (' + mainActive.endDate + ')';
+      alerts.push({ type: 'completion', level: level, icon: icon, msg: msg, course: mainActive, dDay: dDay });
+    }
+  }
+  
+  // 개강 임박 (D-3 ~ D-0)
+  var mainUpcoming = getMainUpcomingCourse();
+  if(mainUpcoming){
+    var startD = new Date(mainUpcoming.startDate + 'T00:00:00');
+    var dDay2 = Math.ceil((startD - today) / (1000*60*60*24));
+    if(dDay2 >= 0 && dDay2 <= 3){
+      var level2 = dDay2 === 0 ? 'critical' : (dDay2 === 1 ? 'high' : (dDay2 === 2 ? 'mid' : 'low'));
+      var icon2 = dDay2 === 0 ? '🎉' : '🆕';
+      var msg2 = dDay2 === 0 
+        ? '오늘 ' + mainUpcoming.name + ' 개강일입니다!' 
+        : mainUpcoming.name + ' 개강 D-' + dDay2 + ' (' + mainUpcoming.startDate + ')';
+      alerts.push({ type: 'start', level: level2, icon: icon2, msg: msg2, course: mainUpcoming, dDay: dDay2 });
+    }
+  }
+  
+  return alerts;
+}
+
+// 배너 HTML 생성
+function renderCourseAlertBanner(){
+  var alerts = getCourseAlerts();
+  if(alerts.length === 0) return '';
+  
+  var html = '<div id="courseAlertBanner" class="mb-4 space-y-2">';
+  alerts.forEach(function(a){
+    var bgColor, borderColor, textColor;
+    if(a.type === 'completion'){
+      // 수료 알림: 노랑 → 주황 → 빨강
+      if(a.level === 'critical' || a.level === 'high'){
+        bgColor = 'bg-danger-50'; borderColor = 'border-danger-400'; textColor = 'text-danger-800';
+      } else if(a.level === 'mid'){
+        bgColor = 'bg-warning-50'; borderColor = 'border-warning-400'; textColor = 'text-warning-800';
+      } else {
+        bgColor = 'bg-warning-50'; borderColor = 'border-warning-300'; textColor = 'text-warning-700';
+      }
+    } else {
+      // 개강 알림: 파랑 계열
+      bgColor = 'bg-info-50'; borderColor = 'border-info-400'; textColor = 'text-info-800';
+    }
+    
+    html += '<div class="border-2 ' + borderColor + ' ' + bgColor + ' rounded-xl p-4 flex items-center justify-between">';
+    html += '<div class="flex items-center gap-3">';
+    html += '<span class="text-2xl">' + a.icon + '</span>';
+    html += '<div class="font-bold ' + textColor + '">' + escapeHtml(a.msg) + '</div>';
+    html += '</div>';
+    html += '<button onclick="showCourseReport(\'' + a.course.id + '\')" class="text-sm font-bold px-3 py-1 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">상세 보기</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+// ============ 교육과정 토스트 알림 ============
+var _courseToastShown = false;
+
+function showCourseAlertToast(){
+  if(_courseToastShown) return;
+  var alerts = getCourseAlerts();
+  if(!alerts || alerts.length === 0) return;
+  _courseToastShown = true;
+  
+  var topAlert = alerts[0];
+var msg = topAlert.icon + ' ' + topAlert.msg;
+if(alerts.length > 1) msg += ' 외 ' + (alerts.length - 1) + '건';
+
+  
+  var toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#f59e0b;color:#fff;padding:14px 20px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:9999;font-weight:bold;max-width:360px;';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(function(){ 
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.5s';
+    setTimeout(function(){ toast.remove(); }, 500);
+  }, 5000);
+  
+  console.log('✅ 토스트 표시:', msg);
+}
+
+
+// 상세 보기 (3차에서 자동 리포트로 확장 예정, 일단 임시)
+function showCourseReport(courseId){
+  var c = courses.find(function(x){ return x.id === courseId; });
+  if(!c) return;
+  alert(c.name + '\n시작일: ' + c.startDate + '\n수료일: ' + c.endDate + '\n\n(자동 리포트는 3차에서 구현됩니다)');
+}
+
+
+async function loadCourses(){
+  try {
+    var snapshot = await db.collection('courses').orderBy('startDate','desc').get();
+    courses = snapshot.docs.map(function(d){
+      return Object.assign({id:d.id}, d.data());
+    });
+    console.log('교육과정 로드:', courses.length+'개');
+  } catch(e){
+    console.warn('교육과정 로드 실패:', e.message);
+  }
 }
 
 // ============ 관리 함수 ============
@@ -4151,7 +4601,7 @@ function renderLeaderView(todaySubs,todayOuts){
     var ad=getAvailableDates(),av=ad.map(function(d){return d.date});
     if(av.indexOf(currentDate)===-1&&ad.length>0)currentDate=ad[0].date;
     var rawDs=students[leaderDepartment]||[];
-    var ds=rawDs.filter(function(s){return !resignRequests.some(function(r){return r.status==='approved'&&r.department===leaderDepartment&&r.name===s})});
+    var ds=rawDs.filter(function(s){return !resignRequests.some(function(r){return r.status==='approved'&&r.department===leaderDepartment&&r.name===s})&&!window._secureData.isPending(s)});
     var subN=todaySubs.filter(function(s){return s.department===leaderDepartment}).map(function(s){return s.name});
     var stay=todaySubs.filter(function(s){return s.status==='stay'&&s.department===leaderDepartment&&ds.indexOf(s.name)!==-1});
     var out=todaySubs.filter(function(s){return s.status==='out'&&s.department===leaderDepartment&&ds.indexOf(s.name)!==-1});
