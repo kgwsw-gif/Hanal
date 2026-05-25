@@ -5776,13 +5776,14 @@ h+='<div class="pb-5 mt-4">';
       h+='<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-3">';
       for(var rj=0;rj<fl.rooms.length;rj++){
         var r=fl.rooms[rj];
-        var _shouldShow=true;
+                var _shouldShow=true;
         if(roomFilterDept){
-          _shouldShow=(r.count===0&&!r.isStaff);
+          _shouldShow=false;
           for(var si=0;si<r.members.length;si++){
             if(r.members[si].dept===roomFilterDept){_shouldShow=true;break;}
           }
         }
+
         if(roomSearchKeyword&&_shouldShow){
           var _found=false;var _kw=roomSearchKeyword.toLowerCase();
           if(_kw==='공실'){if(r.count===0&&!r.isStaff&&!r.isRepair)_found=true;}
