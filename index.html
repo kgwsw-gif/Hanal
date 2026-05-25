@@ -3541,7 +3541,7 @@ function getCourseAlerts(){
     }
   }
   
-  // 개강 임박 (D-3 ~ D-0)
+  // 입사 임박 (D-3 ~ D-0)
   var mainUpcoming = getMainUpcomingCourse();
   if(mainUpcoming){
     var startD = new Date(mainUpcoming.startDate + 'T00:00:00');
@@ -3550,8 +3550,8 @@ function getCourseAlerts(){
       var level2 = dDay2 === 0 ? 'critical' : (dDay2 === 1 ? 'high' : (dDay2 === 2 ? 'mid' : 'low'));
       var icon2 = dDay2 === 0 ? '🎉' : '🆕';
       var msg2 = dDay2 === 0 
-        ? '오늘 ' + mainUpcoming.name + ' 개강일입니다!' 
-        : mainUpcoming.name + ' 개강 D-' + dDay2 + ' (' + mainUpcoming.startDate + ')';
+        ? '오늘 ' + mainUpcoming.name + ' 입사일입니다!' 
+        : mainUpcoming.name + ' 입사 D-' + dDay2 + ' (' + mainUpcoming.startDate + ')';
       alerts.push({ type: 'start', level: level2, icon: icon2, msg: msg2, course: mainUpcoming, dDay: dDay2 });
     }
   }
@@ -3579,7 +3579,7 @@ function renderCourseAlertBanner(){
         bgColor = 'bg-warning-50'; borderColor = 'border-warning-300'; textColor = 'text-warning-700';
       }
     } else {
-      // 개강 알림: 파랑 계열
+      // 입사 알림: 파랑 계열
       bgColor = 'bg-info-50'; borderColor = 'border-info-400'; textColor = 'text-info-800';
     }
     
