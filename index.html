@@ -3639,6 +3639,24 @@ async function loadCourses(){
     courses = snapshot.docs.map(function(d){
       return Object.assign({id:d.id}, d.data());
     });
+    
+    // 오늘 날짜 기준 상태 자동 재계산 + 변경된 것만 DB 업데이트
+    var today = new Date().toISOString().split('T')[0];
+    var updates = [];
+    courses.forEach(function(c){
+      if(!c.startDate || !c.endDate) return;
+      var realStatus = today < c.startDate ? 'upcoming' : (today > c.endDate ? 'completed' : 'active');
+      if(c.status !== realStatus){
+        console.log('🔄 상태 자동 갱신:', c.name, c.status, '→', realStatus);
+        c.status = realStatus;
+        updates.push(db.collection('courses').doc(c.id).update({status: realStatus}));
+      }
+    });
+    if(updates.length > 0){
+      await Promise.all(updates);
+      console.log('✅ ' + updates.length + '개 과정 상태 자동 갱신 완료');
+    }
+    
     console.log('교육과정 로드:', courses.length+'개');
   } catch(e){
     console.warn('교육과정 로드 실패:', e.message);
@@ -4741,7 +4759,7 @@ function renderAdminView(todaySubs,todayOuts,stats){
 // ============ 관리자 현황 ============
 var roomSearchKeyword='';
 var roomFilterDept='';
-var roomFilterType='all';
+var roomFilterType='all';var _showEmptyRooms=false;
 var roomFilterDept='';
 var vehicleNumbers={};
 // ============ 사진 관리 시스템 ============
@@ -5527,7 +5545,7 @@ function showDeptFilterModal(){
     var html='';
     var totalAll=0;
     departments.forEach(function(d){totalAll+=(students[d]||[]).length});
-    var isAllActive=(roomFilterDept==='');
+var isAllActive=(roomFilterDept==='');
     html+='<button onclick="roomFilterDept=\'\';roomSearchKeyword=\'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};document.getElementById(\'deptDropdown\').remove();render()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:2px solid '+(isAllActive?'rgba(99,102,241,0.5)':'transparent')+';background:'+(isAllActive?'rgba(238,242,255,0.9)':'transparent')+';cursor:pointer;text-align:left;font-size:15px;margin-bottom:4px">';
     html+='<div style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#a5b4fc,#6366f1);flex-shrink:0"><i class="fas fa-th" style="color:#fff;font-size:14px"></i></div>';
     html+='<div style="flex:1;min-width:0"><div style="font-weight:700;color:#1f2937;font-size:15px">전체 학과</div>';
@@ -5687,6 +5705,7 @@ h+='<div class="pb-5 mt-4">';
   h+='<div class="flex gap-2 mb-2">';
   h+='<button onclick="window._roomViewMode=\'card\';render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._roomViewMode==='card'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-th-large mr-1.5"></i>카드뷰</button>';
   h+='<button onclick="window._roomViewMode=\'floor\';render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._roomViewMode==='floor'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-map mr-1.5"></i>평면도</button>';
+h+='<button onclick="window._showEmptyRooms=!window._showEmptyRooms;render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._showEmptyRooms?'bg-warning-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-door-open mr-1.5"></i>'+(window._showEmptyRooms?'공실 ON':'공실 OFF')+'</button>';
   h+='<div class="flex-1"></div>';
   h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};render()" class="px-5 py-1.5 bg-surface-100 text-gray-600 rounded-lg text-sm font-bold btn-press"><i class="fas fa-expand-alt mr-1.5"></i>펼치기</button>';
   h+='<button onclick="window._roomFloorOpen={};window._floorPlanOpen={};render()" class="px-5 py-1.5 bg-surface-100 text-gray-600 rounded-lg text-sm font-bold btn-press"><i class="fas fa-compress-alt mr-1.5"></i>접기</button>';
@@ -5776,11 +5795,16 @@ h+='<div class="pb-5 mt-4">';
       h+='<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-3">';
       for(var rj=0;rj<fl.rooms.length;rj++){
         var r=fl.rooms[rj];
-                var _shouldShow=true;
-        if(roomFilterDept){
-          _shouldShow=false;
+        var _shouldShow=true;
+if(!roomFilterDept && window._showEmptyRooms && r.count>0){_shouldShow=false;}
+if(roomFilterDept){
+              _shouldShow=false;
           for(var si=0;si<r.members.length;si++){
             if(r.members[si].dept===roomFilterDept){_shouldShow=true;break;}
+          }
+          // 공실 보기 토글이 켜진 경우 빈 호실도 표시
+          if(!_shouldShow && window._showEmptyRooms && r.count===0 && !r.isStaff && !r.isRepair){
+            _shouldShow=true;
           }
         }
 
@@ -5843,6 +5867,15 @@ h+='<div class="pb-5 mt-4">';
   h+='</div>';
   return h;
 }
+function toggleEmptyRooms(){
+  window._showEmptyRooms = !window._showEmptyRooms;
+  if(window._showEmptyRooms){
+    window._roomFloorOpen = {'1':true,'2':true,'3':true,'4':true};
+    window._floorPlanOpen = {'1F':true,'2F':true,'3F':true,'4F':true};
+  }
+  render();
+}
+
 function renderFloorPlan(){
   var rs=getRoomStatus();
   var roomMap=buildRoomOccupancyMap(getCurrentDate(),true);
@@ -5991,8 +6024,8 @@ function renderFloorPlan(){
       var members=roomMap[rStr]||[];
       var isEmpty=(members.length===0&&!SPECIAL[rStr]);
       var isMatch=true;
-      if(roomFilterDept){
-        if(isEmpty){isMatch=true;}else{isMatch=false;for(var i=0;i<members.length;i++){if(members[i].dept===roomFilterDept){isMatch=true;break}}}
+      if(isEmpty && !_showEmptyRooms){isMatch=false;}  if(isMatch && roomFilterDept){
+        if(isEmpty){isMatch=_showEmptyRooms;}else{isMatch=false;for(var i=0;i<members.length;i++){if(members[i].dept===roomFilterDept){isMatch=true;break}}}
       }
       if(roomSearchKeyword&&isMatch){
         var _kw=roomSearchKeyword.toLowerCase();
