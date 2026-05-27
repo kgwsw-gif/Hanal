@@ -3149,6 +3149,9 @@ function toggleCourseSection(){
 
 function renderCourseAccordion(){
   var inner = '';
+  var _courseView = window._courseView || 'list';
+  inner += '<div class="flex gap-2 mb-3 mt-3"><button onclick="window._courseView=\'list\';render()" class="flex-1 py-2 rounded-lg font-bold text-sm '+(_courseView==='list'?'bg-primary-500 text-white':'bg-gray-100 text-gray-600')+'"><i class="fas fa-list mr-1"></i> 목록</button><button onclick="window._courseView=\'calendar\';render()" class="flex-1 py-2 rounded-lg font-bold text-sm '+(_courseView==='calendar'?'bg-primary-500 text-white':'bg-gray-100 text-gray-600')+'"><i class="fas fa-calendar mr-1"></i> 캘린더</button></div>';
+  if(_courseView === 'calendar'){ inner += renderCourseCalendar(); } else {
   var active = courses.filter(function(c){ return c.status==='active'; })
   .sort(function(a, b){ return (a.endDate || '').localeCompare(b.endDate || ''); });
 var upcoming = courses.filter(function(c){ return c.status==='upcoming'; })
@@ -3268,7 +3271,8 @@ var completed = courses.filter(function(c){ return c.status==='completed'; })
     });
     inner += '</details>';
   }
-  
+  }
+ 
   // 추가 버튼
   inner += '<button onclick="showAddCourseModal()" class="w-full mt-3 py-3 bg-primary-500 text-white rounded-xl font-bold text-sm btn-press"><i class="fas fa-plus mr-1"></i> 교육과정 추가</button>';
   
@@ -3289,6 +3293,205 @@ var completed = courses.filter(function(c){ return c.status==='completed'; })
   html += '</div>';
   return html;
 }
+
+// ========== 📅 교육과정 캘린더 뷰 ==========
+function renderCourseCalendar(){
+  var now = new Date();
+  if(typeof window._calYear === 'undefined') window._calYear = now.getFullYear();
+  if(typeof window._calMonth === 'undefined') window._calMonth = now.getMonth();
+  
+  var year = window._calYear;
+  var month = window._calMonth;
+  var todayStr = (function(){
+    var t = new Date(); t.setHours(0,0,0,0);
+    return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  })();
+  
+  var firstDay = new Date(year, month, 1);
+  var lastDay = new Date(year, month+1, 0);
+  var startWeekday = firstDay.getDay();
+  var daysInMonth = lastDay.getDate();
+  
+  // 이벤트 맵 만들기 - 날짜별로 시작/종료/진행 과정 묶기
+  var eventMap = {};
+  function addEvt(dateStr, type, course){
+    if(!eventMap[dateStr]) eventMap[dateStr] = {start:[], end:[], active:[]};
+    eventMap[dateStr][type].push(course);
+  }
+  courses.forEach(function(c){
+    if(!c.startDate || !c.endDate) return;
+    addEvt(c.startDate, 'start', c);
+    addEvt(c.endDate, 'end', c);
+    // 진행 중인 날들도 표시 (start~end 사이)
+    var s = new Date(c.startDate+'T00:00:00');
+    var e = new Date(c.endDate+'T00:00:00');
+    var cur = new Date(s);
+    cur.setDate(cur.getDate()+1);
+    while(cur < e){
+      var ds = cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+      addEvt(ds, 'active', c);
+      cur.setDate(cur.getDate()+1);
+    }
+  });
+  
+  var html = '';
+  // 헤더 - 월 이동
+  html += '<div class="flex items-center justify-between mb-4 mt-3">';
+  html += '<button onclick="window._calMonth--;if(window._calMonth<0){window._calMonth=11;window._calYear--;}render()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700"><i class="fas fa-chevron-left"></i></button>';
+  html += '<div class="text-xl font-bold text-gray-800">'+year+'년 '+(month+1)+'월</div>';
+  html += '<div class="flex gap-2">';
+  html += '<button onclick="var n=new Date();window._calYear=n.getFullYear();window._calMonth=n.getMonth();render()" class="px-3 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 rounded-lg font-bold text-sm">오늘</button>';
+  html += '<button onclick="window._calMonth++;if(window._calMonth>11){window._calMonth=0;window._calYear++;}render()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700"><i class="fas fa-chevron-right"></i></button>';
+  html += '</div>';
+  html += '</div>';
+  
+  // 요일 헤더
+  var weekDays = ['일','월','화','수','목','금','토'];
+  html += '<div class="grid grid-cols-7 gap-1 mb-1">';
+  weekDays.forEach(function(w, i){
+    var color = i===0 ? 'text-danger-500' : (i===6 ? 'text-primary-600' : 'text-gray-600');
+    html += '<div class="text-center text-sm font-bold py-2 '+color+'">'+w+'</div>';
+  });
+  html += '</div>';
+  
+  // 날짜 그리드
+  html += '<div class="grid grid-cols-7 gap-1">';
+  // 빈 칸 (이전 달)
+  for(var i=0; i<startWeekday; i++){
+    html += '<div class="min-h-[110px]bg-gray-50 rounded-lg"></div>';
+  }
+  // 실제 날짜
+  for(var d=1; d<=daysInMonth; d++){
+    var dStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var dayOfWeek = (startWeekday + d - 1) % 7;
+    var isToday = (dStr === todayStr);
+    var holiday = (typeof getHolidayName === 'function') ? getHolidayName(dStr) : null;
+    var isSun = dayOfWeek === 0;
+    var isSat = dayOfWeek === 6;
+    
+    var bgClass = 'bg-white hover:bg-blue-50';
+    if(isToday) bgClass = 'bg-yellow-100 hover:bg-yellow-200 border-2 border-yellow-500';
+    else if(holiday || isSun) bgClass = 'bg-red-50 hover:bg-red-100';
+    else if(isSat) bgClass = 'bg-blue-50 hover:bg-blue-100';
+    
+    var dateColor = isToday ? 'text-yellow-800' : (holiday||isSun ? 'text-red-600' : (isSat ? 'text-blue-600' : 'text-gray-700'));
+    
+    var evt = eventMap[dStr] || {start:[], end:[], active:[]};
+    
+    html += '<div onclick="showCourseDayModal(\''+dStr+'\')" class="min-h-[110px] p-1.5 rounded-lg cursor-pointer transition-all '+bgClass+' overflow-hidden">';
+    html += '<div class="flex items-center justify-between mb-1">';
+    html += '<span class="text-base font-bold '+dateColor+'">'+d+'</span>';
+    if(isToday) html += '<span class="text-[11px] font-bold text-yellow-700">오늘</span>';
+    html += '</div>';
+    
+    if(holiday){
+      html += '<div class="text-xs text-red-600 font-bold truncate">'+escapeHtml(holiday)+'</div>';
+    }
+    
+    // 종료/수료 (가장 중요 - 빨강)
+    evt.end.forEach(function(c){
+      html += '<div class="text-xs bg-red-500 text-white rounded px-1.5 py-1 mt-1 font-bold truncate" title="'+escapeHtml(c.name)+' 수료">🎓'+escapeHtml(c.name.substring(0,7))+'</div>';
+    });
+    // 시작 (초록)
+    evt.start.forEach(function(c){
+      html += '<div class="text-xs bg-green-500 text-white rounded px-1.5 py-1 mt-1 font-bold truncate" title="'+escapeHtml(c.name)+' 시작">🟢'+escapeHtml(c.name.substring(0,7))+'</div>';
+    });
+    // 진행 중 개수만 표시
+    if(evt.active.length > 0){
+      html += '<div class="text-xs text-blue-700 mt-1 font-bold">📊 진행중 '+evt.active.length+'</div>';
+    }
+    
+    html += '</div>';
+  }
+  // 빈 칸 (다음 달) - 7의 배수로 맞춤
+  var totalCells = startWeekday + daysInMonth;
+  var remaining = (7 - (totalCells % 7)) % 7;
+  for(var i=0; i<remaining; i++){
+    html += '<div class="min-h-[110px] bg-gray-50 rounded-lg"></div>';
+  }
+  html += '</div>';
+  
+  // 범례
+  html += '<div class="flex flex-wrap gap-3 mt-4 text-xs text-gray-600">';
+  html += '<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 bg-green-500 rounded"></span> 시작</span>';
+  html += '<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 bg-red-500 rounded"></span> 수료</span>';
+  html += '<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 bg-blue-600 rounded"></span> 진행중</span>';
+  html += '<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 bg-yellow-100 border border-yellow-500 rounded"></span> 오늘</span>';
+  html += '<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 bg-red-50 rounded"></span> 공휴일/일요일</span>';
+  html += '<span class="flex items-center gap-1"><span class="inline-block w-3 h-3 bg-blue-50 rounded"></span> 토요일</span>';
+  html += '</div>'; 
+  return html;
+}
+
+// 날짜 클릭 시 상세 모달
+function showCourseDayModal(dateStr){
+  var weekDays = ['일','월','화','수','목','금','토'];
+  var d = new Date(dateStr+'T00:00:00');
+  var dayName = weekDays[d.getDay()];
+  var holiday = (typeof getHolidayName === 'function') ? getHolidayName(dateStr) : null;
+  
+  var starting = courses.filter(function(c){ return c.startDate === dateStr; });
+  var ending = courses.filter(function(c){ return c.endDate === dateStr; });
+  var active = courses.filter(function(c){
+    return c.startDate && c.endDate && c.startDate < dateStr && c.endDate > dateStr;
+  });
+  
+  var html = '<div class="bg-white rounded-2xl p-6 max-w-md mx-auto max-h-[90vh] overflow-y-auto">';
+  html += '<div class="flex items-center justify-between mb-4">';
+  html += '<div><div class="text-xl font-bold text-gray-800">📅 '+dateStr+' ('+dayName+')</div>';
+  if(holiday) html += '<div class="text-sm text-red-600 font-bold mt-1">🔴 '+escapeHtml(holiday)+'</div>';
+  html += '</div>';
+  html += '<button onclick="document.getElementById(\'courseDayModalOverlay\').remove()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  html += '</div>';
+  
+  if(ending.length === 0 && starting.length === 0 && active.length === 0 && !holiday){
+    html += '<div class="text-center text-gray-400 py-6">이 날에 일정이 없습니다.</div>';
+  }
+  
+  if(ending.length > 0){
+    html += '<div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">';
+    html += '<div class="font-bold text-red-700 mb-2">🎓 수료 ('+ending.length+')</div>';
+    ending.forEach(function(c){
+      html += '<div class="text-sm text-gray-800 py-1">• '+escapeHtml(c.name)+'</div>';
+      html += '<div class="text-xs text-gray-500 pl-3">'+c.startDate+' ~ '+c.endDate+'</div>';
+    });
+    html += '</div>';
+  }
+  
+  if(starting.length > 0){
+    html += '<div class="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">';
+    html += '<div class="font-bold text-green-700 mb-2">🟢 개강 ('+starting.length+')</div>';
+    starting.forEach(function(c){
+      html += '<div class="text-sm text-gray-800 py-1">• '+escapeHtml(c.name)+'</div>';
+      html += '<div class="text-xs text-gray-500 pl-3">'+c.startDate+' ~ '+c.endDate+'</div>';
+    });
+    html += '</div>';
+  }
+  
+  if(active.length > 0){
+    html += '<div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">';
+    html += '<div class="font-bold text-blue-700 mb-2">📊 진행 중 ('+active.length+')</div>';
+    active.sort(function(a,b){ return a.endDate.localeCompare(b.endDate); });
+    active.forEach(function(c){
+      var endD = new Date(c.endDate+'T00:00:00');
+      var curD = new Date(dateStr+'T00:00:00');
+      var dDay = Math.ceil((endD-curD)/(1000*60*60*24));
+      html += '<div class="text-sm text-gray-800 py-1 flex justify-between"><span>• '+escapeHtml(c.name)+'</span><span class="text-xs text-blue-600 font-bold">D-'+dDay+'</span></div>';
+    });
+    html += '</div>';
+  }
+  
+  html += '<button onclick="document.getElementById(\'courseDayModalOverlay\').remove()" class="w-full mt-2 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-700">닫기</button>';
+  html += '</div>';
+  
+  var modal = document.createElement('div');
+  modal.id = 'courseDayModalOverlay';
+  modal.className = 'fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4';
+  modal.onclick = function(e){ if(e.target === modal) modal.remove(); };
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+// ========== 📅 교육과정 캘린더 뷰 끝 ==========
 
 
 function showAddCourseModal(){ openCourseModal(null); }
@@ -3399,7 +3602,7 @@ async function saveCourse(courseId){
     showToast('추가 모집 마감일은 추가 모집 시작일보다 뒤여야 합니다', 'warning'); return;
   }
   
-  var today = new Date().toISOString().split('T')[0];
+  var today = getCurrentDate();
   var status = today < startDate ? 'upcoming' : (today > endDate ? 'completed' : 'active');
   
   try {
@@ -3641,7 +3844,7 @@ async function loadCourses(){
     });
     
     // 오늘 날짜 기준 상태 자동 재계산 + 변경된 것만 DB 업데이트
-    var today = new Date().toISOString().split('T')[0];
+    var today = getCurrentDate();
     var updates = [];
     courses.forEach(function(c){
       if(!c.startDate || !c.endDate) return;
@@ -3929,13 +4132,191 @@ async function executeStudentDelete(dept,name){
         console.error('교육생 파기 실패:',e);
     }
 }
+// ========== 학과 순서 변경 모달 ==========
+function showDeptOrderModal(){
+  window._tempDeptOrder = departments.slice();
+  renderDeptOrderModalContent();
+}
+
+function renderDeptOrderModalContent(){
+  var existing = document.getElementById('deptOrderModalOverlay');
+  if(existing) existing.remove();
+  
+  var html = '<div class="bg-white rounded-2xl p-6 max-w-md mx-auto max-h-[90vh] overflow-y-auto w-full">';
+  html += '<div class="flex items-center justify-between mb-4">';
+  html += '<div class="text-xl font-bold text-gray-800"><i class="fas fa-sort mr-2 text-primary-600"></i>학과 순서 변경</div>';
+  html += '<button onclick="document.getElementById(\'deptOrderModalOverlay\').remove();window._tempDeptOrder=[]" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  html += '</div>';
+  html += '<div class="text-sm text-gray-600 mb-3">▲▼ 버튼으로 순서를 변경한 후 저장 버튼을 누르세요</div>';
+  
+  html += '<div class="space-y-2 mb-4">';
+  window._tempDeptOrder.forEach(function(dept, i){
+    var isFirst = (i === 0);
+    var isLast = (i === window._tempDeptOrder.length - 1);
+    html += '<div class="flex items-center gap-2 p-3 bg-surface-50 border border-surface-200 rounded-xl">';
+    html += '<div class="w-8 h-8 flex items-center justify-center bg-primary-100 text-primary-700 rounded-full font-bold text-sm">'+(i+1)+'</div>';
+    html += '<div class="flex-1 font-medium text-gray-800 text-sm">'+escapeHtml(dept)+'</div>';
+    html += '<button onclick="renameDepartment(\''+dept.replace(/'/g,"\\'")+'\')" class="w-9 h-9 flex items-center justify-center rounded-lg bg-warning-100 text-warning-700 hover:bg-warning-200 font-bold" title="이름 변경"><i class="fas fa-pen"></i></button>';
+    html += '<button onclick="moveDeptOrder('+i+',-1)" '+(isFirst?'disabled':'')+' class="w-9 h-9 flex items-center justify-center rounded-lg '+(isFirst?'bg-gray-100 text-gray-300 cursor-not-allowed':'bg-primary-100 text-primary-700 hover:bg-primary-200')+' font-bold"><i class="fas fa-arrow-up"></i></button>';
+    html += '<button onclick="moveDeptOrder('+i+',1)" '+(isLast?'disabled':'')+' class="w-9 h-9 flex items-center justify-center rounded-lg '+(isLast?'bg-gray-100 text-gray-300 cursor-not-allowed':'bg-primary-100 text-primary-700 hover:bg-primary-200')+' font-bold"><i class="fas fa-arrow-down"></i></button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  
+  html += '<div class="flex gap-2">';
+  html += '<button onclick="document.getElementById(\'deptOrderModalOverlay\').remove();window._tempDeptOrder=[]" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-700">취소</button>';
+  html += '<button onclick="saveDeptOrder()" class="flex-1 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-xl font-bold">저장</button>';
+  html += '</div>';
+  html += '</div>';
+  
+  var modal = document.createElement('div');
+  modal.id = 'deptOrderModalOverlay';
+  modal.className = 'fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4';
+  modal.onclick = function(e){ if(e.target === modal){ modal.remove(); window._tempDeptOrder=[]; } };
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+async function renameDepartment(oldName, newNameArg){
+  var newName = (typeof newNameArg === 'string' && newNameArg.length > 0) ? newNameArg : prompt('"' + oldName + '" 학과의 새 이름을 입력하세요:', oldName);
+  if(newName === null) return;  // 취소
+  newName = newName.trim();
+  if(!newName){ showToast('학과명을 입력하세요','warning'); return; }
+  if(newName === oldName){ return; }
+  if(departments.includes(newName)){ showToast('이미 존재하는 학과명입니다','warning'); return; }
+  
+  if(!confirm('학과명 변경:\n\n"' + oldName + '" → "' + newName + '"\n\n관련 학생 정보(호실/비밀번호/사진/차량번호)의 학과 정보도 함께 변경됩니다. 계속하시겠습니까?')) return;
+  
+  try {
+    showToast('학과명 변경 중...', 'info');
+    
+    // 1. 해당 학과 소속 학생 목록 확보
+    var deptStudents = (window._secureData.getStudentsByDept(oldName) || []).slice();
+    
+    // 2. 새 학과 목록 만들기 (순서 유지)
+    var newDepts = departments.map(function(d){ return d === oldName ? newName : d; });
+    
+    // 3. _tempDeptOrder가 열려있다면 그것도 업데이트
+    if(window._tempDeptOrder && window._tempDeptOrder.length){
+      window._tempDeptOrder = window._tempDeptOrder.map(function(d){ return d === oldName ? newName : d; });
+    }
+    
+    // 4. Firestore 일괄 처리
+    var batch = db.batch();
+    
+    // 4-1. config/departments 업데이트
+    batch.set(db.collection('config').doc('departments'), {
+      list: newDepts,
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 4-2. students 컬렉션 - 기존 학과 문서 데이터를 새 이름으로 복사
+    var oldDoc = await db.collection('students').doc(oldName).get();
+    var oldData = oldDoc.exists ? oldDoc.data() : { students: deptStudents };
+    batch.set(db.collection('students').doc(newName), {
+      students: oldData.students || deptStudents,
+      updatedAt: new Date().toISOString()
+    });
+    batch.delete(db.collection('students').doc(oldName));
+    
+    // 4-3. departmentLeaders 이동 (있으면)
+    try {
+      var leaderDoc = await db.collection('departmentLeaders').doc(oldName).get();
+      if(leaderDoc.exists){
+        batch.set(db.collection('departmentLeaders').doc(newName), leaderDoc.data());
+        batch.delete(db.collection('departmentLeaders').doc(oldName));
+      }
+    } catch(e){}
+    
+    // 4-4. 소속 학생의 roomNumbers, passwords의 department 필드 갱신
+    deptStudents.forEach(function(sname){
+      var pure = typeof sname === 'string' ? sname.replace(/\([^)]*\)/,'').trim() : sname;
+      [pure, sname].forEach(function(n){
+        batch.set(db.collection('roomNumbers').doc(n), {
+          department: newName,
+          updatedAt: new Date().toISOString()
+        }, {merge:true});
+        batch.set(db.collection('passwords').doc(n), {
+          department: newName,
+          updatedAt: new Date().toISOString()
+                }, {merge:true});
+      });
+    });
+    
+    // ===== 추가 보강: courses, photos, vehicleNumbers 처리 =====
+    try {
+      var courseSnap = await db.collection('courses').where('name','==',oldName).get();
+      courseSnap.forEach(function(doc){
+        batch.update(doc.ref, { name: newName, updatedAt: new Date().toISOString() });
+      });
+      console.log('📚 courses 업데이트:', courseSnap.size + '건');
+    } catch(e){ console.warn('courses 업데이트 실패:', e.message); }
+    
+    deptStudents.forEach(function(sname){
+      var pure = typeof sname === 'string' ? sname.replace(/\([^)]*\)/,'').trim() : sname;
+      [pure, sname].forEach(function(n){
+        batch.set(db.collection('photos').doc(n), {
+          department: newName,
+          updatedAt: new Date().toISOString()
+        }, {merge:true});
+        batch.set(db.collection('vehicleNumbers').doc(n), {
+          department: newName,
+          updatedAt: new Date().toISOString()
+        }, {merge:true});
+      });
+    });
+    
+    if(typeof courses !== 'undefined' && Array.isArray(courses)){
+      courses.forEach(function(c){
+        if(c.name === oldName) c.name = newName;
+      });
+    }
+    
+    await batch.commit();
+    
+    showToast(oldName + ' → ' + newName + ' 변경 완료 (학생 ' + deptStudents.length + '명 포함)', 'success');
+    
+    // 모달이 열려있으면 다시 그리기
+    if(document.getElementById('deptOrderModalOverlay')){
+      setTimeout(function(){ renderDeptOrderModalContent(); }, 300);
+    }
+    render();
+  } catch(e){
+    showToast('학과명 변경 실패: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+function renameDepartmentFromCard(){
+  var sel = document.getElementById('renameDeptSelect');
+  var inp = document.getElementById('renameDeptNewName');
+  if(!sel || !inp){showToast('UI 오류','error');return}
+  var oldName = sel.value;
+  var newName = inp.value.trim();
+  if(!oldName){showToast('변경할 학과를 선택하세요','warning');return}
+  if(!newName){showToast('새 학과명을 입력하세요','warning');return}
+  if(oldName === newName){showToast('동일한 학과명입니다','warning');return}
+  if(departments.includes(newName)){showToast('이미 존재하는 학과입니다','warning');return}
+  renameDepartment(oldName, newName);
+}
+
+function moveDeptOrder(idx, direction){
+  var arr = window._tempDeptOrder;
+  var newIdx = idx + direction;
+  if(newIdx < 0 || newIdx >= arr.length) return;
+  var tmp = arr[idx];
+  arr[idx] = arr[newIdx];
+  arr[newIdx] = tmp;
+  renderDeptOrderModalContent();
+}
+// ========== 학과 순서 변경 모달 끝 ==========
+
+
 async function saveDeptOrder(){
     if(!_tempDeptOrder.length)_tempDeptOrder=departments.slice();
     try{
         await db.collection('config').doc('departments').set({list:_tempDeptOrder,updatedAt:new Date().toISOString()});
         departments=_tempDeptOrder.slice();
         _tempDeptOrder=[];
-        closeModal();
+                var _m=document.getElementById('deptOrderModalOverlay');if(_m)_m.remove();
         showToast('학과 순서 저장 완료','success');
         render();
     }catch(e){
@@ -3943,7 +4324,7 @@ async function saveDeptOrder(){
     }
 }async function addDepartment(){var name=document.getElementById('addDeptName').value.trim();if(!name){showToast('학과명을 입력하세요','warning');return}if(departments.includes(name)){showToast('이미 존재하는 학과입니다','warning');return}try{departments.push(name);await db.collection('config').doc('departments').set({list:departments,updatedAt:new Date().toISOString()});await db.collection('students').doc(name).set({students:[],updatedAt:new Date().toISOString()});document.getElementById('addDeptName').value='';showToast(name+' 학과 추가 완료','success');render()}catch(e){showToast('추가 실패: '+e.message,'error')}}
 
-async function deleteDepartmentAction(){var name=document.getElementById('delDeptName').value;if(!name){showToast('선택 필요','warning');return}openConfirmModal('학과 삭제',escapeHtml(name)+' 학과 삭제?',async function(){await db.collection('config').doc('departments').set({list:departments.filter(function(d){return d!==name}),updatedAt:new Date().toISOString()});await db.collection('students').doc(name).delete();try{await db.collection('departmentLeaders').doc(name).delete()}catch(e){}showToast(name+' 삭제 완료','success');render()},'삭제')}
+async function deleteDepartmentAction(){var name=document.getElementById('delDeptName').value;if(!name){showToast('선택 필요','warning');return}var deptStudents=(window._secureData.getStudentsByDept(name)||[]).slice();var msg=escapeHtml(name)+' 학과 삭제?';if(deptStudents.length>0){msg+='<br><br>⚠️ 소속 교육생 <b>'+deptStudents.length+'명</b>의 정보(호실/비밀번호/사진/차량번호)도 함께 삭제됩니다.'}openConfirmModal('학과 삭제',msg,async function(){try{var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:departments.filter(function(d){return d!==name}),updatedAt:new Date().toISOString()});batch.delete(db.collection('students').doc(name));batch.delete(db.collection('departmentLeaders').doc(name));deptStudents.forEach(function(sname){var pure=typeof sname==='string'?sname.replace(/\([^)]*\)/,'').trim():sname;[pure,sname].forEach(function(n){batch.delete(db.collection('roomNumbers').doc(n));batch.delete(db.collection('passwords').doc(n));batch.delete(db.collection('photos').doc(n));batch.delete(db.collection('vehicleNumbers').doc(n))})});await batch.commit();showToast(name+' 학과 + 교육생 '+deptStudents.length+'명 삭제 완료','success');render()}catch(e){showToast('삭제 실패: '+e.message,'error')}},'삭제')}
 function updateLeaderStudentList(){var dept=document.getElementById('setLeaderDept').value,sel=document.getElementById('setLeaderStudent');sel.innerHTML='<option value="">선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
 async function setLeaderAction(){var dept=document.getElementById('setLeaderDept').value,name=document.getElementById('setLeaderStudent').value,pw=document.getElementById('setLeaderPw').value.trim();if(!dept||!name||!pw){showToast('모든 항목 입력','warning');return}await db.collection('departmentLeaders').doc(dept).set({name:name,password:pw,updatedAt:new Date().toISOString()});showToast(dept+' 학과대표 지정 완료','success');render()}
 async function deleteLeader(dept){openConfirmModal('학과대표 해제',dept+' 학과대표를 해제하시겠습니까?',async function(){await db.collection('departmentLeaders').doc(dept).delete();showToast(dept+' 학과대표 해제 완료','success');render()},'해제')}
@@ -6266,7 +6647,9 @@ function renderAdminSettings(){
     +'<div class="grid grid-cols-1 md:grid-cols-2 gap-5">'
     +'<div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-success-700 text-lg mb-4"><i class="fas fa-plus-square"></i> 학과 추가</h3><input type="text" id="addDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" placeholder="학과명" style="font-size:16px"><button onclick="addDepartment()" class="w-full py-3.5 bg-success-50 border-2 border-success-200 text-success-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-plus-circle mr-1"></i> 추가</button></div>'
     +'<div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-minus-square"></i> 학과 삭제</h3><select id="delDeptName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base mb-3" style="font-size:16px"><option value="">선택</option>'+deptOpts+'</select><button onclick="deleteDepartmentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button></div>'
+    +'<div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 md:col-span-2"><h3 class="font-bold text-primary-700 text-lg mb-4"><i class="fas fa-edit"></i> 학과명 변경</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-3"><select id="renameDeptSelect" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">변경할 학과 선택</option>'+deptOpts+'</select><input type="text" id="renameDeptNewName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" placeholder="새 학과명" style="font-size:16px"></div><button onclick="renameDepartmentFromCard()" class="w-full mt-3 py-3.5 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-pen mr-1"></i> 학과명 변경</button></div>'
     +'</div></div>'
+
 
     +'<div style="display:'+(deptManageTab==='leader'?'block':'none')+'">'
     +'<div class="space-y-3">'
