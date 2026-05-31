@@ -7268,6 +7268,7 @@ async function showRegisteredStudentsModal(){
     snap.forEach(function(d){
       var data = d.data() || {};
       if (!data.registeredDate) return;
+      if (data.status === 'pending') return;
       list.push({
         name: d.id,
         department: data.department || '',
