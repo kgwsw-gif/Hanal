@@ -2662,15 +2662,25 @@ async function executeResignDelete(reqId){
             }
         }catch(e){console.log('메시지 삭제 실패:',e.message)}
         
-        updateProgress(95,'퇴사 신청 이력 정리 중...');
-        try{
-            var resignSnap=await db.collection('resignRequests').where('name','==',name).get();
-            if(!resignSnap.empty){
-                var resignBatch=db.batch();
-                resignSnap.forEach(function(doc){resignBatch.delete(doc.ref);deletedCount.resigns++});
-                await resignBatch.commit();
-            }
-        }catch(e){console.log('퇴사 이력 삭제 실패:',e.message)}
+        updateProgress(95,'퇴사 기록 보존 처리 중...');
+try{
+    // 퇴사 기록은 통계/조회용으로 보존 (개인정보가 아닌 학과/퇴사일/사유만 의미있음)
+    // status를 'approved'로 확정하고 personalDataDeleted 플래그만 추가
+    var resignSnap=await db.collection('resignRequests').where('name','==',name).get();
+    if(!resignSnap.empty){
+        var resignBatch=db.batch();
+        resignSnap.forEach(function(doc){
+            resignBatch.update(doc.ref, {
+                status: 'approved',
+                personalDataDeleted: true,
+                personalDataDeletedAt: new Date().toISOString()
+            });
+        });
+        await resignBatch.commit();
+        updateProgress(97, '퇴사 기록 보존 완료 ✓');
+    }
+}catch(e){console.log('퇴사 이력 처리 실패:',e.message)}
+
         
         try{
             var leaderDoc=await db.collection('departmentLeaders').doc(dept).get();
