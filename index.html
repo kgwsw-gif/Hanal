@@ -1679,7 +1679,8 @@ function verifyAndSubmit(name,cb){var pw=window._secureData.getPassword(name);if
 async function getIPAddress(){try{var r=await fetch('https://api.ipify.org?format=json');return(await r.json()).ip}catch(e){return'알 수 없음'}}
 async function saveLoginLog(info,success){var ip=await getIPAddress();try{await db.collection('loginLogs').add({timestamp:new Date().toISOString(),success:success,adminType:info,browser:navigator.userAgent.includes('Chrome')?'Chrome':'Other',device:/Mobile|Android|iPhone/i.test(navigator.userAgent)?'Mobile':'PC',ip:ip})}catch(e){}}
 
-function showAdminLogin(){if(isAdminLoggedIn){currentMode='admin';render();return}var savedEmail=localStorage.getItem('saved_admin_email')||'';var savedAPw=localStorage.getItem('saved_admin_pw')||'';openInputModal('관리자 로그인',[{label:'이메일',type:'email',placeholder:'admin@hwaseong.com',value:savedEmail},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedAPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedEmail||!!savedAPw}],async function(){var email=document.getElementById('modalInput0').value.trim(),pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!email||!pw){showToast('모든 항목 입력','warning');return}if(remember){localStorage.setItem('saved_admin_email',email);localStorage.setItem('saved_admin_pw',pw)}else{localStorage.removeItem('saved_admin_email');localStorage.removeItem('saved_admin_pw')}try{if(isAdminLoggedIn){closeModal();currentMode='admin';render();return}await firebase.auth().signInWithEmailAndPassword(email,pw);if(isAdminLoggedIn)return;isSuperAdmin=(email==='super@hwaseong.com');isAdminLoggedIn=true;currentMode='admin';saveLoginLog(isSuperAdmin?'슈퍼관리자':'일반관리자',true);closeModal();render();showToast(isSuperAdmin?'슈퍼관리자 로그인':'관리자 로그인','success')}catch(error){saveLoginLog(email,false);var msgs={'auth/user-not-found':'계정 없음','auth/wrong-password':'비밀번호 오류','auth/invalid-email':'이메일 형식 오류','auth/invalid-credential':'인증 오류'};showToast(msgs[error.code]||'로그인 실패','error')}})}
+function showAdminLogin(){if(isAdminLoggedIn){currentMode='admin';render();return}var savedEmail=localStorage.getItem('saved_admin_email')||'';var savedAPw=localStorage.getItem('saved_admin_pw')||'';openInputModal('관리자 로그인',[{label:'이메일',type:'email',placeholder:'admin@hwaseong.com',value:savedEmail},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedAPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedEmail||!!savedAPw}],async function(){var email=document.getElementById('modalInput0').value.trim(),pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!email||!pw){showToast('모든 항목 입력','warning');return}if(remember){localStorage.setItem('saved_admin_email',email);localStorage.setItem('saved_admin_pw',pw)}else{localStorage.removeItem('saved_admin_email');localStorage.removeItem('saved_admin_pw')}try{if(isAdminLoggedIn){closeModal();currentMode='admin';render();return}await firebase.auth().signInWithEmailAndPassword(email,pw);if(isAdminLoggedIn)return;isSuperAdmin=(email==='super@hwaseong.com');isAdminLoggedIn=true;currentMode='admin';saveLoginLog(isSuperAdmin?'슈퍼관리자':'일반관리자',true);closeModal();render();showToast(isSuperAdmin?'슈퍼관리자 로그인':'관리자 로그인','success');setTimeout(function(){if(typeof _verifyStudentIntegrity==='function')_verifyStudentIntegrity();},3000)
+}catch(error){saveLoginLog(email,false);var msgs={'auth/user-not-found':'계정 없음','auth/wrong-password':'비밀번호 오류','auth/invalid-email':'이메일 형식 오류','auth/invalid-credential':'인증 오류'};showToast(msgs[error.code]||'로그인 실패','error')}})}
 
 function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(isLeaderLoggedIn){currentMode='leader';render();return}var savedDept=localStorage.getItem('saved_leader_dept')||'';var savedLPw=localStorage.getItem('saved_leader_pw')||'';var opts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'&&DEPARTMENT_LEADERS[d]}).map(function(d){var ln=DEPARTMENT_LEADERS[d].name;var masked=ln.length<=2?ln[0]+'*':ln[0]+'*'+ln.substring(2);return{value:d,label:d+' ('+masked+')'}});openInputModal('학과대표 로그인',[{label:'학과 선택',type:'select',options:[{value:'',label:'선택하세요'}].concat(opts),value:savedDept},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedLPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedDept||!!savedLPw}],function(){var dept=document.getElementById('modalInput0').value,pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!dept){showToast('학과 선택 필요','warning');return}if(remember){localStorage.setItem('saved_leader_dept',dept);localStorage.setItem('saved_leader_pw',pw)}else{localStorage.removeItem('saved_leader_dept');localStorage.removeItem('saved_leader_pw')}if(DEPARTMENT_LEADERS[dept]&&pw===DEPARTMENT_LEADERS[dept].password){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(DEPARTMENT_LEADERS[dept].name+'님 환영합니다','success')}else showToast('비밀번호 오류','error')})}
 
@@ -4353,8 +4354,9 @@ window._verifyStudentIntegrity = async function(silent){
   try {
     var allRooms = await db.collection('roomNumbers').get();
     var allStudentDocs = await db.collection('students').get();
-    
-    if (!silent) console.log('📊 roomNumbers:', allRooms.size + '명, students:', allStudentDocs.size + '개 학과');
+       var activeCount = 0;
+    allRooms.forEach(function(r){ if ((r.data()||{}).status !== 'pending') activeCount++; });
+       if (!silent) console.log('📊 roomNumbers:', activeCount + '명, students:', allStudentDocs.size + '개 학과');
     
     // 학과별 명단을 Map으로 정리 (자동 수정용)
     var deptListMap = {};
@@ -4379,6 +4381,19 @@ window._verifyStudentIntegrity = async function(silent){
     
     // 2. roomNumbers에 있지만 명단에 없는 학생 (유형 1 - 자동 수정!)
     var deptsToFix = {};
+    // 퇴사 처리된 학생 목록 미리 조회 (자동 복구 제외 대상)
+    var resignedNames = new Set();
+    try {
+      var resignSnap = await db.collection('resignRequests').where('status','==','approved').get();
+      resignSnap.forEach(r => { 
+        var rd = r.data() || {}; 
+        if (rd.name) resignedNames.add(rd.name); 
+      });
+      if (!silent) console.log('🔒 퇴사 처리 이력:', resignedNames.size + '명 (자동 복구 제외)');
+    } catch(e) {
+      console.warn('퇴사 이력 조회 실패:', e.message);
+    }
+
     allRooms.forEach(function(r){
       var data = r.data() || {};
       var dept = data.department;
@@ -4390,12 +4405,17 @@ window._verifyStudentIntegrity = async function(silent){
         issues.push('⚠️ "' + r.id + '" (방 ' + (data.room||'?') + ') 의 학과 "' + dept + '" 가 students 컬렉션에 없음 (수동 확인 필요)');
         return;
       }
-      if (!deptListMap[dept].includes(r.id)) {
-        // 자동 수정 대상!
+        if (!deptListMap[dept].includes(r.id)) {
+        // 퇴사 처리된 학생은 자동 복구 차단
+        if (resignedNames.has(r.id)) {
+          issues.push('🔒 "' + r.id + '" (방 ' + (data.room||'?') + ', ' + dept + ') 는 퇴사 처리된 학생 - 자동 복구 차단 (roomNumbers에서 수동 삭제 필요)');
+          return;
+        }
         autoFixed.push({name: r.id, dept: dept, room: data.room || '?'});
         deptListMap[dept].push(r.id);
         deptsToFix[dept] = true;
       }
+
     });
     
     // 3. 자동 수정 적용 (학과 명단에 누락된 학생 추가)
@@ -4421,7 +4441,7 @@ window._verifyStudentIntegrity = async function(silent){
     
     // 4. 최종 결과
     if (issues.length === 0 && autoFixed.length === 0) {
-      if (!silent) console.log('✅ 학생 데이터 무결성 정상 (' + allRooms.size + '명 확인)');
+         if (!silent) console.log('✅ 학생 데이터 무결성 정상 (' + activeCount + '명 확인)');
     } else if (issues.length === 0) {
       console.log('✅ 자동 복구 완료 (' + autoFixed.length + '건 처리)');
     } else {
@@ -4440,13 +4460,6 @@ window._verifyStudentIntegrity = async function(silent){
     return {issues: [], autoFixed: []};
   }
 };
-
-setTimeout(function(){
-  if (typeof db !== 'undefined' && db) {
-    window._verifyStudentIntegrity();
-  }
-}, 5000);
-
 
 function moveDeptOrder(idx, direction){
   var arr = window._tempDeptOrder;
