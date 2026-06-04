@@ -4364,6 +4364,20 @@ window._verifyStudentIntegrity = async function(silent){
       var data = d.data() || {};
       deptListMap[d.id] = (data.students || data.list || []).slice();
     });
+
+        // 퇴사 처리된 학생 목록 미리 조회 (자동 복구/정리용)
+    var resignedNames = new Set();
+    try {
+      var resignSnap = await db.collection('resignRequests').where('status','==','approved').get();
+      resignSnap.forEach(function(r){ 
+        var rd = r.data() || {}; 
+        if (rd.name) resignedNames.add(rd.name); 
+      });
+      if (!silent) console.log('🔒 퇴사 처리 이력:', resignedNames.size + '명 (자동 복구 제외)');
+    } catch(e) {
+      console.warn('퇴사 이력 조회 실패:', e.message);
+    }
+    var ghostsToClean = {};
     
     // 1. 학과 명단에 있지만 roomNumbers에 없는 학생 (유형 2 - 경고만)
     allStudentDocs.forEach(function(d){
@@ -4373,26 +4387,39 @@ window._verifyStudentIntegrity = async function(silent){
       list.forEach(function(name){
         var found = false;
         allRooms.forEach(function(r){ if (r.id === name) found = true; });
-        if (!found) {
-          issues.push('❌ ' + d.id + ' 명단의 "' + name + '" 가 roomNumbers에 없음 (수동 확인 필요)');
+         if (!found) {
+          if (resignedNames && resignedNames.has(name)) {
+            if (!ghostsToClean[d.id]) ghostsToClean[d.id] = [];
+            ghostsToClean[d.id].push(name);
+            autoFixed.push({name: name, dept: d.id, room: '(퇴사자)', action: 'remove'});
+          } else {
+            issues.push('❌ ' + d.id + ' 명단의 "' + name + '" 가 roomNumbers에 없음 (퇴사 이력도 없음, 수동 확인 필요)');
+          }
         }
       });
     });
     
-    // 2. roomNumbers에 있지만 명단에 없는 학생 (유형 1 - 자동 수정!)
-    var deptsToFix = {};
-    // 퇴사 처리된 학생 목록 미리 조회 (자동 복구 제외 대상)
-    var resignedNames = new Set();
-    try {
-      var resignSnap = await db.collection('resignRequests').where('status','==','approved').get();
-      resignSnap.forEach(r => { 
-        var rd = r.data() || {}; 
-        if (rd.name) resignedNames.add(rd.name); 
+    // 퇴사 이력 있는 학생을 명단에서 자동 제거
+    if (Object.keys(ghostsToClean).length > 0) {
+      var cleanBatch = db.batch();
+      Object.keys(ghostsToClean).forEach(function(dept){
+        var deptDoc = allStudentDocs.docs.find(function(x){ return x.id === dept; });
+        var currentList = (deptDoc && (deptDoc.data().students || deptDoc.data().list)) || [];
+        var cleanedList = currentList.filter(function(n){ return ghostsToClean[dept].indexOf(n) === -1; });
+        cleanBatch.set(db.collection('students').doc(dept), {
+          students: cleanedList,
+          updatedAt: new Date().toISOString()
+        }, {merge: true});
       });
-      if (!silent) console.log('🔒 퇴사 처리 이력:', resignedNames.size + '명 (자동 복구 제외)');
-    } catch(e) {
-      console.warn('퇴사 이력 조회 실패:', e.message);
+      await cleanBatch.commit();
+      Object.keys(ghostsToClean).forEach(function(dept){
+        ghostsToClean[dept].forEach(function(name){
+          console.warn('  🧹 ' + dept + ' 명단에서 퇴사자 "' + name + '" 자동 제거');
+        });
+      });
     }
+    
+
 
     allRooms.forEach(function(r){
       var data = r.data() || {};
