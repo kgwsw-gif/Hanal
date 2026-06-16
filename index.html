@@ -4058,9 +4058,9 @@ async function executeStudentDelete(dept,name){
             {col:'accessRequests',field:'student',label:'출입 신청',key:'access'},
             {col:'facilityRequests',field:'student',label:'시설 민원',key:'facility'},
             {col:'hvacRequests',field:'requestedBy',label:'냉난방 신청',key:'hvac'},
-            {col:'lotteryResults',field:'student',label:'복권 결과',key:'lottery'},
-            {col:'resignRequests',field:'name',label:'퇴사 이력',key:'resigns'}
+            {col:'lotteryResults',field:'student',label:'복권 결과',key:'lottery'}
         ];
+
         
         var progressBase=40;
         var progressStep=50/collections.length;
@@ -4082,6 +4082,43 @@ async function executeStudentDelete(dept,name){
                     updateProgress(Math.round(progressBase+progressStep*(i+1)),c.label+' '+cnt+'건 삭제 ✓');
                 }
             }catch(e){console.log(c.col+' 삭제 실패:',e.message)}
+        }
+                // === 퇴사 이력 보존 처리 (개인정보만 파기, 기록은 유지) ===
+        updateProgress(90,'퇴사 이력 보존 처리 중...');
+        try {
+            var resignSnap = await db.collection('resignRequests').where('name','==',name).get();
+            if (!resignSnap.empty) {
+                // 기존 기록이 있으면 update로 개인정보 파기 표시
+                var resignBatch = db.batch();
+                resignSnap.forEach(function(doc){
+                    resignBatch.update(doc.ref, {
+                        status: 'approved',
+                        personalDataDeleted: true,
+                        personalDataDeletedAt: new Date().toISOString()
+                    });
+                });
+                await resignBatch.commit();
+                deletedCount.resigns = resignSnap.size;
+            } else {
+                // 기존 기록이 없으면 (관리자 직접 삭제) 새 기록 생성
+                var newDocId = (department || '미배정') + '_' + name + '_' + Date.now();
+                await db.collection('resignRequests').doc(newDocId).set({
+                    name: name,
+                    department: department || '미배정',
+                    status: 'approved',
+                    resignDate: new Date().toISOString().substring(0,10),
+                    approvedDate: new Date().toISOString().substring(0,10),
+                    approvedBy: '관리자',
+                    reason: reason || '관리자 직접 삭제',
+                    personalDataDeleted: true,
+                    personalDataDeletedAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                });
+                deletedCount.resigns = 1;
+            }
+            updateProgress(91,'퇴사 이력 보존 완료 ✓');
+        } catch(e) {
+            console.log('퇴사 이력 보존 실패:', e.message);
         }
         
         updateProgress(92,'메시지 삭제 중...');
