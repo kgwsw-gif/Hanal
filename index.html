@@ -9941,23 +9941,73 @@ function showPendingManagePanel() {
 
 <script>
 // ============ 방학 공지 모달 함수 ============
+// 학생의 학과 조회 헬퍼
+async function _getCurrentStudentDept() {
+  if (!currentStudent) return null;
+  try {
+    var doc = await db.collection('roomNumbers').doc(currentStudent).get();
+    return doc.exists ? (doc.data().department || '미배정') : '미배정';
+  } catch(e) { return '미배정'; }
+}
+
+// 학생에게 적용되는 활성 공지 목록을 우선순위 순으로 가져옴
+async function _getApplicableNotices(studentDept) {
+  var snap = await db.collection('vacationNotices').get();
+  var notices = [];
+  snap.forEach(function(d){
+    var data = d.data() || {};
+    data._id = d.id;
+    if (!data.active) return;
+    if (!data.content || !data.title) return;
+    // targetDepts가 비어있거나 ["ALL"] 포함이면 전체 대상
+    var targets = data.targetDepts || [];
+    var isAll = targets.length === 0 || targets.indexOf('ALL') > -1;
+    if (!isAll && targets.indexOf(studentDept) === -1) return;
+    notices.push(data);
+  });
+  // priority 오름차순 (낮을수록 먼저)
+  notices.sort(function(a,b){ return (a.priority||100) - (b.priority||100); });
+  return notices;
+}
+
 async function checkVacationNotice(forceShow) {
   try {
     if (!forceShow && !currentStudent) return;
-    var doc = await db.collection('settings').doc('vacationNotice').get();
-    if (!doc.exists) return;
-    var data = doc.data() || {};
-    if (!data.active && !forceShow) return;
-    if (!data.content || !data.title) return;
-    if (!forceShow) {
-      var confirmId = currentStudent + '_v' + (data.version || 1);
-      var confirmDoc = await db.collection('noticeConfirmations').doc(confirmId).get();
-      if (confirmDoc.exists) return;
+    // 다시보기(forceShow)는 학과 무관하게 모든 활성 공지를 보여줌
+    var dept = await _getCurrentStudentDept();
+    var notices = await _getApplicableNotices(dept || 'ALL');
+    if (notices.length === 0) return;
+    if (forceShow) {
+      // 다시보기: 첫 번째 공지부터 순차 표시 (체크박스 없이 닫기만)
+      _showNoticeQueue(notices, 0, true);
+      return;
     }
-    showVacationNotice(data, forceShow);
+    // 자동 표시: 아직 확인하지 않은 공지만 필터링
+    var unread = [];
+    for (var i = 0; i < notices.length; i++) {
+      var n = notices[i];
+      var confirmId = currentStudent + '_' + n._id + '_v' + (n.version || 1);
+      var confirmDoc = await db.collection('noticeConfirmations').doc(confirmId).get();
+      if (!confirmDoc.exists) unread.push(n);
+    }
+    if (unread.length === 0) return;
+    _showNoticeQueue(unread, 0, false);
   } catch(e) {
     console.warn('공지 확인 실패:', e.message);
   }
+}
+
+// 공지 큐를 순차적으로 표시
+function _showNoticeQueue(notices, index, isReview) {
+  if (index >= notices.length) return;
+  var n = notices[index];
+  // 모달에 큐 정보 저장
+  var modal = document.getElementById('vacationNoticeModal');
+  modal.dataset.queueNotices = JSON.stringify(notices.map(function(x){ return x._id; }));
+  modal.dataset.queueIndex = index;
+  modal.dataset.queueReview = isReview ? '1' : '0';
+  modal.dataset.noticeId = n._id;
+  showVacationNotice(n, isReview);
 }
 
 function showVacationNotice(data, isReview) {
@@ -9984,16 +10034,36 @@ async function confirmVacationNotice() {
     if (!currentStudent) return;
     var modal = document.getElementById('vacationNoticeModal');
     var version = parseInt(modal.dataset.version || '1');
-    var roomDoc = await db.collection('roomNumbers').doc(currentStudent).get();
-    var dept = roomDoc.exists ? (roomDoc.data().department || '미배정') : '미배정';
-    await db.collection('noticeConfirmations').doc(currentStudent + '_v' + version).set({
+    var noticeId = modal.dataset.noticeId || 'main';
+    var dept = await _getCurrentStudentDept();
+    await db.collection('noticeConfirmations').doc(currentStudent + '_' + noticeId + '_v' + version).set({
       studentName: currentStudent,
-      department: dept,
+      department: dept || '미배정',
+      noticeId: noticeId,
       version: version,
       confirmedAt: new Date().toISOString()
     });
-    modal.style.display = 'none';
     if (typeof showToast === 'function') showToast('공지 확인 완료', 'success');
+    // 다음 공지가 있으면 자동 표시
+    var queue = JSON.parse(modal.dataset.queueNotices || '[]');
+    var idx = parseInt(modal.dataset.queueIndex || '0');
+    if (idx + 1 < queue.length) {
+      modal.style.display = 'none';
+      // 다음 공지 데이터 다시 로드
+      setTimeout(async function(){
+        var nextId = queue[idx + 1];
+        var nextDoc = await db.collection('vacationNotices').doc(nextId).get();
+        if (nextDoc.exists) {
+          var nextData = nextDoc.data();
+          nextData._id = nextId;
+          modal.dataset.queueIndex = idx + 1;
+          modal.dataset.noticeId = nextId;
+          showVacationNotice(nextData, false);
+        }
+      }, 400);
+    } else {
+      modal.style.display = 'none';
+    }
   } catch(e) {
     console.error('공지 확인 저장 실패:', e);
     if (typeof showToast === 'function') showToast('저장 실패: ' + e.message, 'error');
@@ -10004,84 +10074,276 @@ function reviewVacationNotice() {
   checkVacationNotice(true);
 }
 
-// ============ 관리자 방학 공지 편집 UI ============
+// ============ 관리자 방학 공지 편집 UI (다중 공지 지원) ============
+var _editingNoticeId = null; // 현재 편집 중인 공지 ID
+
 async function loadVacationNoticeAdmin() {
   var body = document.getElementById('vacationNoticeAdminBody');
   if (!body) return;
   try {
-    var doc = await db.collection('settings').doc('vacationNotice').get();
-    var data = doc.exists ? doc.data() : { title:'', content:'', active:false, version:1 };
-    var stats = await calcVacationNoticeStats(data.version || 1);
-    body.innerHTML = _buildVacationNoticeAdminHTML(data, stats);
+    // 활성 학과 목록 조회 (대상 학과 선택 UI용)
+    var deptList = await _getAllDepartments();
+    // 공지 목록 조회
+    var snap = await db.collection('vacationNotices').orderBy('priority').get();
+    var notices = [];
+    snap.forEach(function(d){
+      var data = d.data();
+      data._id = d.id;
+      notices.push(data);
+    });
+    body.innerHTML = _buildVacationNoticeListHTML(notices, deptList);
   } catch(e) {
+    console.error(e);
     body.innerHTML = '<div class="text-red-500 p-4">불러오기 실패: '+e.message+'</div>';
   }
 }
 
-function _buildVacationNoticeAdminHTML(data, stats) {
-  var active = !!data.active;
-  var version = data.version || 1;
+async function _getAllDepartments() {
+  var snap = await db.collection('students').get();
+  var depts = [];
+  snap.forEach(function(d){
+    if (d.id !== '_guest') depts.push(d.id);
+  });
+  depts.sort();
+  return depts;
+}
+
+function _buildVacationNoticeListHTML(notices, deptList) {
   var html = '';
-  html += '<div class="flex items-center justify-between p-4 bg-surface-50 rounded-xl border border-surface-200 mb-4">';
-  html += '<div><div class="font-bold text-gray-700">공지 상태</div>';
-  html += '<div class="text-xs text-gray-500 mt-1">현재 버전: v'+version+' | 최종 수정: '+((data.updatedAt||'').substring(0,16).replace('T',' '))+'</div></div>';
-  html += '<button onclick="toggleVacationNoticeActive()" class="px-5 py-2.5 rounded-xl text-sm font-bold btn-press '+(active?'bg-success-500 text-white':'bg-gray-300 text-gray-600')+'">'+(active?'활성 ON':'비활성 OFF')+'</button>';
+  html += '<div class="flex items-center justify-between mb-4">';
+  html += '<div class="text-base text-gray-600">총 '+notices.length+'개 공지</div>';
+  html += '<button onclick="createNewVacationNotice()" class="px-5 py-2.5 bg-primary-500 text-white rounded-xl font-bold text-sm btn-press"><i class="fas fa-plus mr-1"></i>새 공지 생성</button>';
   html += '</div>';
-  html += '<label class="block text-sm font-bold text-gray-700 mb-2">제목</label>';
-  html += '<input id="vacationNoticeTitleInput" type="text" value="'+escapeHtml(data.title||'')+'" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base mb-4" style="font-size:16px" placeholder="공지 제목">';
-  html += '<label class="block text-sm font-bold text-gray-700 mb-2">본문</label>';
-  html += '<textarea id="vacationNoticeContentInput" rows="14" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-sm mb-4 font-mono" style="font-size:14px;line-height:1.6" placeholder="공지 본문 (줄바꿈/이모지 그대로 표시)">'+escapeHtml(data.content||'')+'</textarea>';
-  html += '<div class="grid grid-cols-3 gap-2 mb-5">';
-  html += '<button onclick="previewVacationNotice()" class="py-3 bg-surface-100 text-gray-700 rounded-xl font-bold text-sm btn-press border border-surface-200"><i class="fas fa-eye mr-1"></i>미리보기</button>';
-  html += '<button onclick="saveVacationNotice(false)" class="py-3 bg-primary-50 border-2 border-primary-200 text-primary-700 rounded-xl font-bold text-sm btn-press"><i class="fas fa-save mr-1"></i>저장</button>';
-  html += '<button onclick="saveVacationNotice(true)" class="py-3 bg-orange-500 text-white rounded-xl font-bold text-sm btn-press"><i class="fas fa-redo mr-1"></i>버전업 재공지</button>';
-  html += '</div>';
-  html += '<div class="mt-5 pt-5 border-t border-surface-200">';
-  html += '<div class="flex items-center justify-between mb-3">';
-  html += '<h3 class="font-bold text-gray-700 text-base"><i class="fas fa-chart-bar text-primary-500 mr-1"></i> 학과별 확인률 (v'+version+')</h3>';
-  html += '<button onclick="loadVacationNoticeAdmin()" class="text-xs px-3 py-1.5 bg-surface-100 rounded-lg text-gray-600 hover:bg-surface-200"><i class="fas fa-sync mr-1"></i>새로고침</button>';
-  html += '</div>';
-  if (!stats || !stats.byDept || stats.totalStudents === 0) {
-    html += '<div class="text-gray-400 text-sm text-center py-6">학생 데이터가 없거나 통계를 계산할 수 없습니다.</div>';
-  } else {
-    var rate = stats.totalStudents > 0 ? Math.round(stats.confirmedCount * 100 / stats.totalStudents) : 0;
-    html += '<div class="p-3 bg-primary-50 rounded-xl border border-primary-200 mb-3">';
-    html += '<div class="flex items-center justify-between"><span class="font-bold text-gray-700">전체 확인률</span>';
-    html += '<span class="font-bold text-primary-700 text-lg">'+stats.confirmedCount+'/'+stats.totalStudents+'명 ('+rate+'%)</span></div>';
-    html += '<div class="w-full bg-white rounded-full h-2 mt-2 overflow-hidden"><div class="bg-primary-500 h-2" style="width:'+rate+'%"></div></div>';
-    html += '</div>';
-    var deptKeys = Object.keys(stats.byDept).sort();
-    deptKeys.forEach(function(dept){
-      var d = stats.byDept[dept];
-      var dRate = d.total > 0 ? Math.round(d.confirmed * 100 / d.total) : 0;
-      var allDone = d.confirmed === d.total;
-      html += '<div class="p-3 bg-surface-50 rounded-xl border border-surface-200 mb-2">';
-      html += '<div class="flex items-center justify-between"><span class="font-semibold text-gray-700">'+escapeHtml(dept)+'</span>';
-      html += '<span class="text-sm font-bold '+(allDone?'text-success-600':'text-orange-600')+'">'+d.confirmed+'/'+d.total+'명 ('+dRate+'%) '+(allDone?'✅':'')+'</span></div>';
-      html += '<div class="w-full bg-white rounded-full h-1.5 mt-2 overflow-hidden"><div class="'+(allDone?'bg-success-500':'bg-orange-400')+' h-1.5" style="width:'+dRate+'%"></div></div>';
-      if (d.unconfirmed && d.unconfirmed.length > 0) {
-        html += '<div class="mt-2 text-xs text-gray-500"><span class="font-semibold text-orange-600">미확인:</span> '+d.unconfirmed.map(escapeHtml).join(', ')+'</div>';
-      }
-      html += '</div>';
-    });
+  if (notices.length === 0) {
+    html += '<div class="text-center text-gray-400 py-12 text-base">등록된 공지가 없습니다.<br><span class="text-sm">"새 공지 생성" 버튼을 눌러 추가하세요.</span></div>';
+    return html;
   }
+  notices.forEach(function(n){
+    var active = !!n.active;
+    var targets = n.targetDepts || [];
+    var isAll = targets.length === 0 || targets.indexOf('ALL') > -1;
+    var targetLabel = isAll ? '<span class="text-primary-600 font-semibold">전체 학과</span>' : targets.map(function(t){ return '<span class="inline-block bg-primary-50 text-primary-700 px-2 py-1 rounded text-sm mr-1 mb-1">'+escapeHtml(t)+'</span>'; }).join('');
+    html += '<div class="bg-surface-50 border border-surface-200 rounded-xl p-4 mb-3">';
+    html += '<div class="flex items-center justify-between mb-2">';
+    html += '<div class="flex-1 min-w-0"><div class="font-bold text-gray-800 text-base">'+escapeHtml(n.title||'(제목 없음)')+'</div>';
+    html += '<div class="text-sm text-gray-500 mt-1">ID: '+n._id+' | v'+(n.version||1)+' | 우선순위 '+(n.priority||100)+' | 수정 '+((n.updatedAt||'').substring(0,16).replace('T',' '))+'</div></div>';
+    html += '<span class="ml-2 px-3 py-1 rounded text-sm font-bold '+(active?'bg-success-500 text-white':'bg-gray-300 text-gray-600')+'">'+(active?'활성':'비활성')+'</span>';
+    html += '</div>';
+    html += '<div class="text-sm text-gray-600 mb-3">대상: '+targetLabel+'</div>';
+    html += '<div class="grid grid-cols-4 gap-2">';
+    html += '<button onclick="editVacationNotice(\''+n._id+'\') " class="py-2.5 bg-white border border-surface-200 rounded-lg text-sm font-bold text-gray-700 btn-press"><i class="fas fa-edit mr-1"></i>편집</button>';
+    html += '<button onclick="toggleVacationNoticeActive(\''+n._id+'\')" class="py-2.5 '+(active?'bg-gray-300 text-gray-700':'bg-success-500 text-white')+' rounded-lg text-sm font-bold btn-press">'+(active?'비활성화':'활성화')+'</button>';
+    html += '<button onclick="showVacationNoticeStats(\''+n._id+'\')" class="py-2.5 bg-white border border-surface-200 rounded-lg text-sm font-bold text-gray-700 btn-press"><i class="fas fa-chart-bar mr-1"></i>통계</button>';
+    html += '<button onclick="deleteVacationNotice(\''+n._id+'\')" class="py-2.5 bg-white border border-red-200 rounded-lg text-sm font-bold text-red-600 btn-press"><i class="fas fa-trash mr-1"></i>삭제</button>';
+    html += '</div>';
+    if (_editingNoticeId === n._id) {
+      html += _buildVacationNoticeEditPanel(n, deptList);
+    }
+    if (_statsNoticeId === n._id) {
+      html += '<div id="statsPanel-'+n._id+'" class="mt-3 pt-3 border-t border-surface-200"><div class="text-center text-gray-400 py-4 text-base"><i class="fas fa-spinner fa-spin mr-2"></i>통계 계산 중...</div></div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
+
+function _buildVacationNoticeEditPanel(n, deptList) {
+  var targets = n.targetDepts || [];
+  var isAll = targets.length === 0;
+  var html = '<div class="mt-3 pt-3 border-t border-surface-200 bg-white rounded-lg p-4">';
+  // 제목
+  html += '<label class="block text-sm font-bold text-gray-700 mb-2">제목</label>';
+  html += '<input id="vn_title_'+n._id+'" type="text" value="'+escapeHtml(n.title||'')+'" class="w-full px-4 py-3 bg-surface-50 border border-surface-200 rounded-lg text-base mb-4" style="font-size:16px">';
+  // 본문
+  html += '<label class="block text-sm font-bold text-gray-700 mb-2">본문</label>';
+  html += '<textarea id="vn_content_'+n._id+'" rows="14" class="w-full px-4 py-3 bg-surface-50 border border-surface-200 rounded-lg mb-4 font-mono" style="font-size:15px;line-height:1.7">'+escapeHtml(n.content||'')+'</textarea>';
+  // 대상 학과
+  html += '<label class="block text-sm font-bold text-gray-700 mb-2">대상 학과</label>';
+  html += '<div class="mb-4 p-3 bg-surface-50 border border-surface-200 rounded-lg">';
+  html += '<label class="flex items-center gap-2 mb-3 cursor-pointer"><input type="checkbox" id="vn_all_'+n._id+'" '+(isAll?'checked':'')+' onchange="toggleAllDeptCheck(\''+n._id+'\')" class="w-5 h-5"><span class="text-base font-bold text-primary-700">전체 학과 대상</span></label>';
+  html += '<div id="vn_deptlist_'+n._id+'" class="grid grid-cols-2 gap-1" style="'+(isAll?'opacity:0.4;pointer-events:none':'')+'">';
+  deptList.forEach(function(dept){
+    var checked = !isAll && targets.indexOf(dept) > -1;
+    html += '<label class="flex items-center gap-2 p-2 hover:bg-white rounded cursor-pointer"><input type="checkbox" class="vn_dept_'+n._id+' w-5 h-5" value="'+escapeHtml(dept)+'" '+(checked?'checked':'')+'><span class="text-sm">'+escapeHtml(dept)+'</span></label>';
+  });
+  html += '</div></div>';
+  // 우선순위
+  html += '<label class="block text-sm font-bold text-gray-700 mb-2">우선순위 (낮을수록 먼저 표시)</label>';
+  html += '<input id="vn_priority_'+n._id+'" type="number" value="'+(n.priority||100)+'" class="w-full px-4 py-3 bg-surface-50 border border-surface-200 rounded-lg text-base mb-4" style="font-size:16px">';
+  // 액션 버튼
+  html += '<div class="grid grid-cols-4 gap-2">';
+  html += '<button onclick="previewVacationNotice(\''+n._id+'\')" class="py-3 bg-surface-100 text-gray-700 rounded-lg text-sm font-bold btn-press border border-surface-200"><i class="fas fa-eye mr-1"></i>미리보기</button>';
+  html += '<button onclick="saveVacationNotice(\''+n._id+'\', false)" class="py-3 bg-primary-50 border border-primary-200 text-primary-700 rounded-lg text-sm font-bold btn-press"><i class="fas fa-save mr-1"></i>저장</button>';
+  html += '<button onclick="saveVacationNotice(\''+n._id+'\', true)" class="py-3 bg-orange-500 text-white rounded-lg text-sm font-bold btn-press"><i class="fas fa-redo mr-1"></i>버전업</button>';
+  html += '<button onclick="closeEditPanel()" class="py-3 bg-white border border-surface-200 rounded-lg text-sm font-bold text-gray-600 btn-press"><i class="fas fa-times mr-1"></i>닫기</button>';
+  html += '</div>';
   html += '</div>';
   return html;
 }
 
-async function calcVacationNoticeStats(version) {
+function toggleAllDeptCheck(noticeId) {
+  var allChecked = document.getElementById('vn_all_'+noticeId).checked;
+  var list = document.getElementById('vn_deptlist_'+noticeId);
+  if (allChecked) {
+    list.style.opacity = '0.4';
+    list.style.pointerEvents = 'none';
+  } else {
+    list.style.opacity = '1';
+    list.style.pointerEvents = 'auto';
+  }
+}
+
+function editVacationNotice(id) {
+  _editingNoticeId = (_editingNoticeId === id) ? null : id;
+  _statsNoticeId = null;
+  loadVacationNoticeAdmin();
+}
+
+function closeEditPanel() {
+  _editingNoticeId = null;
+  loadVacationNoticeAdmin();
+}
+
+async function createNewVacationNotice() {
+  var name = prompt('새 공지 ID를 입력하세요 (영문/숫자, 공백 없이)\n예: barista, midyearly, summer2026');
+  if (!name) return;
+  name = name.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!name) { if (typeof showToast === 'function') showToast('유효한 ID를 입력하세요', 'error'); return; }
+  var existing = await db.collection('vacationNotices').doc(name).get();
+  if (existing.exists) { if (typeof showToast === 'function') showToast('이미 같은 ID의 공지가 있습니다', 'error'); return; }
+  await db.collection('vacationNotices').doc(name).set({
+    title: '제목을 입력하세요',
+    content: '본문을 입력하세요',
+    active: false,
+    version: 1,
+    targetDepts: [],
+    priority: 100,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    updatedBy: '관리자'
+  });
+  if (typeof showToast === 'function') showToast('새 공지 "'+name+'" 생성 완료', 'success');
+  _editingNoticeId = name;
+  loadVacationNoticeAdmin();
+}
+
+async function deleteVacationNotice(id) {
+  if (!confirm('"'+id+'" 공지를 삭제하시겠습니까?\n\n(확인 기록은 통계용으로 보존됩니다.)')) return;
+  await db.collection('vacationNotices').doc(id).delete();
+  if (typeof showToast === 'function') showToast('공지 삭제 완료', 'success');
+  if (_editingNoticeId === id) _editingNoticeId = null;
+  loadVacationNoticeAdmin();
+  var existing = document.getElementById('vacationNoticeFloatBtn');
+  if (existing) existing.remove();
+  if (typeof addVacationNoticeFloatBtn === 'function') addVacationNoticeFloatBtn();
+}
+
+async function toggleVacationNoticeActive(id) {
+  try {
+    var doc = await db.collection('vacationNotices').doc(id).get();
+    if (!doc.exists) return;
+    var cur = !!doc.data().active;
+    await db.collection('vacationNotices').doc(id).update({
+      active: !cur,
+      updatedAt: new Date().toISOString()
+    });
+    if (typeof showToast === 'function') showToast('공지 '+(!cur?'활성화':'비활성화')+' 완료', 'success');
+    loadVacationNoticeAdmin();
+    var existing = document.getElementById('vacationNoticeFloatBtn');
+    if (existing) existing.remove();
+    if (typeof addVacationNoticeFloatBtn === 'function') addVacationNoticeFloatBtn();
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('실패: '+e.message, 'error');
+  }
+}
+
+async function saveVacationNotice(id, bumpVersion) {
+  try {
+    var title = (document.getElementById('vn_title_'+id).value || '').trim();
+    var content = document.getElementById('vn_content_'+id).value || '';
+    var priority = parseInt(document.getElementById('vn_priority_'+id).value || '100');
+    if (!title) { if (typeof showToast === 'function') showToast('제목을 입력하세요', 'error'); return; }
+    if (!content.trim()) { if (typeof showToast === 'function') showToast('본문을 입력하세요', 'error'); return; }
+    // 대상 학과 수집
+    var isAll = document.getElementById('vn_all_'+id).checked;
+    var targets = [];
+    if (!isAll) {
+      var checks = document.getElementsByClassName('vn_dept_'+id);
+      for (var i = 0; i < checks.length; i++) {
+        if (checks[i].checked) targets.push(checks[i].value);
+      }
+      if (targets.length === 0) { if (typeof showToast === 'function') showToast('대상 학과를 1개 이상 선택하거나 전체 학과를 체크하세요', 'error'); return; }
+    }
+    // 버전
+    var doc = await db.collection('vacationNotices').doc(id).get();
+    var curVersion = doc.exists ? (doc.data().version || 1) : 1;
+    var newVersion = bumpVersion ? curVersion + 1 : curVersion;
+    if (bumpVersion && !confirm('버전을 v'+curVersion+' → v'+newVersion+'로 올리고 대상 학생들에게 재공지하시겠습니까?\n\n(이미 확인한 학생도 다음 로그인 시 모달이 다시 표시됩니다.)')) return;
+    await db.collection('vacationNotices').doc(id).update({
+      title: title,
+      content: content,
+      version: newVersion,
+      targetDepts: targets,
+      priority: isNaN(priority) ? 100 : priority,
+      updatedAt: new Date().toISOString(),
+      updatedBy: '관리자'
+    });
+    if (typeof showToast === 'function') showToast(bumpVersion ? '버전업 후 재공지 완료 (v'+newVersion+')' : '저장 완료', 'success');
+    loadVacationNoticeAdmin();
+  } catch(e) {
+    console.error('공지 저장 실패:', e);
+    if (typeof showToast === 'function') showToast('저장 실패: '+e.message, 'error');
+  }
+}
+
+function previewVacationNotice(id) {
+  var title = (document.getElementById('vn_title_'+id).value || '').trim() || '📢 공지사항';
+  var content = document.getElementById('vn_content_'+id).value || '';
+  showVacationNotice({ title: title, content: content, version: 0, _id: id }, true);
+}
+
+// === 통계 (공지별) ===
+var _statsNoticeId = null;
+
+async function showVacationNoticeStats(id) {
+  _statsNoticeId = (_statsNoticeId === id) ? null : id;
+  _editingNoticeId = null;
+  loadVacationNoticeAdmin();
+  if (_statsNoticeId === id) {
+    // 통계 계산 후 패널 채움
+    setTimeout(async function(){
+      var panel = document.getElementById('statsPanel-'+id);
+      if (!panel) return;
+      try {
+        var noticeDoc = await db.collection('vacationNotices').doc(id).get();
+        if (!noticeDoc.exists) { panel.innerHTML = '<div class="text-red-500 text-sm p-2">공지를 찾을 수 없습니다.</div>'; return; }
+        var n = noticeDoc.data();
+        var stats = await calcVacationNoticeStats(id, n.version || 1, n.targetDepts || []);
+        panel.innerHTML = _buildStatsHTML(stats, n.version || 1);
+      } catch(e) {
+        panel.innerHTML = '<div class="text-red-500 text-sm p-2">통계 계산 실패: '+e.message+'</div>';
+      }
+    }, 100);
+  }
+}
+
+async function calcVacationNoticeStats(noticeId, version, targetDepts) {
   var stats = { totalStudents: 0, confirmedCount: 0, byDept: {} };
+  var isAll = !targetDepts || targetDepts.length === 0 || targetDepts.indexOf('ALL') > -1;
   var roomSnap = await db.collection('roomNumbers').get();
   roomSnap.forEach(function(d){
     var data = d.data() || {};
     if (data.status === 'pending') return;
     var dept = data.department || '미배정';
+    if (!isAll && targetDepts.indexOf(dept) === -1) return;
     if (!stats.byDept[dept]) stats.byDept[dept] = { total:0, confirmed:0, unconfirmed:[] };
     stats.byDept[dept].total++;
     stats.byDept[dept].unconfirmed.push(d.id);
     stats.totalStudents++;
   });
-  var confSnap = await db.collection('noticeConfirmations').where('version','==',version).get();
+  var confSnap = await db.collection('noticeConfirmations')
+    .where('noticeId','==',noticeId)
+    .where('version','==',version).get();
   confSnap.forEach(function(c){
     var cd = c.data() || {};
     var dept = cd.department || '미배정';
@@ -10097,53 +10359,33 @@ async function calcVacationNoticeStats(version) {
   return stats;
 }
 
-async function toggleVacationNoticeActive() {
-  try {
-    var doc = await db.collection('settings').doc('vacationNotice').get();
-    var cur = doc.exists ? !!doc.data().active : false;
-    await db.collection('settings').doc('vacationNotice').update({
-      active: !cur,
-      updatedAt: new Date().toISOString()
-    });
-    if (typeof showToast === 'function') showToast('공지 '+(!cur?'활성화':'비활성화')+' 완료', 'success');
-    loadVacationNoticeAdmin();
-    var existing = document.getElementById('vacationNoticeFloatBtn');
-    if (existing) existing.remove();
-    if (typeof addVacationNoticeFloatBtn === 'function') addVacationNoticeFloatBtn();
-  } catch(e) {
-    if (typeof showToast === 'function') showToast('실패: '+e.message, 'error');
+function _buildStatsHTML(stats, version) {
+  var html = '';
+  if (!stats || stats.totalStudents === 0) {
+    html += '<div class="text-gray-400 text-base text-center py-4">대상 학생이 없습니다.</div>';
+    return html;
   }
-}
-
-async function saveVacationNotice(bumpVersion) {
-  try {
-    var title = (document.getElementById('vacationNoticeTitleInput').value || '').trim();
-    var content = document.getElementById('vacationNoticeContentInput').value || '';
-    if (!title) { if (typeof showToast === 'function') showToast('제목을 입력하세요', 'error'); return; }
-    if (!content.trim()) { if (typeof showToast === 'function') showToast('본문을 입력하세요', 'error'); return; }
-    var doc = await db.collection('settings').doc('vacationNotice').get();
-    var curVersion = doc.exists ? (doc.data().version || 1) : 1;
-    var newVersion = bumpVersion ? curVersion + 1 : curVersion;
-    if (bumpVersion && !confirm('버전을 v'+curVersion+' → v'+newVersion+'로 올리고 모든 학생에게 재공지하시겠습니까?\n\n(이미 확인한 학생도 다음 로그인 시 모달이 다시 표시됩니다.)')) return;
-    await db.collection('settings').doc('vacationNotice').update({
-      title: title,
-      content: content,
-      version: newVersion,
-      updatedAt: new Date().toISOString(),
-      updatedBy: '관리자'
-    });
-    if (typeof showToast === 'function') showToast(bumpVersion ? '버전업 후 재공지 완료 (v'+newVersion+')' : '저장 완료', 'success');
-    loadVacationNoticeAdmin();
-  } catch(e) {
-    console.error('공지 저장 실패:', e);
-    if (typeof showToast === 'function') showToast('저장 실패: '+e.message, 'error');
-  }
-}
-
-function previewVacationNotice() {
-  var title = (document.getElementById('vacationNoticeTitleInput').value || '').trim() || '📢 공지사항';
-  var content = document.getElementById('vacationNoticeContentInput').value || '';
-  showVacationNotice({ title: title, content: content, version: 0 }, true);
+  var rate = Math.round(stats.confirmedCount * 100 / stats.totalStudents);
+  html += '<div class="p-4 bg-primary-50 rounded-xl border border-primary-200 mb-3">';
+  html += '<div class="flex items-center justify-between"><span class="font-bold text-gray-700 text-base">전체 확인률 (v'+version+')</span>';
+  html += '<span class="font-bold text-primary-700 text-lg">'+stats.confirmedCount+'/'+stats.totalStudents+'명 ('+rate+'%)</span></div>';
+  html += '<div class="w-full bg-white rounded-full h-2.5 mt-2 overflow-hidden"><div class="bg-primary-500 h-2.5" style="width:'+rate+'%"></div></div>';
+  html += '</div>';
+  var deptKeys = Object.keys(stats.byDept).sort();
+  deptKeys.forEach(function(dept){
+    var d = stats.byDept[dept];
+    var dRate = d.total > 0 ? Math.round(d.confirmed * 100 / d.total) : 0;
+    var allDone = d.confirmed === d.total;
+    html += '<div class="p-3 bg-white rounded-lg border border-surface-200 mb-2">';
+    html += '<div class="flex items-center justify-between"><span class="font-semibold text-gray-700 text-base">'+escapeHtml(dept)+'</span>';
+    html += '<span class="text-sm font-bold '+(allDone?'text-success-600':'text-orange-600')+'">'+d.confirmed+'/'+d.total+'명 ('+dRate+'%) '+(allDone?'✅':'')+'</span></div>';
+    html += '<div class="w-full bg-surface-100 rounded-full h-2 mt-2 overflow-hidden"><div class="'+(allDone?'bg-success-500':'bg-orange-400')+' h-2" style="width:'+dRate+'%"></div></div>';
+    if (d.unconfirmed && d.unconfirmed.length > 0) {
+      html += '<div class="mt-2 text-sm text-gray-600"><span class="font-semibold text-orange-600">미확인:</span> '+d.unconfirmed.map(escapeHtml).join(', ')+'</div>';
+    }
+    html += '</div>';
+  });
+  return html;
 }
 
 // 메인 화면 우측 하단에 "방학 안내 다시 보기" 버튼 표시/숨김
@@ -10155,25 +10397,28 @@ function addVacationNoticeFloatBtn() {
   }
   if (document.getElementById('vacationNoticeFloatBtn')) return;
 
-  db.collection('settings').doc('vacationNotice').get().then(function(doc){
-    if (!doc.exists) return;
-    var data = doc.data() || {};
-    if (!data.active) {
-      var ex = document.getElementById('vacationNoticeFloatBtn');
-      if (ex) ex.remove();
-      return;
-    }
-
-    var btn = document.createElement('button');
-    btn.id = 'vacationNoticeFloatBtn';
-    btn.onclick = function(){ reviewVacationNotice(); };
-    btn.style.cssText = 'position:fixed;bottom:100px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
-    btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>';
-    btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
-    btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
-    btn.title = '방학 안내 다시 보기';
-    document.body.appendChild(btn);
-  }).catch(function(e){ console.warn('방학 공지 버튼 표시 실패:', e.message); });
+  (async function(){
+    try {
+      // 현재 학생 학과 기준으로 활성 공지가 있는지 확인
+      var dept = await _getCurrentStudentDept();
+      var notices = await _getApplicableNotices(dept || 'ALL');
+      if (notices.length === 0) {
+        var ex = document.getElementById('vacationNoticeFloatBtn');
+        if (ex) ex.remove();
+        return;
+      }
+      var btn = document.createElement('button');
+      btn.id = 'vacationNoticeFloatBtn';
+      btn.onclick = function(){ reviewVacationNotice(); };
+      btn.style.cssText = 'position:fixed;bottom:100px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
+      var badge = notices.length > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;">'+notices.length+'</span>' : '';
+      btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + badge;
+      btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
+      btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
+      btn.title = '방학 안내 다시 보기' + (notices.length > 1 ? ' ('+notices.length+'개)' : '');
+      document.body.appendChild(btn);
+    } catch(e) { console.warn('방학 공지 버튼 표시 실패:', e.message); }
+  })();
 }
 
 (function(){
