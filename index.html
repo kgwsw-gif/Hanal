@@ -9232,7 +9232,14 @@ function showAddPendingStudentModal() {
 window.forceDeleteStudent = async function(targetName) {
     if (!targetName) { console.error('이름을 입력하세요. 예: forceDeleteStudent("이현우")'); return; }
     console.log('=== [강제삭제] 시작:', targetName, '===');
-    var report = { passwords: false, roomNumbers: false, deptsRemovedFrom: [] };
+        var report = { passwords: false, roomNumbers: false, deptsRemovedFrom: [], resignPreserved: false };
+    
+    // 학과 정보 미리 조회 (퇴사 이력 보존용)
+    var _deptName = '미배정';
+    try {
+      var _rDoc = await db.collection('roomNumbers').doc(targetName).get();
+      if (_rDoc.exists) _deptName = (_rDoc.data() || {}).department || '미배정';
+    } catch(e) {}
     try {
         // 1) passwords 삭제
         var pSnap = await db.collection('passwords').doc(targetName).get();
@@ -9259,7 +9266,43 @@ window.forceDeleteStudent = async function(targetName) {
                 report.deptsRemovedFrom.push(doc.id);
                 console.log('  ✓ students/' + doc.id + ' 에서 제거됨');
             }
+        }        // === 퇴사 이력 보존 처리 (개인정보만 파기, 기록은 유지) ===
+        try {
+            var resignSnap = await db.collection('resignRequests').where('name','==',targetName).get();
+            if (!resignSnap.empty) {
+                var resignBatch = db.batch();
+                resignSnap.forEach(function(rdoc){
+                    resignBatch.update(rdoc.ref, {
+                        status: 'approved',
+                        personalDataDeleted: true,
+                        personalDataDeletedAt: new Date().toISOString()
+                    });
+                });
+                await resignBatch.commit();
+                report.resignPreserved = true;
+                console.log('  ✓ resignRequests/' + targetName + ' ' + resignSnap.size + '건 보존 처리됨');
+            } else {
+                // 기존 퇴사 기록이 없으면 새 기록 생성
+                var _newDocId = _deptName + '_' + targetName + '_' + Date.now();
+                await db.collection('resignRequests').doc(_newDocId).set({
+                    name: targetName,
+                    department: _deptName,
+                    status: 'approved',
+                    resignDate: new Date().toISOString().substring(0,10),
+                    approvedDate: new Date().toISOString().substring(0,10),
+                    approvedBy: '관리자 (강제삭제)',
+                    reason: '강제삭제 처리',
+                    personalDataDeleted: true,
+                    personalDataDeletedAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString()
+                });
+                report.resignPreserved = true;
+                console.log('  ✓ resignRequests 신규 기록 생성');
+            }
+        } catch(rErr) {
+            console.warn('  ⚠ resignRequests 처리 실패:', rErr.message);
         }
+        
         console.log('=== [강제삭제] 완료:', report, '===');
         if (typeof showToast === 'function') showToast(targetName + ' 완전 삭제 완료 - 다시 등록 가능', 'success');
         alert('[완전 삭제 완료]\n\n이름: ' + targetName + '\npasswords 삭제: ' + (report.passwords ? '✓' : '✗없음') + '\nroomNumbers 삭제: ' + (report.roomNumbers ? '✓' : '✗없음') + '\nstudents에서 제거된 학과: ' + (report.deptsRemovedFrom.length ? report.deptsRemovedFrom.join(', ') : '없음') + '\n\n이제 예비 입사자로 다시 등록해보세요.');
