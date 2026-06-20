@@ -8056,6 +8056,10 @@ function enterStudentViewFromAdmin(){
     var name=document.getElementById('adminStudentName').value;
     if(!name){showToast('교육생을 선택하세요','warning');return}
     currentStudent=name;currentMode='student';closeModal();render();showToast(name+'님 환영합니다','success');showToast(name+' 교육생 화면','success');
+    // 관리자가 학생 화면 미리보기 진입 시 방학 공지 자동 표시 (다시보기 모드 - 확인 기록 안 남김)
+    setTimeout(function(){
+      if(typeof checkVacationNotice==='function') checkVacationNotice(true);
+    },1500);
 }
 var _subSectionStates = {vehicle:true,photo:true,addStudent:true,delStudent:true,excelUpload:true,editStudent:true};
 function toggleSubSection(key) {
@@ -9973,15 +9977,36 @@ async function _getApplicableNotices(studentDept) {
 async function checkVacationNotice(forceShow) {
   try {
     if (!forceShow && !currentStudent) return;
-    // 다시보기(forceShow)는 학과 무관하게 모든 활성 공지를 보여줌
-    var dept = await _getCurrentStudentDept();
-    var notices = await _getApplicableNotices(dept || 'ALL');
-    if (notices.length === 0) return;
+    
+    var notices = [];
+    
+    if (currentMode === 'admin' || currentMode === 'office' || currentMode === 'leader') {
+      // 관리자/사감/리더는 학과 필터 무시하고 모든 활성 공지 조회
+      var snap = await db.collection('vacationNotices').where('active', '==', true).get();
+      snap.forEach(function(d){
+        var data = d.data() || {};
+        notices.push(Object.assign({_id: d.id}, data));
+      });
+      notices.sort(function(a,b){ return (a.priority||100) - (b.priority||100); });
+    } else {
+      // 학생은 본인 학과 필터링
+      var dept = await _getCurrentStudentDept();
+      notices = await _getApplicableNotices(dept);
+    }
+    
+    if (notices.length === 0) {
+      if (forceShow && typeof showToast === 'function') {
+        showToast('표시할 활성 공지가 없습니다', 'info');
+      }
+      return;
+    }
+    
     if (forceShow) {
       // 다시보기: 첫 번째 공지부터 순차 표시 (체크박스 없이 닫기만)
       _showNoticeQueue(notices, 0, true);
       return;
     }
+    
     // 자동 표시: 아직 확인하지 않은 공지만 필터링
     var unread = [];
     for (var i = 0; i < notices.length; i++) {
@@ -10389,36 +10414,51 @@ function _buildStatsHTML(stats, version) {
 }
 
 // 메인 화면 우측 하단에 "방학 안내 다시 보기" 버튼 표시/숨김
-function addVacationNoticeFloatBtn() {
+async function addVacationNoticeFloatBtn() {
   if (typeof currentMode === 'undefined' || !currentMode) {
     var existing = document.getElementById('vacationNoticeFloatBtn');
     if (existing) existing.remove();
     return;
   }
   if (document.getElementById('vacationNoticeFloatBtn')) return;
-
-  (async function(){
-    try {
-      // 현재 학생 학과 기준으로 활성 공지가 있는지 확인
+  
+  try {
+    var applicableNotices = [];
+    
+    if (currentMode === 'admin' || currentMode === 'office' || currentMode === 'leader') {
+      // 관리자/사감/리더는 모든 활성 공지를 직접 조회 (학과 필터 무시)
+      var snap = await db.collection('vacationNotices').where('active', '==', true).get();
+      snap.forEach(function(d){
+        var data = d.data() || {};
+        applicableNotices.push(Object.assign({_id: d.id}, data));
+      });
+      applicableNotices.sort(function(a,b){ return (a.priority||100) - (b.priority||100); });
+    } else {
+      // 학생은 본인 학과 필터링 (조기 종료 과정은 대상에서 제외됨)
       var dept = await _getCurrentStudentDept();
-      var notices = await _getApplicableNotices(dept || 'ALL');
-      if (notices.length === 0) {
-        var ex = document.getElementById('vacationNoticeFloatBtn');
-        if (ex) ex.remove();
-        return;
-      }
-      var btn = document.createElement('button');
-      btn.id = 'vacationNoticeFloatBtn';
-      btn.onclick = function(){ reviewVacationNotice(); };
-      btn.style.cssText = 'position:fixed;bottom:100px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
-      var badge = notices.length > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;">'+notices.length+'</span>' : '';
-      btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + badge;
-      btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
-      btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
-      btn.title = '방학 안내 다시 보기' + (notices.length > 1 ? ' ('+notices.length+'개)' : '');
-      document.body.appendChild(btn);
-    } catch(e) { console.warn('방학 공지 버튼 표시 실패:', e.message); }
-  })();
+      applicableNotices = await _getApplicableNotices(dept);
+    }
+    
+    if (applicableNotices.length === 0) {
+      var ex = document.getElementById('vacationNoticeFloatBtn');
+      if (ex) ex.remove();
+      return;
+    }
+    
+    var count = applicableNotices.length;
+    var btn = document.createElement('button');
+    btn.id = 'vacationNoticeFloatBtn';
+    btn.onclick = function(){ reviewVacationNotice(); };
+    btn.style.cssText = 'position:fixed;bottom:100px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
+    btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + 
+      (count > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;">' + count + '</span>' : '');
+    btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
+    btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
+    btn.title = '방학 안내 다시 보기 (' + count + '개)';
+    document.body.appendChild(btn);
+  } catch(e) {
+    console.warn('방학 공지 버튼 표시 실패:', e.message);
+  }
 }
 
 (function(){
