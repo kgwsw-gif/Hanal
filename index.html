@@ -4102,10 +4102,10 @@ async function executeStudentDelete(dept,name){
                 deletedCount.resigns = resignSnap.size;
             } else {
                 // 기존 기록이 없으면 (관리자 직접 삭제) 새 기록 생성
-                var newDocId = (department || '미배정') + '_' + name + '_' + Date.now();
+                var newDocId = (dept || '미배정') + '_' + name + '_' + Date.now();
                 await db.collection('resignRequests').doc(newDocId).set({
                     name: name,
-                    department: department || '미배정',
+                    department: dept || '미배정',
                     status: 'approved',
                     resignDate: new Date().toISOString().substring(0,10),
                     approvedDate: new Date().toISOString().substring(0,10),
