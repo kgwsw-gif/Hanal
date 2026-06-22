@@ -10327,20 +10327,41 @@ async function showVacationNoticeStats(id) {
   _editingNoticeId = null;
   loadVacationNoticeAdmin();
   if (_statsNoticeId === id) {
-    // 통계 계산 후 패널 채움
-    setTimeout(async function(){
+    var waitForPanel = function(attempts) {
+      attempts = attempts || 0;
       var panel = document.getElementById('statsPanel-'+id);
-      if (!panel) return;
-      try {
-        var noticeDoc = await db.collection('vacationNotices').doc(id).get();
-        if (!noticeDoc.exists) { panel.innerHTML = '<div class="text-red-500 text-sm p-2">공지를 찾을 수 없습니다.</div>'; return; }
-        var n = noticeDoc.data();
-        var stats = await calcVacationNoticeStats(id, n.version || 1, n.targetDepts || []);
-        panel.innerHTML = _buildStatsHTML(stats, n.version || 1);
-      } catch(e) {
-        panel.innerHTML = '<div class="text-red-500 text-sm p-2">통계 계산 실패: '+e.message+'</div>';
+      if (panel) {
+        loadStatsIntoPanel(id, panel);
+      } else if (attempts < 30) {
+        setTimeout(function(){ waitForPanel(attempts + 1); }, 100);
+      } else {
+        console.warn('statsPanel을 찾을 수 없습니다:', id);
       }
-    }, 100);
+    };
+    setTimeout(function(){ waitForPanel(0); }, 50);
+  }
+}
+
+async function loadStatsIntoPanel(id, panel) {
+  panel.innerHTML = '<div class="text-center text-gray-400 py-6"><i class="fas fa-spinner fa-spin mr-2"></i>통계 계산 중...</div>';
+  try {
+    var noticeDoc = await db.collection('vacationNotices').doc(id).get();
+    if (!noticeDoc.exists) {
+      panel.innerHTML = '<div class="text-red-500 text-base p-3 bg-red-50 rounded-lg">❌ 공지를 찾을 수 없습니다.</div>';
+      return;
+    }
+    var n = noticeDoc.data();
+    var stats = await calcVacationNoticeStats(id, n.version || 1, n.targetDepts || []);
+    panel.innerHTML = _buildStatsHTML(stats, n.version || 1);
+    // 모바일에서 통계 패널 위치로 자동 스크롤
+    if (window.innerWidth < 768) {
+      setTimeout(function(){
+        panel.scrollIntoView({ behavior:'smooth', block:'start' });
+      }, 200);
+    }
+  } catch(e) {
+    console.error('통계 계산 실패:', e);
+    panel.innerHTML = '<div class="text-red-500 text-base p-3 bg-red-50 rounded-lg">❌ 통계 계산 실패<br><span class="text-sm">'+e.message+'</span></div>';
   }
 }
 
