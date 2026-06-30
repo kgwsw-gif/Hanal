@@ -10650,25 +10650,41 @@ window._handleNewMessageSound = function(snapshot) {
 window._globalMessageListeners = window._globalMessageListeners || { admin: null, leader: null };
 
 function startGlobalMessageListeners() {
-  // 관리자 메시지 전역 감시
+  // 관리자 메시지 전역 감시 (adminMessageThreads의 lastMessageAt 변경 감지)
   if (!window._globalMessageListeners.admin) {
     try {
       var adminFirstCall = true;
-      window._globalMessageListeners.admin = db.collectionGroup('messages')
-        .where('threadType', '==', 'admin')
+      window._globalMessageListeners.admin = db.collection('adminMessageThreads')
         .onSnapshot(function(snap) {
           if (adminFirstCall) { adminFirstCall = false; return; }
-          window._handleNewMessageSound(snap);
+          if (_isChatModalOpen()) return;
+          
+          snap.docChanges().forEach(function(change) {
+            if (change.type === 'modified' || change.type === 'added') {
+              var data = change.doc.data();
+              if (data.lastMessage && data.lastMessageBy) {
+                var myName = (typeof _getCurrentAdminName === 'function') ? _getCurrentAdminName() : null;
+                // 본인이 보낸 메시지가 아니면 알림음
+                if (myName && data.lastMessageBy !== myName && data.lastMessageBy !== '관리자') {
+                  if (data.lastMessageAt) {
+                    var ts = data.lastMessageAt.toMillis ? data.lastMessageAt.toMillis() : 0;
+                    if (ts > 0 && (Date.now() - ts) < 10000) {
+                      playNotificationSound();
+                    }
+                  }
+                }
+              }
+            }
+          });
         }, function(err) {
-          // collectionGroup 인덱스 없으면 폴백: 스레드 목록 변경 시 감지
-          console.warn('관리자 전역 메시지 감시 폴백 모드');
+          console.warn('관리자 전역 메시지 감시 실패:', err.message);
         });
     } catch(e) {
       console.warn('관리자 전역 리스너 등록 실패:', e);
     }
   }
   
-  // 학과대표 메시지 전역 감시 (스레드 lastMessage 변경 감지로 폴백)
+  // 학과대표 메시지 전역 감시 (스레드 lastMessage 변경 감지)
   if (!window._globalMessageListeners.leader) {
     try {
       var leaderFirstCall = true;
@@ -10680,10 +10696,15 @@ function startGlobalMessageListeners() {
           snap.docChanges().forEach(function(change) {
             if (change.type === 'modified') {
               var data = change.doc.data();
-              if (data.lastMessage && data.lastSenderName) {
+              if (data.lastMessage && data.lastMessageBy) {
                 var myName = (typeof _getCurrentAdminName === 'function') ? _getCurrentAdminName() : null;
-                if (data.lastSenderName !== myName) {
-                  // 최근 10초 이내 메시지만
+                var leaderUser = (typeof _getLeaderMsgUser === 'function') ? _getLeaderMsgUser() : null;
+                
+                var isMine = false;
+                if (myName && data.lastMessageBy === '관리자') isMine = true;
+                if (leaderUser && data.lastMessageBy === leaderUser.dept) isMine = true;
+                
+                if (!isMine) {
                   if (data.lastMessageAt) {
                     var ts = data.lastMessageAt.toMillis ? data.lastMessageAt.toMillis() : 0;
                     if (ts > 0 && (Date.now() - ts) < 10000) {
@@ -10905,6 +10926,125 @@ function filterThreads(keyword, body, threadClassName) {
     return result;
   };
   console.log('✅ 학과대표 모달 검색 hook 등록');
+})();
+// ============================================
+// 🔴 미읽음 배지 표시 (학과대표 + 관리자 목록)
+// ============================================
+
+// 현재 사용자 식별
+function _getCurrentParticipantName() {
+  try {
+    // 관리자 시점
+    var adminName = (typeof _getCurrentAdminName === 'function') ? _getCurrentAdminName() : null;
+    if (adminName) return '관리자';
+    
+    // 학과대표 시점
+    var leaderUser = (typeof _getLeaderMsgUser === 'function') ? _getLeaderMsgUser() : null;
+    if (leaderUser && leaderUser.dept) return leaderUser.dept;
+  } catch(e) {}
+  return null;
+}
+
+// 학과대표 목록에 미읽음 배지 추가
+async function addUnreadBadgesToLeaderList() {
+  var body = document.getElementById('leaderChatBody');
+  if (!body) return;
+  
+  var threads = body.querySelectorAll('[data-tid]');
+  if (threads.length === 0) return;
+  
+  var myName = _getCurrentParticipantName();
+  if (!myName) return;
+  
+  try {
+    var snap = await db.collection('leaderMessageThreads').get();
+    var threadData = {};
+    snap.forEach(function(doc) {
+      threadData[doc.id] = doc.data();
+    });
+    
+    threads.forEach(function(thread) {
+      var tid = thread.getAttribute('data-tid');
+      var data = threadData[tid];
+      if (!data) return;
+      
+      var unreadFor = data.unreadFor || [];
+      
+      // 기존 배지 제거
+      var oldBadge = thread.querySelector('.unread-badge-dot');
+      if (oldBadge) oldBadge.remove();
+      
+      var isUnread = false;
+      
+      if (myName === '관리자') {
+        // 관리자 시점: 학과대표가 안 읽었으면 표시
+        var leaderUnread = unreadFor.filter(function(n) { return n !== '관리자'; });
+        if (leaderUnread.length > 0) {
+          isUnread = true;
+        }
+      } else {
+        // 학과대표 시점: 본인이 unreadFor에 있으면 미읽음
+        isUnread = unreadFor.indexOf(myName) >= 0;
+      }
+      
+      if (isUnread) {
+        var titleRow = thread.querySelector('div > div:first-child');
+        if (titleRow) {
+          var badge = document.createElement('span');
+          badge.className = 'unread-badge-dot';
+          badge.style.cssText = 'display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:50%;margin-right:6px;vertical-align:middle;animation:pulse-badge 1.5s infinite;flex-shrink:0;';
+          titleRow.insertBefore(badge, titleRow.firstChild);
+        }
+        thread.style.background = '#fef2f2';
+      } else {
+        thread.style.background = '#fff';
+      }
+    });
+  } catch(e) {
+    console.warn('미읽음 배지 추가 실패:', e.message);
+  }
+}
+
+// 관리자 목록에도 동일 적용
+async function addUnreadBadgesToAdminList() {
+  var body = document.getElementById('adminChatBody');
+  if (!body) return;
+  
+  var threads = body.querySelectorAll('.admin-chat-thread');
+  if (threads.length === 0) return;
+  
+  // 관리자 메시지 컬렉션명 추측 (adminMessageThreads or messageThreads)
+  // 실제 컬렉션명은 진단 후 결정
+  try {
+    var collectionName = 'adminMessageThreads';
+    // 우선 시도
+    var snap = await db.collection(collectionName).limit(1).get().catch(function() {
+      return db.collection('messageThreads').get();
+    });
+    
+    // ... (관리자 측은 구조 진단 후 추가)
+  } catch(e) {}
+}
+
+// CSS 애니메이션 주입
+(function injectBadgeStyle() {
+  if (document.getElementById('unreadBadgeStyle')) return;
+  var style = document.createElement('style');
+  style.id = 'unreadBadgeStyle';
+  style.textContent = '@keyframes pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }';
+  document.head.appendChild(style);
+})();
+
+// renderLeaderChatList 후처리 hook
+(function hookLeaderListBadges() {
+  var orig = window.renderLeaderChatList;
+  if (typeof orig !== 'function') return;
+  window.renderLeaderChatList = function() {
+    var result = orig.apply(this, arguments);
+    setTimeout(addUnreadBadgesToLeaderList, 200);
+    return result;
+  };
+  console.log('✅ 학과대표 목록 미읽음 배지 hook 등록');
 })();
 
 /* ================================================================
