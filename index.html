@@ -10086,6 +10086,274 @@ async function confirmVacationNotice() {
     if (typeof showToast === 'function') showToast('저장 실패: ' + e.message, 'error');
   }
 }
+// ============================================
+// 관리자 메시지 시스템 - 헬퍼 함수
+// ============================================
+
+// 이메일 → 표시 이름 매핑
+var ADMIN_NAME_MAP = {
+  'super@hwaseong.com': '김형준',
+  'kimhj@hwaseong.com': '김형준',
+  'kimyp@hwaseong.com': '김연필'
+};
+
+// 현재 로그인한 관리자의 표시 이름 가져오기
+function _getCurrentAdminName() {
+  try {
+    var user = firebase.auth().currentUser;
+    if (!user || !user.email) return null;
+    return ADMIN_NAME_MAP[user.email.toLowerCase()] || null;
+  } catch(e) {
+    console.warn('관리자 이름 조회 실패:', e.message);
+    return null;
+  }
+}
+
+// 현재 로그인한 관리자의 이메일 가져오기
+function _getCurrentAdminEmail() {
+  try {
+    var user = firebase.auth().currentUser;
+    return user && user.email ? user.email.toLowerCase() : null;
+  } catch(e) {
+    return null;
+  }
+}
+
+// 전체 관리자 표시 이름 목록 (중복 제거)
+function _getAllAdminNames() {
+  var names = [];
+  Object.keys(ADMIN_NAME_MAP).forEach(function(email){
+    var name = ADMIN_NAME_MAP[email];
+    if (names.indexOf(name) === -1) names.push(name);
+  });
+  return names;
+}
+
+// 현재 관리자가 아닌 다른 관리자 이름 목록 (메시지 수신 대상)
+function _getOtherAdminNames() {
+  var myName = _getCurrentAdminName();
+  return _getAllAdminNames().filter(function(n){ return n !== myName; });
+}
+
+// 카테고리/우선순위 라벨 매핑
+var ADMIN_MSG_CATEGORIES = {
+  '업무지시': { color: '#3b82f6', icon: 'fa-tasks' },
+  '공지':     { color: '#10b981', icon: 'fa-bullhorn' },
+  '질문':     { color: '#f59e0b', icon: 'fa-question-circle' },
+  '기타':     { color: '#6b7280', icon: 'fa-comment' }
+};
+
+var ADMIN_MSG_PRIORITIES = {
+  '긴급': { color: '#dc2626', icon: 'fa-exclamation-circle', bg: '#fef2f2' },
+  '일반': { color: '#6b7280', icon: 'fa-circle', bg: '#f9fafb' }
+};
+
+// 새 대화방 생성
+async function createAdminMessageThread(title, category, priority, recipientName, firstMessage) {
+  var myName = _getCurrentAdminName();
+  if (!myName) throw new Error('관리자 인증이 필요합니다');
+  if (!recipientName) throw new Error('수신자를 선택하세요');
+  if (!title || !title.trim()) throw new Error('제목을 입력하세요');
+  if (!firstMessage || !firstMessage.trim()) throw new Error('내용을 입력하세요');
+  
+  var now = new Date().toISOString();
+  var threadRef = await db.collection('adminMessageThreads').add({
+    title: title.trim(),
+    category: category || '기타',
+    priority: priority || '일반',
+    participants: [myName, recipientName],
+    createdBy: myName,
+    createdAt: now,
+    lastMessage: firstMessage.trim().substring(0, 100),
+    lastMessageAt: now,
+    lastMessageBy: myName,
+    unreadFor: [recipientName],  // 수신자는 미읽음
+    status: 'active'
+  });
+  
+  // 첫 메시지 저장
+  await threadRef.collection('messages').add({
+    sender: myName,
+    text: firstMessage.trim(),
+    sentAt: now,
+    readBy: [myName]
+  });
+  
+  return threadRef.id;
+}
+
+// 대화방에 답장 보내기
+async function sendAdminMessageReply(threadId, text) {
+  var myName = _getCurrentAdminName();
+  if (!myName) throw new Error('관리자 인증이 필요합니다');
+  if (!text || !text.trim()) throw new Error('내용을 입력하세요');
+  
+  var threadRef = db.collection('adminMessageThreads').doc(threadId);
+  var threadDoc = await threadRef.get();
+  if (!threadDoc.exists) throw new Error('대화방을 찾을 수 없습니다');
+  
+  var threadData = threadDoc.data();
+  var now = new Date().toISOString();
+  
+  // 메시지 저장
+  await threadRef.collection('messages').add({
+    sender: myName,
+    text: text.trim(),
+    sentAt: now,
+    readBy: [myName]
+  });
+  
+  // 대화방 정보 업데이트 (다른 참가자는 미읽음으로)
+  var otherParticipants = (threadData.participants || []).filter(function(p){ return p !== myName; });
+  await threadRef.update({
+    lastMessage: text.trim().substring(0, 100),
+    lastMessageAt: now,
+    lastMessageBy: myName,
+    unreadFor: otherParticipants
+  });
+}
+
+// 대화방 메시지 읽음 처리
+async function markAdminThreadAsRead(threadId) {
+  var myName = _getCurrentAdminName();
+  if (!myName) return;
+  
+  var threadRef = db.collection('adminMessageThreads').doc(threadId);
+  var threadDoc = await threadRef.get();
+  if (!threadDoc.exists) return;
+  
+  var data = threadDoc.data();
+  var unreadFor = (data.unreadFor || []).filter(function(n){ return n !== myName; });
+  
+  if (unreadFor.length !== (data.unreadFor || []).length) {
+    await threadRef.update({ unreadFor: unreadFor });
+  }
+}
+
+// 내가 참여한 대화방 목록 조회
+async function getMyAdminMessageThreads() {
+  var myName = _getCurrentAdminName();
+  if (!myName) return [];
+  
+  var snap = await db.collection('adminMessageThreads')
+    .where('participants', 'array-contains', myName)
+    .get();
+  
+  var threads = [];
+  snap.forEach(function(d){
+    threads.push(Object.assign({_id: d.id}, d.data()));
+  });
+  // 최근 활동 순으로 정렬
+  threads.sort(function(a,b){ return (b.lastMessageAt||'').localeCompare(a.lastMessageAt||''); });
+  return threads;
+}
+
+// 미읽음 메시지 개수
+async function getAdminUnreadCount() {
+  var myName = _getCurrentAdminName();
+  if (!myName) return 0;
+  
+  var snap = await db.collection('adminMessageThreads')
+    .where('unreadFor', 'array-contains', myName)
+    .get();
+  return snap.size;
+}
+// 대화방 삭제 (본인이 만든 방만)
+async function deleteAdminMessageThread(threadId) {
+  var myName = _getCurrentAdminName();
+  if (!myName) throw new Error('관리자 인증이 필요합니다');
+  if (!threadId) throw new Error('대화방 ID가 없습니다');
+
+  var threadRef = db.collection('adminMessageThreads').doc(threadId);
+  var snap = await threadRef.get();
+  if (!snap.exists) throw new Error('대화방을 찾을 수 없습니다');
+  var data = snap.data();
+  if (data.createdBy !== myName) {
+    throw new Error('본인이 만든 대화방만 삭제할 수 있습니다');
+  }
+
+  // 서브컬렉션 messages 먼저 삭제
+  var msgs = await threadRef.collection('messages').get();
+  var batch = db.batch();
+  msgs.forEach(function(doc){ batch.delete(doc.ref); });
+  await batch.commit();
+
+  // 대화방 본체 삭제
+  await threadRef.delete();
+  return true;
+}
+
+// 대화방 정보 수정 (제목/우선순위)
+async function updateAdminMessageThread(threadId, updates) {
+  var myName = _getCurrentAdminName();
+  if (!myName) throw new Error('관리자 인증이 필요합니다');
+  if (!threadId) throw new Error('대화방 ID가 없습니다');
+
+  var threadRef = db.collection('adminMessageThreads').doc(threadId);
+  var snap = await threadRef.get();
+  if (!snap.exists) throw new Error('대화방을 찾을 수 없습니다');
+  var data = snap.data();
+  if (data.createdBy !== myName) {
+    throw new Error('본인이 만든 대화방만 수정할 수 있습니다');
+  }
+
+  var payload = {};
+  if (typeof updates.title === 'string' && updates.title.trim()) {
+    payload.title = updates.title.trim();
+  }
+  if (updates.priority) {
+    payload.priority = updates.priority;
+  }
+  if (updates.category) {
+    payload.category = updates.category;
+  }
+  payload.updatedAt = new Date().toISOString();
+  payload.updatedBy = myName;
+
+  await threadRef.update(payload);
+  return true;
+}
+// 메시지 본문 수정 (본인이 보낸 메시지만)
+async function updateAdminMessage(threadId, messageId, newText) {
+  var myName = _getCurrentAdminName();
+  if (!myName) throw new Error('관리자 인증이 필요합니다');
+  if (!threadId || !messageId) throw new Error('메시지 정보가 없습니다');
+  if (!newText || !newText.trim()) throw new Error('내용을 입력하세요');
+
+  var msgRef = db.collection('adminMessageThreads').doc(threadId)
+                 .collection('messages').doc(messageId);
+  var snap = await msgRef.get();
+  if (!snap.exists) throw new Error('메시지를 찾을 수 없습니다');
+  var data = snap.data();
+  if (data.sender !== myName) {
+    throw new Error('본인이 보낸 메시지만 수정할 수 있습니다');
+  }
+
+  var payload = {
+    text: newText.trim(),
+    edited: true,
+    editedAt: new Date().toISOString()
+  };
+  // 원본 보존 (최초 수정 시에만)
+  if (!data.originalText) {
+    payload.originalText = data.text;
+  }
+  await msgRef.update(payload);
+
+  // 대화방의 lastMessage도 가장 최근 메시지면 함께 갱신
+  var threadRef = db.collection('adminMessageThreads').doc(threadId);
+  var threadSnap = await threadRef.get();
+  if (threadSnap.exists) {
+    var t = threadSnap.data();
+    // 마지막 메시지인지 확인 (간단히 sentAt 비교)
+    if (t.lastMessageBy === myName && data.sentAt && t.lastMessageAt === data.sentAt) {
+      await threadRef.update({
+        lastMessage: newText.trim().substring(0, 100)
+      });
+    }
+  }
+  return true;
+}
 
 function reviewVacationNotice() {
   checkVacationNotice(true);
@@ -10425,6 +10693,55 @@ function _buildStatsHTML(stats, version) {
   });
   return html;
 }
+// 우측 하단 플로팅 버튼 3개를 동일 크기로 정렬
+function alignFloatBtns() {
+  var ids = ['pendingFloatBtn', 'vacationNoticeFloatBtn', 'adminChatFloatBtn'];
+  var bottoms = [16, 58, 100];  // 시계, 방학, 채팅 (간격 42px)
+
+  ids.forEach(function(id, idx){
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.style.position = 'fixed';
+    btn.style.right = '16px';
+    btn.style.bottom = bottoms[idx] + 'px';
+    btn.style.width = '140px';
+    btn.style.height = '36px';
+    btn.style.minWidth = '140px';
+    btn.style.minHeight = '36px';
+    btn.style.maxWidth = '140px';
+    btn.style.maxHeight = '36px';
+    btn.style.padding = '0';
+    btn.style.margin = '0';
+    btn.style.boxSizing = 'border-box';
+    btn.style.display = 'inline-flex';
+    btn.style.alignItems = 'center';
+    btn.style.justifyContent = 'center';
+    btn.style.gap = '6px';
+    btn.style.fontSize = '13px';
+    btn.style.fontWeight = 'bold';
+    btn.style.borderRadius = '9999px';
+    btn.style.border = 'none';
+    btn.style.cursor = 'pointer';
+    btn.style.color = '#fff';
+    btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
+    btn.style.zIndex = '9000';
+    btn.style.lineHeight = '1';
+  });
+
+  // 시계 버튼 텍스트 ("00" → "🕐 예비입사자 + 배지")
+  var p = document.getElementById('pendingFloatBtn');
+  if (p && !p.dataset.aligned) {
+    var oldBadge = p.querySelector('.pending-count');
+    var badgeText = oldBadge ? oldBadge.textContent : '0';
+    p.innerHTML = '<i class="fas fa-clock" style="font-size:14px;color:#fff;"></i><span>예비입사자</span>';
+    var badge = document.createElement('span');
+    badge.className = 'pending-count';
+    badge.textContent = badgeText;
+    badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;background:#dc2626;color:#fff;border-radius:9999px;font-size:11px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0 5px;';
+    p.appendChild(badge);
+    p.dataset.aligned = '1';
+  }
+}
 
 // 메인 화면 우측 하단에 "방학 안내 다시 보기" 버튼 표시/숨김
 async function addVacationNoticeFloatBtn() {
@@ -10474,12 +10791,528 @@ async function addVacationNoticeFloatBtn() {
   }
 }
 
+// ============================================
+// 관리자 간 채팅 - 플로팅 버튼
+// ============================================
+var _adminChatUnreadCount = 0;
+var _adminChatListener = null;
+
+async function addAdminChatFloatBtn() {
+  // 관리자/사감만 표시
+  if (typeof currentMode === 'undefined' || (currentMode !== 'admin' && currentMode !== 'office')) {
+    var ex = document.getElementById('adminChatFloatBtn');
+    if (ex) ex.remove();
+    return;
+  }
+  
+  // 관리자 이름 확인 (이메일이 매핑에 있어야 함)
+  var myName = _getCurrentAdminName();
+  if (!myName) {
+    var ex2 = document.getElementById('adminChatFloatBtn');
+    if (ex2) ex2.remove();
+    return;
+  }
+  
+  // 이미 버튼 있으면 배지만 갱신
+  if (document.getElementById('adminChatFloatBtn')) {
+    updateAdminChatBadge();
+    return;
+  }
+  
+  var btn = document.createElement('button');
+  btn.id = 'adminChatFloatBtn';
+  btn.onclick = function(){ openAdminChatModal(); };
+  btn.style.cssText = 'position:fixed;bottom:180px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;box-shadow:0 6px 18px rgba(16,185,129,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
+  btn.innerHTML = '<i class="fas fa-comments"></i><span>관리자 메시지</span><span id="adminChatBadge" style="display:none;background:white;color:#dc2626;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:bold;margin-left:2px;">0</span>';
+  btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
+  btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
+  btn.title = '관리자 메시지';
+  document.body.appendChild(btn);
+  
+  // 실시간 미읽음 카운트 리스너 등록
+  _setupAdminChatListener();
+}
+
+// 미읽음 배지 업데이트
+function updateAdminChatBadge() {
+  var badge = document.getElementById('adminChatBadge');
+  if (!badge) return;
+  if (_adminChatUnreadCount > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = _adminChatUnreadCount > 99 ? '99+' : _adminChatUnreadCount;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// 실시간 미읽음 리스너
+function _setupAdminChatListener() {
+  if (_adminChatListener) {
+    try { _adminChatListener(); } catch(e){}
+    _adminChatListener = null;
+  }
+  
+  var myName = _getCurrentAdminName();
+  if (!myName) return;
+  
+  _adminChatListener = db.collection('adminMessageThreads')
+    .where('unreadFor', 'array-contains', myName)
+    .onSnapshot(function(snap){
+      var prevCount = _adminChatUnreadCount;
+      _adminChatUnreadCount = snap.size;
+      updateAdminChatBadge();
+      
+      if (_adminChatUnreadCount > prevCount && prevCount >= 0) {
+        var newMsgs = _adminChatUnreadCount - prevCount;
+        if (typeof showToast === 'function') {
+          showToast('💬 새 관리자 메시지 ' + newMsgs + '건', 'info');
+        }
+        _playAdminChatSound();
+      }
+    }, function(err){
+      console.warn('관리자 채팅 리스너 오류:', err.message);
+    });
+}
+
+// 알림음
+function _playAdminChatSound() {
+  try {
+    if (typeof soundEnabled !== 'undefined' && !soundEnabled) return;
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+    setTimeout(function(){ try{ctx.close();}catch(e){} }, 500);
+  } catch(e) {}
+}
+
+// 플로팅 버튼 자동 표시 (render 훅)
+(function(){
+  if (typeof window.render === 'function') {
+    var _origRenderForChat = window.render;
+    window.render = function(){
+      var ret = _origRenderForChat.apply(this, arguments);
+      setTimeout(addAdminChatFloatBtn, 200);
+      return ret;
+    };
+  }
+  setTimeout(addAdminChatFloatBtn, 2000);
+})();
+
+// 임시 모달 (STEP 5에서 실제 UI 구현)
+function openAdminChatModal() {
+  // 기존 모달 제거
+  var old = document.getElementById('adminChatModal');
+  if (old) old.remove();
+
+  var myName = _getCurrentAdminName();
+  if (!myName) {
+    alert('관리자 로그인 정보를 확인할 수 없습니다.');
+    return;
+  }
+
+  // 모달 컨테이너
+  var modal = document.createElement('div');
+  modal.id = 'adminChatModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:10px;';
+
+  modal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:520px;height:90vh;max-height:720px;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;">' +
+      // 헤더
+      '<div id="adminChatHeader" style="padding:14px 16px;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:space-between;">' +
+        '<div id="adminChatTitle" style="font-size:18px;font-weight:bold;">💬 관리자 메시지</div>' +
+        '<button id="adminChatCloseBtn" style="background:transparent;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 8px;">✕</button>' +
+      '</div>' +
+      // 본문 (동적)
+      '<div id="adminChatBody" style="flex:1;overflow-y:auto;background:#f9fafb;"></div>' +
+      // 하단 액션
+      '<div id="adminChatFooter" style="padding:10px;border-top:1px solid #e5e7eb;background:#fff;"></div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+
+  document.getElementById('adminChatCloseBtn').onclick = function(){ modal.remove(); };
+
+  // 첫 화면: 대화방 목록
+  renderAdminChatList();
+}
+
+// ─────────────────────────────────────────────
+// 화면 1: 대화방 목록
+// ─────────────────────────────────────────────
+function renderAdminChatList() {
+  var body = document.getElementById('adminChatBody');
+  var footer = document.getElementById('adminChatFooter');
+  var title = document.getElementById('adminChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '💬 관리자 메시지';
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#888;">불러오는 중...</div>';
+  footer.innerHTML =
+    '<button id="adminChatNewBtn" style="width:100%;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">➕ 새 메시지 작성</button>';
+  document.getElementById('adminChatNewBtn').onclick = renderAdminChatNew;
+
+    var myName = _getCurrentAdminName();
+  db.collection('adminMessageThreads')
+    .where('participants', 'array-contains', myName)
+    .get().then(function(snap){
+      var threads = [];
+      snap.forEach(function(doc){
+        var d = doc.data();
+        d.id = doc.id;
+        threads.push(d);
+      });
+      threads.sort(function(a,b){
+        return (b.lastMessageAt || '').localeCompare(a.lastMessageAt || '');
+      });
+      return threads;
+    }).then(function(threads){
+    if (!threads || threads.length === 0) {
+      body.innerHTML = '<div style="padding:40px;text-align:center;color:#888;">대화방이 없습니다.<br>아래 버튼으로 새 메시지를 작성하세요.</div>';
+      return;
+    }
+    var myName = _getCurrentAdminName();
+    var html = '';
+    threads.forEach(function(t){
+      var other = (t.participants || []).filter(function(n){ return n !== myName; }).join(', ') || '(알 수 없음)';
+           var unread = 0;
+      if (Array.isArray(t.unreadFor)) {
+        unread = t.unreadFor.indexOf(myName) >= 0 ? 1 : 0;
+      } else if (t.unreadFor && typeof t.unreadFor === 'object') {
+        unread = t.unreadFor[myName] || 0;
+      }
+      // 내가 보낸 메시지를 상대방이 아직 안 읽었는지 (카톡 "1" 표시용)
+      var sentByMe = (t.lastMessageBy === myName);
+      var otherUnread = false;
+      if (sentByMe && Array.isArray(t.unreadFor)) {
+        otherUnread = t.unreadFor.some(function(n){ return n !== myName; });
+      } else if (sentByMe && t.unreadFor && typeof t.unreadFor === 'object') {
+        otherUnread = Object.keys(t.unreadFor).some(function(n){
+          return n !== myName && t.unreadFor[n] > 0;
+        });
+      }
+      var lastMsg = t.lastMessage || '';
+      if (lastMsg.length > 30) lastMsg = lastMsg.substring(0,30) + '...';
+            var lastTime = '';
+      if (t.lastMessageAt) {
+        var d = t.lastMessageAt.toDate ? t.lastMessageAt.toDate() : new Date(t.lastMessageAt);
+        if (!isNaN(d.getTime())) {
+          lastTime = (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+      }
+      var priorityBadge = '';
+      if (t.priority === 'high') priorityBadge = '<span style="background:#ef4444;color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;margin-left:6px;">긴급</span>';
+      else if (t.priority === 'low') priorityBadge = '<span style="background:#9ca3af;color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;margin-left:6px;">낮음</span>';
+
+            var isOwner = (t.createdBy === myName);
+      var ownerBtns = '';
+      if (isOwner) {
+        ownerBtns =
+          '<button class="admin-chat-edit-btn" data-tid="' + t.id + '" title="수정" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:4px 6px;color:#6b7280;">✏️</button>' +
+          '<button class="admin-chat-del-btn" data-tid="' + t.id + '" title="삭제" style="background:transparent;border:none;cursor:pointer;font-size:16px;padding:4px 6px;color:#ef4444;">🗑️</button>';
+      }
+      html += '<div class="admin-chat-thread" data-tid="' + t.id + '" style="padding:14px 16px;border-bottom:1px solid #e5e7eb;cursor:pointer;background:#fff;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+          '<div style="font-weight:bold;font-size:16px;flex:1;">' + (t.title || '(제목 없음)') + priorityBadge + '</div>' +
+          '<div style="display:flex;align-items:center;gap:4px;">' +
+            (unread > 0 ? '<span style="background:#ef4444;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:bold;">' + unread + '</span>' : '') +
+            ownerBtns +
+          '</div>' +
+        '</div>' +
+        '<div style="color:#6b7280;font-size:13px;margin-bottom:2px;">' + other + '</div>' +
+                '<div style="display:flex;justify-content:space-between;color:#9ca3af;font-size:12px;align-items:center;">' +
+          '<span style="flex:1;">' + lastMsg +
+            (otherUnread ? ' <span style="color:#fbbf24;font-weight:bold;margin-left:4px;">1</span>' : '') +
+            (sentByMe && !otherUnread ? ' <span style="color:#3b82f6;margin-left:4px;font-size:11px;">읽음</span>' : '') +
+          '</span>' +
+          '<span>' + lastTime + '</span>' +
+        '</div>' +
+      '</div>';
+    });
+    body.innerHTML = html;
+        Array.prototype.forEach.call(document.querySelectorAll('.admin-chat-thread'), function(el){
+      el.onclick = function(ev){
+        // 수정/삭제 버튼 클릭은 카드 진입과 분리
+        if (ev.target.classList.contains('admin-chat-edit-btn') ||
+            ev.target.classList.contains('admin-chat-del-btn')) return;
+        renderAdminChatRoom(el.getAttribute('data-tid'));
+      };
+    });
+    // 수정 버튼
+    Array.prototype.forEach.call(document.querySelectorAll('.admin-chat-edit-btn'), function(btn){
+      btn.onclick = function(ev){
+        ev.stopPropagation();
+        renderAdminChatEdit(btn.getAttribute('data-tid'));
+      };
+    });
+    // 삭제 버튼
+    Array.prototype.forEach.call(document.querySelectorAll('.admin-chat-del-btn'), function(btn){
+      btn.onclick = function(ev){
+        ev.stopPropagation();
+        var tid = btn.getAttribute('data-tid');
+        if (!confirm('이 대화방을 삭제하시겠습니까?\n모든 메시지가 함께 삭제되며, 복구할 수 없습니다.')) return;
+        btn.disabled = true;
+        deleteAdminMessageThread(tid).then(function(){
+          alert('대화방을 삭제했습니다.');
+          renderAdminChatList();
+        }).catch(function(e){
+          alert('삭제 실패: ' + (e && e.message ? e.message : e));
+          btn.disabled = false;
+        });
+      };
+    });
+  }).catch(function(e){
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">오류: ' + (e && e.message ? e.message : e) + '</div>';
+  });
+}
+
+// ─────────────────────────────────────────────
+// 화면 2: 새 메시지 작성
+// ─────────────────────────────────────────────
+function renderAdminChatNew() {
+  var body = document.getElementById('adminChatBody');
+  var footer = document.getElementById('adminChatFooter');
+  var title = document.getElementById('adminChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '<button id="adminChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>새 메시지';
+
+  var others = _getOtherAdminNames();
+  var optionsHtml = others.map(function(n){ return '<option value="' + n + '">' + n + '</option>'; }).join('');
+
+  body.innerHTML =
+    '<div style="padding:16px;">' +
+      '<div style="margin-bottom:14px;">' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">받는 사람</label>' +
+        '<select id="adminChatRecipient" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;">' + optionsHtml + '</select>' +
+      '</div>' +
+      '<div style="margin-bottom:14px;">' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">제목</label>' +
+        '<input type="text" id="adminChatTitleInput" placeholder="예: 6월 외출 신청 검토 요청" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;">' +
+      '</div>' +
+      '<div style="margin-bottom:14px;">' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">우선순위</label>' +
+        '<select id="adminChatPriority" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;">' +
+          '<option value="normal">보통</option>' +
+          '<option value="high">긴급</option>' +
+          '<option value="low">낮음</option>' +
+        '</select>' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">메시지 내용</label>' +
+        '<textarea id="adminChatFirstMsg" rows="6" placeholder="내용을 입력하세요..." style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      '</div>' +
+    '</div>';
+
+  footer.innerHTML =
+    '<button id="adminChatSendNewBtn" style="width:100%;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">📤 보내기</button>';
+
+  document.getElementById('adminChatBackBtn').onclick = renderAdminChatList;
+  document.getElementById('adminChatSendNewBtn').onclick = function(){
+    var recipient = document.getElementById('adminChatRecipient').value;
+    var titleVal = document.getElementById('adminChatTitleInput').value.trim();
+    var priority = document.getElementById('adminChatPriority').value;
+    var firstMsg = document.getElementById('adminChatFirstMsg').value.trim();
+    if (!titleVal) { alert('제목을 입력하세요.'); return; }
+    if (!firstMsg) { alert('메시지를 입력하세요.'); return; }
+    var btn = document.getElementById('adminChatSendNewBtn');
+    btn.disabled = true; btn.textContent = '전송 중...';
+        createAdminMessageThread(titleVal, '기타', priority, recipient, firstMsg).then(function(tid){
+      alert('메시지를 전송했습니다.');
+      renderAdminChatRoom(tid);
+    }).catch(function(e){
+      alert('전송 실패: ' + (e && e.message ? e.message : e));
+      btn.disabled = false; btn.textContent = '📤 보내기';
+    });
+  };
+}
+
+// ─────────────────────────────────────────────
+// 화면 3: 대화방 (메시지 보기 + 답장)
+// ─────────────────────────────────────────────
+function renderAdminChatRoom(threadId) {
+  var body = document.getElementById('adminChatBody');
+  var footer = document.getElementById('adminChatFooter');
+  var title = document.getElementById('adminChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '<button id="adminChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>대화방';
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#888;">불러오는 중...</div>';
+  footer.innerHTML =
+    '<div style="display:flex;gap:6px;">' +
+      '<textarea id="adminChatReplyInput" rows="2" placeholder="답장 입력..." style="flex:1;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;resize:none;box-sizing:border-box;"></textarea>' +
+      '<button id="adminChatReplyBtn" style="padding:0 16px;background:#10b981;color:#fff;border:none;border-radius:6px;font-weight:bold;cursor:pointer;">전송</button>' +
+    '</div>';
+
+  document.getElementById('adminChatBackBtn').onclick = renderAdminChatList;
+
+  // 메시지 로드
+  var myName = _getCurrentAdminName();
+  db.collection('adminMessageThreads').doc(threadId).collection('messages')
+            .orderBy('sentAt', 'asc').get().then(function(snap){
+      console.log('[채팅방] 조회 성공, 개수:', snap.size);
+      var html = '<div style="padding:12px;">';
+      var count = 0;
+      snap.forEach(function(doc){
+        try {
+          count++;
+          console.log('[채팅방] 메시지 ' + count + ' 처리 시작');
+          var m = doc.data();
+          console.log('[채팅방] 메시지 데이터:', m);
+          var isMine = m.sender === myName;
+          console.log('[채팅방] isMine:', isMine, 'myName:', myName);
+                var time = '';
+        var rawTime = m.sentAt || m.createdAt;
+        if (rawTime) {
+          var d = rawTime.toDate ? rawTime.toDate() : new Date(rawTime);
+          if (!isNaN(d.getTime())) {
+            time = (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+          }
+        }
+        var align = isMine ? 'flex-end' : 'flex-start';
+        var bg = isMine ? '#10b981' : '#fff';
+        var color = isMine ? '#fff' : '#111';
+        var editedMark = m.edited ? ' <span style="font-size:10px;opacity:0.7;">(수정됨)</span>' : '';
+        var bubbleStyle = 'background:' + bg + ';color:' + color + ';padding:10px 12px;border-radius:12px;font-size:14px;white-space:pre-wrap;word-break:break-word;border:1px solid #e5e7eb;' + (isMine ? 'cursor:pointer;' : '');
+        var bubbleAttrs = isMine
+          ? ' class="admin-chat-bubble-mine" data-mid="' + doc.id + '" data-text="' + (m.text || '').replace(/"/g,'&quot;').replace(/\n/g,'&#10;') + '" title="클릭하여 수정"'
+          : '';
+        html += '<div style="display:flex;justify-content:' + align + ';margin-bottom:10px;">' +
+          '<div style="max-width:75%;">' +
+            (isMine ? '' : '<div style="font-size:12px;color:#6b7280;margin-bottom:2px;">' + (m.sender || '') + '</div>') +
+            '<div' + bubbleAttrs + ' style="' + bubbleStyle + '">' + (m.text || '').replace(/</g,'&lt;') + '</div>' +
+            '<div style="font-size:11px;color:#9ca3af;margin-top:2px;text-align:' + (isMine ? 'right' : 'left') + ';">' + time + editedMark + '</div>' +
+          '</div>' +
+        '</div>';
+          console.log('[채팅방] 메시지 ' + count + ' HTML 추가 완료');
+        } catch(err) {
+          console.error('[채팅방] 메시지 ' + count + ' 처리 에러:', err.message, err.stack);
+        }
+      });
+      console.log('[채팅방] 최종 html 길이:', html.length);
+            html += '</div>';
+      body.innerHTML = html;
+      body.scrollTop = body.scrollHeight;
+
+      // 내 말풍선 클릭 → 수정/취소 메뉴
+      Array.prototype.forEach.call(document.querySelectorAll('.admin-chat-bubble-mine'), function(bub){
+        bub.onclick = function(){
+          var mid = bub.getAttribute('data-mid');
+          var curText = bub.getAttribute('data-text').replace(/&#10;/g,'\n');
+          var newText = prompt('메시지 수정 (원본은 자동 보존됩니다):', curText);
+          if (newText === null) return; // 취소
+          newText = newText.trim();
+          if (!newText) { alert('내용을 입력하세요.'); return; }
+          if (newText === curText) return; // 변경 없음
+          updateAdminMessage(threadId, mid, newText).then(function(){
+            renderAdminChatRoom(threadId); // 새로고침
+          }).catch(function(e){
+            alert('수정 실패: ' + (e && e.message ? e.message : e));
+          });
+        };
+      });
+
+      // 읽음 처리
+      markAdminThreadAsRead(threadId).catch(function(){});
+    }).catch(function(e){
+      body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">오류: ' + (e && e.message ? e.message : e) + '</div>';
+    });
+
+  // 전송
+  document.getElementById('adminChatReplyBtn').onclick = function(){
+    var input = document.getElementById('adminChatReplyInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var btn = document.getElementById('adminChatReplyBtn');
+    btn.disabled = true; btn.textContent = '...';
+    sendAdminMessageReply(threadId, text).then(function(){
+      input.value = '';
+      btn.disabled = false; btn.textContent = '전송';
+      renderAdminChatRoom(threadId);
+    }).catch(function(e){
+      alert('전송 실패: ' + (e && e.message ? e.message : e));
+      btn.disabled = false; btn.textContent = '전송';
+    });
+  };
+}
+// ─────────────────────────────────────────────
+// 화면 4: 대화방 수정 (제목/우선순위)
+// ─────────────────────────────────────────────
+function renderAdminChatEdit(threadId) {
+  var body = document.getElementById('adminChatBody');
+  var footer = document.getElementById('adminChatFooter');
+  var title = document.getElementById('adminChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '<button id="adminChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>대화방 수정';
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#888;">불러오는 중...</div>';
+  footer.innerHTML = '';
+  document.getElementById('adminChatBackBtn').onclick = renderAdminChatList;
+
+  db.collection('adminMessageThreads').doc(threadId).get().then(function(doc){
+    if (!doc.exists) {
+      body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">대화방을 찾을 수 없습니다.</div>';
+      return;
+    }
+    var t = doc.data();
+    var myName = _getCurrentAdminName();
+    if (t.createdBy !== myName) {
+      body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">본인이 만든 대화방만 수정할 수 있습니다.</div>';
+      return;
+    }
+    var curPriority = t.priority || 'normal';
+    body.innerHTML =
+      '<div style="padding:16px;">' +
+        '<div style="margin-bottom:14px;">' +
+          '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">제목</label>' +
+          '<input type="text" id="adminChatEditTitle" value="' + (t.title || '').replace(/"/g,'&quot;') + '" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;">' +
+        '</div>' +
+        '<div style="margin-bottom:14px;">' +
+          '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">우선순위</label>' +
+          '<select id="adminChatEditPriority" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;">' +
+            '<option value="normal"' + (curPriority==='normal'?' selected':'') + '>보통</option>' +
+            '<option value="high"' + (curPriority==='high'?' selected':'') + '>긴급</option>' +
+            '<option value="low"' + (curPriority==='low'?' selected':'') + '>낮음</option>' +
+          '</select>' +
+        '</div>' +
+        '<div style="background:#fef3c7;padding:10px;border-radius:6px;font-size:13px;color:#92400e;">' +
+          '※ 메시지 본문은 업무 기록 무결성을 위해 수정할 수 없습니다.' +
+        '</div>' +
+      '</div>';
+    footer.innerHTML =
+      '<button id="adminChatSaveEditBtn" style="width:100%;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">💾 저장</button>';
+    document.getElementById('adminChatSaveEditBtn').onclick = function(){
+      var newTitle = document.getElementById('adminChatEditTitle').value.trim();
+      var newPriority = document.getElementById('adminChatEditPriority').value;
+      if (!newTitle) { alert('제목을 입력하세요.'); return; }
+      var btn = document.getElementById('adminChatSaveEditBtn');
+      btn.disabled = true; btn.textContent = '저장 중...';
+      updateAdminMessageThread(threadId, { title: newTitle, priority: newPriority }).then(function(){
+        alert('수정 완료');
+        renderAdminChatList();
+      }).catch(function(e){
+        alert('수정 실패: ' + (e && e.message ? e.message : e));
+        btn.disabled = false; btn.textContent = '💾 저장';
+      });
+    };
+  }).catch(function(e){
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">오류: ' + (e && e.message ? e.message : e) + '</div>';
+  });
+}
+
 (function(){
   if (typeof window.render === 'function') {
     var _origRenderForNotice = window.render;
     window.render = function(){
       var ret = _origRenderForNotice.apply(this, arguments);
-      setTimeout(addVacationNoticeFloatBtn, 150);
+            setTimeout(addVacationNoticeFloatBtn, 150);
+      setTimeout(alignFloatBtns, 200);
       return ret;
     };
   }
