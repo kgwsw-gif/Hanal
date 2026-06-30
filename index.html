@@ -5349,7 +5349,7 @@ html+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-
 
     var adminToMe=messages.filter(function(m){return m.department===leaderDepartment&&m.type==='admin-to-leader'&&m.status!=='read'});
     var myMsgs=messages.filter(function(m){return m.department===leaderDepartment&&m.status!=='read'&&m.type!=='admin-to-leader'});
-    if(adminToMe.length>0){html+='<div class="mt-4 mb-2"><div class="text-sm font-bold text-info-700 mb-3"><i class="fas fa-bullhorn mr-1"></i>관리자 공지 '+adminToMe.length+'건</div><div class="space-y-3">';adminToMe.forEach(function(m){html+='<div class="p-4 bg-info-50 rounded-2xl border border-info-200"><div class="flex items-center justify-between mb-2"><span class="text-xs text-gray-400">'+new Date(m.createdAt).toLocaleString("ko-KR")+'</span><span class="text-xs font-bold text-info-600">관리자 메시지</span></div><div class="text-sm text-gray-700 mb-3 whitespace-pre-wrap">'+escapeHtml(m.text)+'</div>'+(m.reply?'<div class="p-3 bg-success-50 rounded-xl border border-success-200 mb-3"><div class="text-xs text-success-600 font-bold mb-1"><i class="fas fa-reply mr-1"></i>내 답변</div><div class="text-sm text-success-800">'+escapeHtml(m.reply)+'</div></div>':'')+'<div class="flex gap-2"><button onclick="replyToAdminMessage(\''+m.id+'\')" class="flex-1 py-2 bg-primary-50 border border-primary-200 text-primary-700 rounded-xl text-sm font-bold btn-press hover:bg-primary-100"><i class="fas fa-reply mr-1"></i>답변하기</button><button onclick="confirmReadMessage(\''+m.id+'\')" class="flex-1 py-2 bg-success-50 border border-success-200 text-success-700 rounded-xl text-sm font-bold btn-press hover:bg-success-100"><i class="fas fa-check mr-1"></i>확인 완료</button></div></div>'});html+='</div></div>'}
+    if(adminToMe.length>0){html+='<div class="mt-4 mb-2"><div class="text-sm font-bold text-info-700 mb-3"><i class="fas fa-bullhorn mr-1"></i>관리자 공지 '+adminToMe.length+'건</div><div class="space-y-3">';adminToMe.forEach(function(m){html+='<div class="p-4 bg-info-50 rounded-2xl border border-info-200"><div class="flex items-center justify-between mb-2"><span class="text-xs text-gray-400">'+new Date(m.createdAt).toLocaleString("ko-KR")+'</span><span class="text-xs font-bold text-info-600">관리자(사감실) 메시지</span></div><div class="text-sm text-gray-700 mb-3 whitespace-pre-wrap">'+escapeHtml(m.text)+'</div>'+(m.reply?'<div class="p-3 bg-success-50 rounded-xl border border-success-200 mb-3"><div class="text-xs text-success-600 font-bold mb-1"><i class="fas fa-reply mr-1"></i>내 답변</div><div class="text-sm text-success-800">'+escapeHtml(m.reply)+'</div></div>':'')+'<div class="flex gap-2"><button onclick="replyToAdminMessage(\''+m.id+'\')" class="flex-1 py-2 bg-primary-50 border border-primary-200 text-primary-700 rounded-xl text-sm font-bold btn-press hover:bg-primary-100"><i class="fas fa-reply mr-1"></i>답변하기</button><button onclick="confirmReadMessage(\''+m.id+'\')" class="flex-1 py-2 bg-success-50 border border-success-200 text-success-700 rounded-xl text-sm font-bold btn-press hover:bg-success-100"><i class="fas fa-check mr-1"></i>확인 완료</button></div></div>'});html+='</div></div>'}
     if(myMsgs.length>0){html+='<div class="mt-4 space-y-3">';myMsgs.forEach(function(m){html+='<div class="p-4 bg-surface-50 rounded-2xl border border-surface-200"><div class="flex items-center justify-between mb-2"><span class="text-xs text-gray-400">'+new Date(m.createdAt).toLocaleString('ko-KR')+'</span><span class="text-xs font-bold '+(m.status==='replied'?'text-success-600':'text-warning-600')+'">'+(m.status==='replied'?'답변완료':'대기중')+'</span></div><div class="text-sm text-gray-700 mb-2 whitespace-pre-wrap">'+escapeHtml(m.text)+'</div>'+(m.reply?'<div class="mt-2 p-3 bg-primary-50 rounded-xl border border-primary-200"><div class="text-xs text-primary-600 font-bold mb-1"><i class="fas fa-reply mr-1"></i>관리자 피드백</div><div class="text-sm text-primary-800 whitespace-pre-wrap">'+escapeHtml(m.reply)+'</div><div class="text-xs text-gray-400 mt-1">'+new Date(m.repliedAt).toLocaleString('ko-KR')+'</div><button onclick="confirmReadMessage(\''+m.id+'\')" class="mt-2 w-full py-2 bg-success-50 border border-success-200 text-success-700 rounded-xl text-sm font-bold btn-press hover:bg-success-100"><i class="fas fa-check mr-1"></i>확인 완료</button></div>':'')+'</div>'});html+='</div>'}
    html+='</div></div>';
     return html;
@@ -6183,7 +6183,7 @@ var isAllActive=(roomFilterDept==='');
         html+='<button onclick="roomFilterDept=\''+dept.replace(/'/g,"\\'")+'\';roomSearchKeyword=\'\';window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};window._scrollToFloor=\''+topFloor+'F\';document.getElementById(\'deptDropdown\').remove();render()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:2px solid '+(isActive?c.border:'transparent')+';background:'+(isActive?c.activeBg:'transparent')+';cursor:pointer;text-align:left;font-size:15px;margin-bottom:2px">';
         html+='<div style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:'+c.bg+';flex-shrink:0"><i class="fas '+icon+'" style="color:#fff;font-size:14px"></i></div>';
         html+='<div style="flex:1;min-width:0"><div style="font-weight:700;color:#1f2937;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(dept)+'</div>';
-        html+='<div style="display:flex;align-items:center;gap:6px;margin-top:2px">';
+        html+='<div style="display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-top:2px">';
         html+='<span style="font-size:13px;font-weight:600;color:#4b5563"><i class="fas fa-user" style="font-size:11px;opacity:0.5;margin-right:2px"></i>'+count+'명</span>';
         if(femCount>0) html+='<span style="font-size:13px;font-weight:600;color:#db2777"><i class="fas fa-female" style="font-size:11px;opacity:0.5;margin-right:2px"></i>'+femCount+'</span>';
         html+='<span style="font-size:13px;font-weight:600;color:#4b5563"><i class="fas fa-door-open" style="font-size:11px;opacity:0.5;margin-right:2px"></i>'+roomCount+'실</span>';
@@ -6465,7 +6465,7 @@ if(roomFilterDept){
           for(var mi=0;mi<r.members.length;mi++){
   var m=r.members[mi];
   var _mAge=window._secureData.getAge(m.name);var _mBY=_mAge?String((new Date().getFullYear()-_mAge)%100).padStart(2,'0'):null;
-  h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0">';
+  h+='<div style="display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:3px 0">';
   h+=photoThumb(m.name, 28);
   h+='<div style="flex:1;min-width:0"><div class="text-sm text-gray-700 font-semibold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(m.name)+(_mAge?' <span style="color:#7c3aed;background:rgba(124,58,237,0.1);padding:2px 6px;border-radius:5px;margin-left:3px;font-size:13px;font-weight:800">'+_mAge+'<span style="font-size:11px;color:#9333ea;margin-left:1px;font-weight:700">('+_mBY+')</span></span>':'')+'</div><div style="font-size:11px;color:#6b7280;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">['+escapeHtml(m.dept)+']</div></div></div>';
 }
@@ -10087,7 +10087,7 @@ async function confirmVacationNotice() {
   }
 }
 // ============================================
-// 관리자 메시지 시스템 - 헬퍼 함수
+// 관리자(사감실) 메시지 시스템 - 헬퍼 함수
 // ============================================
 
 // 이메일 → 표시 이름 매핑
@@ -10352,6 +10352,1152 @@ async function updateAdminMessage(threadId, messageId, newText) {
       });
     }
   }
+  return true;
+}
+/* ================================================================
+   STEP 2: 로그인 시 미읽음 팝업 (통합 알림)
+   - 관리자/학과대표: 모달 / 학생: Toast
+   - sessionStorage로 로그인 세션당 1회만 표시
+   ================================================================ */
+
+// 통합 미읽음 카운트 (관리자(사감실) 메시지 + 학과대표 메시지)
+async function getTotalUnreadCount() {
+  try {
+    var adminCount = 0, leaderCount = 0;
+    if (typeof getAdminUnreadCount === 'function') {
+      adminCount = await getAdminUnreadCount() || 0;
+    }
+    if (typeof getLeaderUnreadCount === 'function') {
+      leaderCount = await getLeaderUnreadCount() || 0;
+    }
+    return {
+      admin: adminCount,
+      leader: leaderCount,
+      total: adminCount + leaderCount
+    };
+  } catch(e) {
+    console.warn('미읽음 카운트 조회 실패:', e.message);
+    return { admin: 0, leader: 0, total: 0 };
+  }
+}
+
+// Toast 알림 (학생용 - 가벼운 우측 상단 슬라이딩)
+function showUnreadToast(counts) {
+  if (!counts || counts.total === 0) return;
+  
+  // 기존 toast 제거
+  var old = document.getElementById('unreadToast');
+  if (old) old.remove();
+  
+  var t = document.createElement('div');
+  t.id = 'unreadToast';
+  t.style.cssText = 'position:fixed;top:20px;right:20px;background:#4f46e5;color:#fff;padding:14px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:99999;font-size:14px;font-weight:500;cursor:pointer;max-width:280px;transform:translateX(400px);transition:transform 0.3s ease;';
+  
+  var msg = '📬 읽지 않은 메시지 ' + counts.total + '개';
+  if (counts.admin && counts.leader) {
+    msg += '<div style="font-size:12px;opacity:0.85;margin-top:4px;">관리자 ' + counts.admin + ' · 학과대표 ' + counts.leader + '</div>';
+  }
+  t.innerHTML = msg;
+  
+  t.onclick = function() {
+    if (typeof openAdminChatModal === 'function') openAdminChatModal();
+    t.remove();
+  };
+  
+  document.body.appendChild(t);
+  
+  // 슬라이드 인
+  setTimeout(function() { t.style.transform = 'translateX(0)'; }, 50);
+  
+  // 4초 후 자동 사라짐
+  setTimeout(function() {
+    t.style.transform = 'translateX(400px)';
+    setTimeout(function() { if (t.parentNode) t.remove(); }, 300);
+  }, 4000);
+}
+
+// 모달 알림 (관리자/학과대표용 - 확인 필요)
+function showUnreadModal(counts, userRole) {
+  if (!counts || counts.total === 0) return;
+  
+  // 기존 모달 제거
+  var old = document.getElementById('unreadModalOverlay');
+  if (old) old.remove();
+  
+  var overlay = document.createElement('div');
+  overlay.id = 'unreadModalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  
+  var detail = '';
+  if (counts.admin > 0) {
+    detail += '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#f3f4f6;border-radius:6px;margin-bottom:8px;"><span>💬 관리자(사감실) 메시지</span><span style="font-weight:bold;color:#dc2626;">' + counts.admin + '개</span></div>';
+  }
+  if (counts.leader > 0) {
+    detail += '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#f3f4f6;border-radius:6px;"><span>🎓 학과대표 메시지</span><span style="font-weight:bold;color:#dc2626;">' + counts.leader + '개</span></div>';
+  }
+  
+  overlay.innerHTML = '' +
+    '<div style="background:#fff;border-radius:12px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">' +
+      '<div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;padding:20px;text-align:center;">' +
+        '<div style="font-size:32px;margin-bottom:8px;">📬</div>' +
+        '<div style="font-size:18px;font-weight:bold;">읽지 않은 메시지 ' + counts.total + '개</div>' +
+      '</div>' +
+      '<div style="padding:20px;">' +
+        detail +
+      '</div>' +
+      '<div style="display:flex;border-top:1px solid #e5e7eb;">' +
+        '<button id="unreadModalLater" style="flex:1;padding:14px;background:#fff;border:none;color:#6b7280;font-size:14px;cursor:pointer;border-right:1px solid #e5e7eb;">나중에</button>' +
+        '<button id="unreadModalOpen" style="flex:1;padding:14px;background:#4f46e5;border:none;color:#fff;font-size:14px;font-weight:bold;cursor:pointer;">지금 확인</button>' +
+      '</div>' +
+    '</div>';
+  
+  document.body.appendChild(overlay);
+  
+  document.getElementById('unreadModalLater').onclick = function() {
+    overlay.remove();
+  };
+  document.getElementById('unreadModalOpen').onclick = function() {
+    overlay.remove();
+    // 우선순위: 관리자(사감실) 메시지 > 학과대표 메시지
+    if (counts.admin > 0 && typeof openAdminChatModal === 'function') {
+      openAdminChatModal();
+    } else if (counts.leader > 0 && typeof openLeaderChatModal === 'function') {
+      openLeaderChatModal();
+    }
+  };
+  
+  // 배경 클릭 시 닫기
+  overlay.onclick = function(e) {
+    if (e.target === overlay) overlay.remove();
+  };
+}
+
+// 로그인 후 미읽음 팝업 표시 (역할별 분기)
+async function checkAndShowUnreadOnLogin(userRole) {
+  try {
+    // sessionStorage로 1회만 표시
+    var sessionKey = 'unreadShown_' + (userRole || 'unknown');
+    if (sessionStorage.getItem(sessionKey) === '1') {
+      return;
+    }
+    
+    var counts = await getTotalUnreadCount();
+    if (counts.total === 0) {
+      sessionStorage.setItem(sessionKey, '1');
+      return;
+    }
+    
+    // 역할별 표시 방식
+    if (userRole === 'admin' || userRole === 'leader') {
+      showUnreadModal(counts, userRole);
+    } else {
+      showUnreadToast(counts);
+    }
+    
+    sessionStorage.setItem(sessionKey, '1');
+  } catch(e) {
+    console.warn('미읽음 팝업 표시 실패:', e.message);
+  }
+}
+// ============================================
+// 🔔 STEP 3-A: 새 메시지 알림음
+// ============================================
+
+// AudioContext 싱글톤 (브라우저 정책상 사용자 첫 클릭 후 활성화됨)
+window._audioCtx = null;
+function _getAudioCtx() {
+  if (!window._audioCtx) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      window._audioCtx = new Ctx();
+    } catch(e) {
+      console.warn('AudioContext 생성 실패:', e);
+      return null;
+    }
+  }
+  return window._audioCtx;
+}
+
+// 알림음 재생 (짧은 2음 비프 - 도-미 느낌)
+function playNotificationSound() {
+  // 사용자 설정 확인 (기본값: ON)
+  var enabled = localStorage.getItem('chatSoundEnabled');
+  if (enabled === '0') return;
+  
+  var ctx = _getAudioCtx();
+  if (!ctx) return;
+  
+  try {
+    // suspended 상태면 재개
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    
+    var now = ctx.currentTime;
+    
+    // 첫 번째 음 (높은 톤)
+    var osc1 = ctx.createOscillator();
+    var gain1 = ctx.createGain();
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.frequency.setValueAtTime(880, now); // A5
+    osc1.type = 'sine';
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(0.15, now + 0.02);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc1.start(now);
+    osc1.stop(now + 0.15);
+    
+    // 두 번째 음 (낮은 톤)
+    var osc2 = ctx.createOscillator();
+    var gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.frequency.setValueAtTime(659.25, now + 0.12); // E5
+    osc2.type = 'sine';
+    gain2.gain.setValueAtTime(0, now + 0.12);
+    gain2.gain.linearRampToValueAtTime(0.15, now + 0.14);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.30);
+  } catch(e) {
+    console.warn('알림음 재생 실패:', e);
+  }
+}
+
+// 알림음 ON/OFF 토글
+function toggleChatSound() {
+  var current = localStorage.getItem('chatSoundEnabled');
+  var newValue = (current === '0') ? '1' : '0';
+  localStorage.setItem('chatSoundEnabled', newValue);
+  
+  if (newValue === '1') {
+    showToast('🔔 알림음이 켜졌습니다', 'success');
+    playNotificationSound(); // 켤 때 미리 듣기
+  } else {
+    showToast('🔕 알림음이 꺼졌습니다', 'info');
+  }
+  
+  // 버튼 UI 업데이트
+  updateChatSoundBtn();
+}
+
+// 알림음 토글 버튼 추가 (관리자 채팅 헤더에)
+function updateChatSoundBtn() {
+  var btn = document.getElementById('chatSoundToggleBtn');
+  if (!btn) return;
+  var enabled = localStorage.getItem('chatSoundEnabled') !== '0';
+  btn.textContent = enabled ? '🔔' : '🔕';
+  btn.title = enabled ? '알림음 끄기' : '알림음 켜기';
+}
+
+// ============================================
+// 새 메시지 감지하여 알림음 재생
+// ============================================
+
+// 현재 사용자가 보낸 메시지인지 확인
+function _isMyMessage(msg) {
+  if (!msg) return false;
+  try {
+    var myName = (typeof _getCurrentAdminName === 'function') ? _getCurrentAdminName() : null;
+    var leaderUser = (typeof _getLeaderMsgUser === 'function') ? _getLeaderMsgUser() : null;
+    
+    // 관리자 시점
+    if (myName && msg.senderName === myName && msg.senderType !== 'leader') return true;
+    // 학과대표 시점
+    if (leaderUser && msg.senderId === leaderUser.id) return true;
+    // sender 필드가 admin인 경우
+    if (msg.sender === 'admin' && myName) return true;
+  } catch(e) {}
+  return false;
+}
+
+// 채팅 모달이 열려있는지 확인
+function _isChatModalOpen() {
+  var adminModal = document.getElementById('adminChatModal');
+  var leaderModal = document.getElementById('leaderChatModal');
+  return !!(adminModal || leaderModal);
+}
+
+// 새 메시지 감지 시 호출되는 핸들러
+window._handleNewMessageSound = function(snapshot) {
+  // 모달이 열려있으면 알림음 안 울림
+  if (_isChatModalOpen()) return;
+  
+  try {
+    snapshot.docChanges().forEach(function(change) {
+      if (change.type === 'added') {
+        var msg = change.doc.data();
+        // 본인이 보낸 메시지는 제외
+        if (_isMyMessage(msg)) return;
+        // 너무 오래된 메시지는 제외 (10초 이내만)
+        if (msg.sentAt || msg.createdAt) {
+          var ts = (msg.sentAt || msg.createdAt);
+          var msgTime = ts.toMillis ? ts.toMillis() : (ts.seconds ? ts.seconds * 1000 : 0);
+          if (msgTime > 0 && (Date.now() - msgTime) > 10000) return;
+        }
+        playNotificationSound();
+      }
+    });
+  } catch(e) {
+    console.warn('알림음 감지 실패:', e);
+  }
+};
+
+// ============================================
+// 전역 메시지 감지 리스너 (모달과 무관하게 동작)
+// ============================================
+window._globalMessageListeners = window._globalMessageListeners || { admin: null, leader: null };
+
+function startGlobalMessageListeners() {
+  // 관리자 메시지 전역 감시
+  if (!window._globalMessageListeners.admin) {
+    try {
+      var adminFirstCall = true;
+      window._globalMessageListeners.admin = db.collectionGroup('messages')
+        .where('threadType', '==', 'admin')
+        .onSnapshot(function(snap) {
+          if (adminFirstCall) { adminFirstCall = false; return; }
+          window._handleNewMessageSound(snap);
+        }, function(err) {
+          // collectionGroup 인덱스 없으면 폴백: 스레드 목록 변경 시 감지
+          console.warn('관리자 전역 메시지 감시 폴백 모드');
+        });
+    } catch(e) {
+      console.warn('관리자 전역 리스너 등록 실패:', e);
+    }
+  }
+  
+  // 학과대표 메시지 전역 감시 (스레드 lastMessage 변경 감지로 폴백)
+  if (!window._globalMessageListeners.leader) {
+    try {
+      var leaderFirstCall = true;
+      window._globalMessageListeners.leader = db.collection('leaderMessageThreads')
+        .onSnapshot(function(snap) {
+          if (leaderFirstCall) { leaderFirstCall = false; return; }
+          if (_isChatModalOpen()) return;
+          
+          snap.docChanges().forEach(function(change) {
+            if (change.type === 'modified') {
+              var data = change.doc.data();
+              if (data.lastMessage && data.lastSenderName) {
+                var myName = (typeof _getCurrentAdminName === 'function') ? _getCurrentAdminName() : null;
+                if (data.lastSenderName !== myName) {
+                  // 최근 10초 이내 메시지만
+                  if (data.lastMessageAt) {
+                    var ts = data.lastMessageAt.toMillis ? data.lastMessageAt.toMillis() : 0;
+                    if (ts > 0 && (Date.now() - ts) < 10000) {
+                      playNotificationSound();
+                    }
+                  } else {
+                    playNotificationSound();
+                  }
+                }
+              }
+            }
+          });
+        }, function(err) {
+          console.warn('학과대표 전역 메시지 감시 실패:', err.message);
+        });
+    } catch(e) {
+      console.warn('학과대표 전역 리스너 등록 실패:', e);
+    }
+  }
+  
+  console.log('✅ 전역 메시지 알림음 리스너 등록 완료');
+}
+
+// 로그인 직후 자동 시작
+(function hookGlobalListeners() {
+  var origCheckUnread = window.checkAndShowUnreadOnLogin;
+  if (typeof origCheckUnread === 'function') {
+    window.checkAndShowUnreadOnLogin = function() {
+      var result = origCheckUnread.apply(this, arguments);
+      setTimeout(startGlobalMessageListeners, 1000);
+      return result;
+    };
+    console.log('✅ 알림음 자동 시작 hook 등록');
+  }
+})();
+// ============================================
+// 🔔 알림음 토글 버튼 자동 삽입 hook
+// ============================================
+function insertSoundToggleBtn(modalId, closeBtnId) {
+  var closeBtn = document.getElementById(closeBtnId);
+  if (!closeBtn) return;
+  
+  // 이미 추가됐으면 스킵
+  if (closeBtn.parentNode.querySelector('.chat-sound-toggle-btn')) return;
+  
+  var soundBtn = document.createElement('button');
+  soundBtn.className = 'chat-sound-toggle-btn';
+  soundBtn.style.cssText = 'background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;padding:4px 8px;line-height:1;';
+  var enabled = localStorage.getItem('chatSoundEnabled') !== '0';
+  soundBtn.textContent = enabled ? '🔔' : '🔕';
+  soundBtn.title = enabled ? '알림음 끄기' : '알림음 켜기';
+  soundBtn.onclick = function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    toggleChatSound();
+    // 버튼 상태 즉시 갱신
+    var newEnabled = localStorage.getItem('chatSoundEnabled') !== '0';
+    soundBtn.textContent = newEnabled ? '🔔' : '🔕';
+    soundBtn.title = newEnabled ? '알림음 끄기' : '알림음 켜기';
+  };
+  
+  closeBtn.parentNode.insertBefore(soundBtn, closeBtn);
+}
+
+// 관리자 모달 open hook
+(function hookAdminModalSound() {
+  var orig = window.openAdminChatModal;
+  if (typeof orig !== 'function') return;
+  window.openAdminChatModal = function() {
+    var result = orig.apply(this, arguments);
+    setTimeout(function() {
+      insertSoundToggleBtn('adminChatModal', 'adminChatCloseBtn');
+    }, 50);
+    return result;
+  };
+  console.log('✅ 관리자 모달 알림음 버튼 hook 등록');
+})();
+
+// 학과대표 모달 open hook
+(function hookLeaderModalSound() {
+  var orig = window.openLeaderChatModal;
+  if (typeof orig !== 'function') return;
+  window.openLeaderChatModal = function() {
+    var result = orig.apply(this, arguments);
+    setTimeout(function() {
+      insertSoundToggleBtn('leaderChatModal', 'leaderChatCloseBtn');
+    }, 50);
+    return result;
+  };
+  console.log('✅ 학과대표 모달 알림음 버튼 hook 등록');
+})();
+// ============================================
+// 🔍 STEP 3-B: 대화방 검색 기능
+// ============================================
+
+// 검색창 삽입 함수
+function insertChatSearchBox(headerId, bodyId, threadClassName) {
+  var header = document.getElementById(headerId);
+  var body = document.getElementById(bodyId);
+  if (!header || !body) return;
+  
+  // 이미 추가됐으면 스킵
+  var searchBoxId = headerId + '_searchBox';
+  if (document.getElementById(searchBoxId)) return;
+  
+  // 검색창 컨테이너
+  var searchBox = document.createElement('div');
+  searchBox.id = searchBoxId;
+  searchBox.style.cssText = 'padding:10px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;position:relative;';
+  
+  // 검색 input
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = '🔍 제목 / 발신자 / 메시지 검색...';
+  input.style.cssText = 'width:100%;padding:8px 32px 8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;';
+  input.onfocus = function() { this.style.borderColor = '#10b981'; };
+  input.onblur = function() { this.style.borderColor = '#d1d5db'; };
+  
+  // 클리어 버튼 (×)
+  var clearBtn = document.createElement('button');
+  clearBtn.textContent = '✕';
+  clearBtn.style.cssText = 'position:absolute;right:20px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#9ca3af;cursor:pointer;font-size:16px;display:none;padding:4px;';
+  clearBtn.onclick = function() {
+    input.value = '';
+    filterThreads('', body, threadClassName);
+    clearBtn.style.display = 'none';
+    input.focus();
+  };
+  
+  // 입력 이벤트
+  input.oninput = function() {
+    var keyword = this.value.trim();
+    clearBtn.style.display = keyword ? 'block' : 'none';
+    filterThreads(keyword, body, threadClassName);
+  };
+  
+  searchBox.appendChild(input);
+  searchBox.appendChild(clearBtn);
+  
+  // 헤더 바로 다음에 삽입
+  header.parentNode.insertBefore(searchBox, header.nextSibling);
+}
+
+// 대화방 필터링 (제목 + 발신자 + 마지막 메시지)
+function filterThreads(keyword, body, threadClassName) {
+  if (!body) return;
+  var threads = body.querySelectorAll('.' + threadClassName);
+  var lower = keyword.toLowerCase();
+  var visibleCount = 0;
+  
+  threads.forEach(function(thread) {
+    if (!keyword) {
+      thread.style.display = '';
+      visibleCount++;
+      return;
+    }
+    
+    // 대화방 전체 텍스트에서 검색
+    var text = thread.textContent.toLowerCase();
+    if (text.indexOf(lower) >= 0) {
+      thread.style.display = '';
+      visibleCount++;
+    } else {
+      thread.style.display = 'none';
+    }
+  });
+  
+  // 검색 결과 없음 메시지
+  var noResultId = body.id + '_noResult';
+  var noResult = document.getElementById(noResultId);
+  if (keyword && visibleCount === 0) {
+    if (!noResult) {
+      noResult = document.createElement('div');
+      noResult.id = noResultId;
+      noResult.style.cssText = 'padding:30px 20px;text-align:center;color:#9ca3af;font-size:14px;';
+      noResult.textContent = '🔍 검색 결과가 없습니다';
+      body.appendChild(noResult);
+    }
+    noResult.style.display = '';
+  } else if (noResult) {
+    noResult.style.display = 'none';
+  }
+}
+
+// 관리자 모달 검색창 hook
+(function hookAdminModalSearch() {
+  var orig = window.openAdminChatModal;
+  if (typeof orig !== 'function') return;
+  window.openAdminChatModal = function() {
+    var result = orig.apply(this, arguments);
+    setTimeout(function() {
+      insertChatSearchBox('adminChatHeader', 'adminChatBody', 'admin-chat-thread');
+    }, 100);
+    return result;
+  };
+  console.log('✅ 관리자 모달 검색 hook 등록');
+})();
+
+// 학과대표 모달 검색창 hook
+(function hookLeaderModalSearch() {
+  var orig = window.openLeaderChatModal;
+  if (typeof orig !== 'function') return;
+  window.openLeaderChatModal = function() {
+    var result = orig.apply(this, arguments);
+    setTimeout(function() {
+      // 학과대표 대화방 클래스명 자동 감지
+      var body = document.getElementById('leaderChatBody');
+      var threadClass = 'leader-chat-thread';
+      if (body) {
+        var first = body.querySelector('[class*="chat-thread"]');
+        if (first && first.className) {
+          threadClass = first.className.split(' ').find(function(c) {
+            return c.indexOf('chat-thread') >= 0;
+          }) || threadClass;
+        }
+      }
+      insertChatSearchBox('leaderChatHeader', 'leaderChatBody', threadClass);
+    }, 100);
+    return result;
+  };
+  console.log('✅ 학과대표 모달 검색 hook 등록');
+})();
+
+/* ================================================================
+   STEP B: 실시간 메시지 갱신 (B안 - 대화방 열린 동안만)
+   - 모달 열림 시: onSnapshot 리스너 등록
+   - 모달 닫힘 시: 모든 리스너 자동 해제
+   - 새 메시지 도착 시: 기존 render 함수 재호출 (중복 코드 없음)
+   ================================================================ */
+
+// 전역 리스너 관리 객체
+window._chatListeners = window._chatListeners || {
+  adminList: null,    // 관리자 대화방 목록
+  adminRoom: null,    // 관리자 채팅방 메시지
+  leaderList: null,   // 학과대표 대화방 목록
+  leaderRoom: null    // 학과대표 채팅방 메시지
+};
+
+// 모든 리스너 해제
+function unsubscribeAllChatListeners() {
+  Object.keys(window._chatListeners).forEach(function(key) {
+    var unsub = window._chatListeners[key];
+    if (typeof unsub === 'function') {
+      try { unsub(); } catch(e) {}
+    }
+    window._chatListeners[key] = null;
+  });
+}
+
+// 특정 리스너만 해제
+function unsubscribeOne(key) {
+  var unsub = window._chatListeners[key];
+  if (typeof unsub === 'function') {
+    try { unsub(); } catch(e) {}
+  }
+  window._chatListeners[key] = null;
+}
+
+// ===== 관리자 메시지 실시간 =====
+
+// 관리자 대화방 목록 실시간 감시 (패치본)
+function subscribeAdminThreadsList() {
+  unsubscribeOne('adminList');
+  try {
+    var isFirstCall = true;
+    var unsub = db.collection('adminMessageThreads')
+      .orderBy('lastMessageAt', 'desc')
+      .onSnapshot(function(snap) {
+        if (isFirstCall) { isFirstCall = false; return; }
+        var hasChange = snap.docChanges().some(function(c) {
+          return c.type === 'added' || c.type === 'modified';
+        });
+        if (!hasChange) return;
+        
+        var body = document.getElementById('adminChatBody');
+        if (!body) { unsubscribeOne('adminList'); return; }
+        if (body.dataset.currentThreadId) return;
+        
+        window._origRenderAdminChatList();
+      }, function(err) {
+        console.warn('관리자 목록 실시간 실패:', err.message);
+      });
+    window._chatListeners.adminList = unsub;
+  } catch(e) {
+    console.warn('관리자 목록 리스너 실패:', e.message);
+  }
+}
+
+// 관리자 채팅방 메시지 실시간 감시 (패치본)
+function subscribeAdminMessages(threadId) {
+  unsubscribeOne('adminRoom');
+  try {
+    var isFirstCall = true;
+    var unsub = db.collection('adminMessageThreads')
+      .doc(threadId)
+      .collection('messages')
+      .orderBy('sentAt', 'asc')
+      .onSnapshot(function(snap) {
+        if (isFirstCall) { isFirstCall = false; return; }
+        var hasChange = snap.docChanges().some(function(c) {
+          return c.type === 'added' || c.type === 'modified';
+        });
+        if (!hasChange) return;
+        
+        var body = document.getElementById('adminChatBody');
+        if (!body) { unsubscribeOne('adminRoom'); return; }
+        if (body.dataset.currentThreadId !== threadId) return;
+        
+        window._origRenderAdminChatRoom(threadId);
+      }, function(err) {
+        console.warn('관리자 채팅방 실시간 실패:', err.message);
+      });
+    window._chatListeners.adminRoom = unsub;
+  } catch(e) {
+    console.warn('관리자 채팅방 리스너 실패:', e.message);
+  }
+}
+
+// 학과대표 대화방 목록 실시간 감시 (패치본)
+function subscribeLeaderThreadsList() {
+  try {
+    if (window._chatListeners && window._chatListeners.leaderList) {
+      window._chatListeners.leaderList();
+      window._chatListeners.leaderList = null;
+    }
+    var user = (typeof _getLeaderMsgUser === 'function') ? _getLeaderMsgUser() : null;
+    if (!user) return;
+    
+    var isFirstCall = true;
+    var query = db.collection('leaderMessageThreads');
+    
+    // 학과대표는 자기 스레드만, 관리자는 전체
+    if (user.role === 'leader') {
+      query = query.where('leaderId', '==', user.id);
+    }
+    
+    window._chatListeners.leaderList = query.onSnapshot(function(snapshot) {
+      if (isFirstCall) {
+        isFirstCall = false;
+        return;
+      }
+      // 실제 변경이 있을 때만 재렌더링
+      if (snapshot.docChanges().length > 0) {
+        if (typeof renderLeaderChatList === 'function') {
+          renderLeaderChatList();
+        }
+      }
+    }, function(error) {
+      console.warn('[subscribeLeaderThreadsList] 에러:', error);
+    });
+  } catch (e) {
+    console.warn('[subscribeLeaderThreadsList] 예외:', e);
+  }
+}
+
+// 학과대표 채팅방 메시지 실시간 감시 (패치본)
+function subscribeLeaderMessages(threadId) {
+  try {
+    if (window._chatListeners && window._chatListeners.leaderRoom) {
+      window._chatListeners.leaderRoom();
+      window._chatListeners.leaderRoom = null;
+    }
+    if (!threadId) return;
+    
+    var isFirstCall = true;
+    
+    window._chatListeners.leaderRoom = db.collection('leaderMessageThreads')
+      .doc(threadId)
+      .collection('messages')
+      .orderBy('createdAt', 'asc')
+      .onSnapshot(function(snapshot) {
+        if (isFirstCall) {
+          isFirstCall = false;
+          return;
+        }
+        if (snapshot.docChanges().length > 0) {
+          if (typeof renderLeaderChatRoom === 'function') {
+            renderLeaderChatRoom(threadId);
+          }
+        }
+      }, function(error) {
+        console.warn('[subscribeLeaderMessages] 에러:', error);
+      });
+  } catch (e) {
+    console.warn('[subscribeLeaderMessages] 예외:', e);
+  }
+}
+
+// ===== 학과대표 메시지 실시간 =====
+
+// 학과대표 대화방 목록 실시간 감시
+function subscribeLeaderThreadsList() {
+  unsubscribeOne('leaderList');
+  
+  try {
+    var isFirstCall = true;
+    var unsub = db.collection('leaderMessageThreads')
+      .onSnapshot(function(snap) {
+        if (isFirstCall) {
+          isFirstCall = false;
+          return;
+        }
+        if (snap.docChanges().length === 0) return;
+        
+        var body = document.getElementById('leaderChatBody');
+        if (!body) {
+          unsubscribeOne('leaderList');
+          return;
+        }
+        // 채팅방 화면이면 목록 갱신 안함
+        if (body.dataset.currentThreadId) {
+          return;
+        }
+        renderLeaderChatList();
+      }, function(err) {
+        console.warn('학과대표 대화방 목록 실시간 감시 실패:', err.message);
+      });
+    
+    window._chatListeners.leaderList = unsub;
+  } catch(e) {
+    console.warn('학과대표 목록 리스너 등록 실패:', e.message);
+  }
+}
+
+// 학과대표 채팅방 메시지 실시간 감시
+function subscribeLeaderMessages(threadId) {
+  unsubscribeOne('leaderRoom');
+  
+  try {
+    var isFirstCall = true;
+    var unsub = db.collection('leaderMessageThreads')
+      .doc(threadId)
+      .collection('messages')
+      .orderBy('sentAt', 'asc')
+      .onSnapshot(function(snap) {
+        if (isFirstCall) {
+          isFirstCall = false;
+          return;
+        }
+        if (snap.docChanges().length === 0) return;
+        
+        var body = document.getElementById('leaderChatBody');
+        if (!body) {
+          unsubscribeOne('leaderRoom');
+          return;
+        }
+        if (body.dataset.currentThreadId !== threadId) {
+          return;
+        }
+        renderLeaderChatRoom(threadId);
+      }, function(err) {
+        console.warn('학과대표 채팅방 실시간 감시 실패:', err.message);
+      });
+    
+    window._chatListeners.leaderRoom = unsub;
+  } catch(e) {
+    console.warn('학과대표 채팅방 리스너 등록 실패:', e.message);
+  }
+}
+
+// ===== 렌더 함수 후킹 (자동 리스너 등록) =====
+(function hookRenderFunctions() {
+  // 관리자 대화방 목록 렌더 후킹
+  if (typeof window.renderAdminChatList === 'function' && !window._origRenderAdminChatList) {
+    window._origRenderAdminChatList = window.renderAdminChatList;
+    window.renderAdminChatList = function() {
+      var result = window._origRenderAdminChatList.apply(this, arguments);
+      // 목록 화면 진입 시 채팅방 리스너 해제, 목록 리스너 등록
+      unsubscribeOne('adminRoom');
+      var body = document.getElementById('adminChatBody');
+      if (body) body.dataset.currentThreadId = '';
+      setTimeout(subscribeAdminThreadsList, 300);
+      return result;
+    };
+  }
+  
+  // 관리자 채팅방 렌더 후킹
+  if (typeof window.renderAdminChatRoom === 'function' && !window._origRenderAdminChatRoom) {
+    window._origRenderAdminChatRoom = window.renderAdminChatRoom;
+    window.renderAdminChatRoom = function(threadId) {
+      var result = window._origRenderAdminChatRoom.apply(this, arguments);
+      // 채팅방 진입 시 목록 리스너 해제, 채팅방 리스너 등록
+      unsubscribeOne('adminList');
+      setTimeout(function() {
+        var body = document.getElementById('adminChatBody');
+        if (body) body.dataset.currentThreadId = threadId;
+        subscribeAdminMessages(threadId);
+      }, 300);
+      return result;
+    };
+  }
+  
+  // 학과대표 대화방 목록 렌더 후킹
+  if (typeof window.renderLeaderChatList === 'function' && !window._origRenderLeaderChatList) {
+    window._origRenderLeaderChatList = window.renderLeaderChatList;
+    window.renderLeaderChatList = function() {
+      var result = window._origRenderLeaderChatList.apply(this, arguments);
+      unsubscribeOne('leaderRoom');
+      var body = document.getElementById('leaderChatBody');
+      if (body) body.dataset.currentThreadId = '';
+      setTimeout(subscribeLeaderThreadsList, 300);
+      return result;
+    };
+  }
+  
+  // 학과대표 채팅방 렌더 후킹
+  if (typeof window.renderLeaderChatRoom === 'function' && !window._origRenderLeaderChatRoom) {
+    window._origRenderLeaderChatRoom = window.renderLeaderChatRoom;
+    window.renderLeaderChatRoom = function(threadId) {
+      var result = window._origRenderLeaderChatRoom.apply(this, arguments);
+      unsubscribeOne('leaderList');
+      setTimeout(function() {
+        var body = document.getElementById('leaderChatBody');
+        if (body) body.dataset.currentThreadId = threadId;
+        subscribeLeaderMessages(threadId);
+      }, 300);
+      return result;
+    };
+  }
+  
+  // 모달 닫기 감시 (모달이 사라지면 모든 리스너 해제)
+  setInterval(function() {
+    var adminBody = document.getElementById('adminChatBody');
+    var leaderBody = document.getElementById('leaderChatBody');
+    if (!adminBody && (window._chatListeners.adminList || window._chatListeners.adminRoom)) {
+      unsubscribeOne('adminList');
+      unsubscribeOne('adminRoom');
+    }
+    if (!leaderBody && (window._chatListeners.leaderList || window._chatListeners.leaderRoom)) {
+      unsubscribeOne('leaderList');
+      unsubscribeOne('leaderRoom');
+    }
+  }, 2000);
+  
+  console.log('✅ 채팅 실시간 갱신 hook 등록 완료');
+})();
+
+
+// 로그인 함수 hooking (3개 모두 래핑)
+(function hookLoginFunctions() {
+  // 관리자 로그인
+  if (typeof window.showAdminLogin === 'function' && !window._origShowAdminLogin) {
+    window._origShowAdminLogin = window.showAdminLogin;
+    window.showAdminLogin = function() {
+      var result = window._origShowAdminLogin.apply(this, arguments);
+      setTimeout(function() { checkAndShowUnreadOnLogin('admin'); }, 1500);
+      return result;
+    };
+  }
+  
+  // 학과대표 로그인
+  if (typeof window.showLeaderLogin === 'function' && !window._origShowLeaderLogin) {
+    window._origShowLeaderLogin = window.showLeaderLogin;
+    window.showLeaderLogin = function() {
+      var result = window._origShowLeaderLogin.apply(this, arguments);
+      setTimeout(function() { checkAndShowUnreadOnLogin('leader'); }, 1500);
+      return result;
+    };
+  }
+  
+  // 학생 로그인
+  if (typeof window.showStudentLogin === 'function' && !window._origShowStudentLogin) {
+    window._origShowStudentLogin = window.showStudentLogin;
+    window.showStudentLogin = function() {
+      var result = window._origShowStudentLogin.apply(this, arguments);
+      setTimeout(function() { checkAndShowUnreadOnLogin('student'); }, 1500);
+      return result;
+    };
+  }
+  
+  console.log('✅ 로그인 hook 등록 완료');
+})();
+
+// ═══════════════════════════════════════════════════════
+// 학과대표 ↔ 관리자(사감실) 메시지 시스템
+// ═══════════════════════════════════════════════════════
+
+// 현재 사용자 정보 (관리자 or 학과대표)
+function _getLeaderMsgUser() {
+  // 관리자 모드
+  if (typeof isAdminLoggedIn !== 'undefined' && isAdminLoggedIn) {
+    return { role: 'admin', name: '관리자', dept: null };
+  }
+  // 학과대표 모드
+  if (typeof isLeaderLoggedIn !== 'undefined' && isLeaderLoggedIn) {
+    var dept = (typeof currentLeaderDept !== 'undefined') ? currentLeaderDept : 
+               (localStorage.getItem('saved_leader_dept') || '');
+    var leaderName = '';
+    if (typeof DEPARTMENT_LEADERS !== 'undefined' && DEPARTMENT_LEADERS[dept]) {
+      leaderName = DEPARTMENT_LEADERS[dept].name || '';
+    }
+    return { role: 'leader', name: leaderName, dept: dept };
+  }
+  return null;
+}
+
+// 학과대표 → 관리자 1:1 대화방 생성 (또는 기존 방 재사용)
+async function createOrGetLeaderThread(dept) {
+  var user = _getLeaderMsgUser();
+  if (!user) throw new Error('로그인이 필요합니다');
+  if (!dept) throw new Error('학과 정보가 없습니다');
+
+  // 같은 학과의 1:1 활성 대화방이 있으면 재사용
+  var snap = await db.collection('leaderMessageThreads')
+    .where('dept', '==', dept)
+    .where('isBroadcast', '==', false)
+    .limit(1).get();
+  
+  if (!snap.empty) {
+    return snap.docs[0].id;
+  }
+
+  var now = new Date().toISOString();
+  var leaderName = '';
+  if (typeof DEPARTMENT_LEADERS !== 'undefined' && DEPARTMENT_LEADERS[dept]) {
+    leaderName = DEPARTMENT_LEADERS[dept].name || '';
+  }
+  
+  var ref = await db.collection('leaderMessageThreads').add({
+    dept: dept,
+    leaderName: leaderName,
+    isBroadcast: false,
+    participants: ['관리자', dept],
+    createdAt: now,
+    createdBy: user.name || user.role,
+    lastMessage: '',
+    lastMessageAt: now,
+    lastMessageBy: '',
+    unreadFor: [],
+    status: 'active'
+  });
+  return ref.id;
+}
+
+// 메시지 전송 (1:1 대화)
+async function sendLeaderMessage(threadId, text) {
+  var user = _getLeaderMsgUser();
+  if (!user) throw new Error('로그인이 필요합니다');
+  if (!text || !text.trim()) throw new Error('내용을 입력하세요');
+
+  var threadRef = db.collection('leaderMessageThreads').doc(threadId);
+  var threadSnap = await threadRef.get();
+  if (!threadSnap.exists) throw new Error('대화방을 찾을 수 없습니다');
+  var t = threadSnap.data();
+
+  var now = new Date().toISOString();
+  var senderLabel = user.role === 'admin' ? '관리자' : (user.dept || user.name);
+  var recipientLabel = user.role === 'admin' ? t.dept : '관리자';
+
+  await threadRef.collection('messages').add({
+    sender: senderLabel,
+    senderRole: user.role,
+    senderName: user.name || '',
+    text: text.trim(),
+    sentAt: now,
+    readBy: [senderLabel]
+  });
+
+  // 단체 공지 방에 학과대표가 답장하면 → 별도 1:1 방으로 분기 (C안)
+  // 단체 공지 방은 학과대표가 답장 못하게 막혀있어야 하므로 여기서는 단순 1:1만 처리
+  await threadRef.update({
+    lastMessage: text.trim().substring(0, 100),
+    lastMessageAt: now,
+    lastMessageBy: senderLabel,
+    unreadFor: [recipientLabel]
+  });
+
+  return true;
+}
+
+// 단체 공지 발송 (관리자 → 전체 학과대표, C안: 각 학과별 별도 방 자동 생성)
+async function broadcastLeaderNotice(title, text, targetDepts) {
+  var user = _getLeaderMsgUser();
+  if (!user || user.role !== 'admin') throw new Error('관리자만 단체 공지를 보낼 수 있습니다');
+  if (!text || !text.trim()) throw new Error('내용을 입력하세요');
+  if (!targetDepts || targetDepts.length === 0) throw new Error('대상 학과를 선택하세요');
+
+  var now = new Date().toISOString();
+  var broadcastId = 'BC_' + Date.now();  // 같은 공지 그룹 식별용
+  var fullText = (title ? '[' + title + '] ' : '') + text.trim();
+
+  var results = [];
+  for (var i = 0; i < targetDepts.length; i++) {
+    var dept = targetDepts[i];
+    try {
+      var threadId = await createOrGetLeaderThread(dept);
+      var threadRef = db.collection('leaderMessageThreads').doc(threadId);
+
+      await threadRef.collection('messages').add({
+        sender: '관리자',
+        senderRole: 'admin',
+        senderName: user.name || '관리자',
+        text: fullText,
+        sentAt: now,
+        readBy: ['관리자'],
+        broadcastId: broadcastId,
+        isBroadcastMsg: true
+      });
+
+      await threadRef.update({
+        lastMessage: fullText.substring(0, 100),
+        lastMessageAt: now,
+        lastMessageBy: '관리자',
+        unreadFor: [dept],
+        lastBroadcastId: broadcastId
+      });
+
+      results.push({ dept: dept, success: true });
+    } catch (e) {
+      results.push({ dept: dept, success: false, error: e.message });
+    }
+  }
+  return results;
+}
+
+// 내 대화방 목록 가져오기
+async function getMyLeaderThreads() {
+  var user = _getLeaderMsgUser();
+  if (!user) return [];
+
+  var query;
+  if (user.role === 'admin') {
+    // 관리자: 모든 학과 대화방 조회
+    query = db.collection('leaderMessageThreads');
+  } else {
+    // 학과대표: 본인 학과 대화방만
+    query = db.collection('leaderMessageThreads').where('dept', '==', user.dept);
+  }
+
+  var snap = await query.get();
+  var threads = [];
+  snap.forEach(function(doc){
+    var d = doc.data();
+    d.id = doc.id;
+    threads.push(d);
+  });
+  threads.sort(function(a,b){
+    return (b.lastMessageAt || '').localeCompare(a.lastMessageAt || '');
+  });
+  return threads;
+}
+
+// 대화방 읽음 처리
+async function markLeaderThreadAsRead(threadId) {
+  var user = _getLeaderMsgUser();
+  if (!user) return;
+  var myLabel = user.role === 'admin' ? '관리자' : user.dept;
+
+  var ref = db.collection('leaderMessageThreads').doc(threadId);
+  var snap = await ref.get();
+  if (!snap.exists) return;
+  var t = snap.data();
+  var unread = Array.isArray(t.unreadFor) ? t.unreadFor : [];
+  if (unread.indexOf(myLabel) >= 0) {
+    var newUnread = unread.filter(function(n){ return n !== myLabel; });
+    await ref.update({ unreadFor: newUnread });
+  }
+}
+
+// 미읽음 개수 계산
+async function getLeaderUnreadCount() {
+  var user = _getLeaderMsgUser();
+  if (!user) return 0;
+  var myLabel = user.role === 'admin' ? '관리자' : user.dept;
+
+  var threads = await getMyLeaderThreads();
+  var count = 0;
+  threads.forEach(function(t){
+    if (Array.isArray(t.unreadFor) && t.unreadFor.indexOf(myLabel) >= 0) count++;
+  });
+  return count;
+}
+
+// 메시지 수정 (본인 메시지만)
+async function updateLeaderMessage(threadId, messageId, newText) {
+  var user = _getLeaderMsgUser();
+  if (!user) throw new Error('로그인이 필요합니다');
+  if (!newText || !newText.trim()) throw new Error('내용을 입력하세요');
+
+  var msgRef = db.collection('leaderMessageThreads').doc(threadId)
+                 .collection('messages').doc(messageId);
+  var snap = await msgRef.get();
+  if (!snap.exists) throw new Error('메시지를 찾을 수 없습니다');
+  var data = snap.data();
+
+  var myLabel = user.role === 'admin' ? '관리자' : user.dept;
+  if (data.sender !== myLabel) {
+    throw new Error('본인이 보낸 메시지만 수정할 수 있습니다');
+  }
+
+  var payload = {
+    text: newText.trim(),
+    edited: true,
+    editedAt: new Date().toISOString()
+  };
+  if (!data.originalText) payload.originalText = data.text;
+
+  await msgRef.update(payload);
+  return true;
+}
+
+// 대화방 삭제 (관리자 전용)
+async function deleteLeaderThread(threadId) {
+  var user = _getLeaderMsgUser();
+  if (!user || user.role !== 'admin') {
+    throw new Error('관리자만 대화방을 삭제할 수 있습니다');
+  }
+
+  var ref = db.collection('leaderMessageThreads').doc(threadId);
+  var msgs = await ref.collection('messages').get();
+  var batch = db.batch();
+  msgs.forEach(function(d){ batch.delete(d.ref); });
+  await batch.commit();
+  await ref.delete();
   return true;
 }
 
@@ -10695,8 +11841,8 @@ function _buildStatsHTML(stats, version) {
 }
 // 우측 하단 플로팅 버튼 3개를 동일 크기로 정렬
 function alignFloatBtns() {
-  var ids = ['pendingFloatBtn', 'vacationNoticeFloatBtn', 'adminChatFloatBtn'];
-  var bottoms = [16, 58, 100];  // 시계, 방학, 채팅 (간격 42px)
+  var ids = ['pendingFloatBtn', 'vacationNoticeFloatBtn', 'adminChatFloatBtn', 'leaderChatFloatBtn'];
+  var bottoms = [16, 58, 100, 142];  // 시계, 방학, 관리자, 학과대표 (간격 42px)
 
   ids.forEach(function(id, idx){
     var btn = document.getElementById(id);
@@ -10739,8 +11885,458 @@ function alignFloatBtns() {
     badge.textContent = badgeText;
     badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;background:#dc2626;color:#fff;border-radius:9999px;font-size:11px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0 5px;';
     p.appendChild(badge);
-    p.dataset.aligned = '1';
+       p.dataset.aligned = '1';
   }
+  
+  // ★ 추가: 1초 후 한번 더 정렬 (다른 함수가 덮어쓰는 경우 방지)
+  if (!window._alignRetried) {
+    window._alignRetried = true;
+    setTimeout(function() {
+      window._alignRetried = false;
+      alignFloatBtns();
+    }, 1000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// 학과대표 메시지 - 플로팅 버튼 + 모달
+// ═══════════════════════════════════════════════════════
+
+var _leaderChatUnreadCount = 0;
+var _leaderChatListener = null;
+
+function addLeaderChatFloatBtn() {
+  // 관리자 또는 학과대표일 때만 표시
+  var user = _getLeaderMsgUser();
+  if (!user) {
+    var ex = document.getElementById('leaderChatFloatBtn');
+    if (ex) ex.remove();
+    return;
+  }
+  if (document.getElementById('leaderChatFloatBtn')) return;
+
+  var btn = document.createElement('button');
+  btn.id = 'leaderChatFloatBtn';
+  btn.style.cssText = 'position:fixed;right:16px;bottom:142px;background:#8b5cf6;color:#fff;border:none;border-radius:9999px;padding:0;width:140px;height:36px;font-size:13px;font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;z-index:9000;display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;';
+  btn.innerHTML = '<span style="font-size:14px;">🎓</span><span>학과대표 톡</span>';
+
+  var badge = document.createElement('span');
+  badge.className = 'leader-chat-badge';
+  badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;background:#dc2626;color:#fff;border-radius:9999px;font-size:11px;font-weight:bold;display:none;align-items:center;justify-content:center;padding:0 5px;';
+  btn.appendChild(badge);
+
+  btn.onclick = openLeaderChatModal;
+  document.body.appendChild(btn);
+
+  startLeaderChatListener();
+}
+
+function startLeaderChatListener() {
+  if (_leaderChatListener) return;
+  var user = _getLeaderMsgUser();
+  if (!user) return;
+  var myLabel = user.role === 'admin' ? '관리자' : user.dept;
+
+  _leaderChatListener = db.collection('leaderMessageThreads')
+    .onSnapshot(function(snap){
+      var count = 0;
+      snap.forEach(function(doc){
+        var t = doc.data();
+        // 학과대표는 본인 학과만 카운트
+        if (user.role === 'leader' && t.dept !== user.dept) return;
+        if (Array.isArray(t.unreadFor) && t.unreadFor.indexOf(myLabel) >= 0) count++;
+      });
+      _leaderChatUnreadCount = count;
+      var badge = document.querySelector('.leader-chat-badge');
+      if (badge) {
+        if (count > 0) {
+          badge.textContent = count;
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }, function(err){
+      console.warn('학과대표 메시지 리스너 오류:', err.message);
+    });
+}
+
+function openLeaderChatModal() {
+  var old = document.getElementById('leaderChatModal');
+  if (old) old.remove();
+
+  var user = _getLeaderMsgUser();
+  if (!user) { alert('로그인이 필요합니다.'); return; }
+
+  var modal = document.createElement('div');
+  modal.id = 'leaderChatModal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:10px;';
+  modal.innerHTML =
+    '<div style="background:#fff;width:100%;max-width:520px;height:90vh;max-height:720px;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;">' +
+      '<div style="padding:14px 16px;background:#8b5cf6;color:#fff;display:flex;align-items:center;justify-content:space-between;">' +
+        '<div id="leaderChatTitle" style="font-size:18px;font-weight:bold;">🎓 학과대표 메시지</div>' +
+        '<button id="leaderChatCloseBtn" style="background:transparent;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 8px;">✕</button>' +
+      '</div>' +
+      '<div id="leaderChatBody" style="flex:1;overflow-y:auto;background:#f9fafb;"></div>' +
+      '<div id="leaderChatFooter" style="padding:10px;border-top:1px solid #e5e7eb;background:#fff;"></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  document.getElementById('leaderChatCloseBtn').onclick = function(){ modal.remove(); };
+
+  renderLeaderChatList();
+}
+
+// 화면 1: 대화방 목록
+function renderLeaderChatList() {
+  var body = document.getElementById('leaderChatBody');
+  var footer = document.getElementById('leaderChatFooter');
+  var title = document.getElementById('leaderChatTitle');
+  if (!body) return;
+  var user = _getLeaderMsgUser();
+  var myLabel = user.role === 'admin' ? '관리자' : user.dept;
+
+  title.innerHTML = '🎓 학과대표 메시지';
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#888;">불러오는 중...</div>';
+
+  // 관리자: 단체 공지 + 1:1 작성, 학과대표: 새 메시지만
+  if (user.role === 'admin') {
+    footer.innerHTML =
+      '<div style="display:flex;gap:6px;">' +
+        '<button id="leaderBroadcastBtn" style="flex:1;padding:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">📢 단체 공지</button>' +
+        '<button id="leaderNewBtn" style="flex:1;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">➕ 학과 선택 발송</button>' +
+      '</div>';
+    document.getElementById('leaderBroadcastBtn').onclick = renderLeaderBroadcast;
+    document.getElementById('leaderNewBtn').onclick = function(){ renderLeaderNewSingle(); };
+  } else {
+    footer.innerHTML =
+      '<button id="leaderNewBtn" style="width:100%;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;">➕ 관리자에게 새 메시지</button>';
+    document.getElementById('leaderNewBtn').onclick = renderLeaderNewToAdmin;
+  }
+
+  getMyLeaderThreads().then(function(threads){
+    if (!threads || threads.length === 0) {
+      body.innerHTML = '<div style="padding:40px;text-align:center;color:#888;">대화방이 없습니다.</div>';
+      return;
+    }
+    var html = '';
+    threads.forEach(function(t){
+      var unread = Array.isArray(t.unreadFor) && t.unreadFor.indexOf(myLabel) >= 0;
+      var lastMsg = (t.lastMessage || '').substring(0, 35);
+      if ((t.lastMessage || '').length > 35) lastMsg += '...';
+      var lastTime = '';
+      if (t.lastMessageAt) {
+        var d = new Date(t.lastMessageAt);
+        if (!isNaN(d.getTime())) {
+          lastTime = (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+      }
+      var headerLine = user.role === 'admin' ? (t.dept || '(학과 미지정)') + (t.leaderName ? ' / ' + t.leaderName : '') : '관리자';
+      var delBtn = user.role === 'admin' ?
+        '<button class="leader-chat-del-btn" data-tid="' + t.id + '" title="삭제" style="background:transparent;border:none;cursor:pointer;font-size:14px;padding:4px;color:#ef4444;">🗑️</button>' : '';
+
+      html += '<div class="leader-chat-thread" data-tid="' + t.id + '" style="padding:14px 16px;border-bottom:1px solid #e5e7eb;cursor:pointer;background:#fff;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+          '<div style="font-weight:bold;font-size:15px;flex:1;">' + headerLine + '</div>' +
+          '<div style="display:flex;align-items:center;gap:4px;">' +
+            (unread ? '<span style="background:#ef4444;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:bold;">N</span>' : '') +
+            delBtn +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;color:#9ca3af;font-size:12px;">' +
+          '<span>' + lastMsg + '</span><span>' + lastTime + '</span>' +
+        '</div>' +
+      '</div>';
+    });
+    body.innerHTML = html;
+
+    Array.prototype.forEach.call(document.querySelectorAll('.leader-chat-thread'), function(el){
+      el.onclick = function(ev){
+        if (ev.target.classList.contains('leader-chat-del-btn')) return;
+        renderLeaderChatRoom(el.getAttribute('data-tid'));
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.leader-chat-del-btn'), function(b){
+      b.onclick = function(ev){
+        ev.stopPropagation();
+        if (!confirm('이 대화방을 삭제하시겠습니까?\n모든 메시지가 함께 삭제됩니다.')) return;
+        b.disabled = true;
+        deleteLeaderThread(b.getAttribute('data-tid')).then(function(){
+          alert('삭제되었습니다.');
+          renderLeaderChatList();
+        }).catch(function(e){
+          alert('삭제 실패: ' + (e && e.message ? e.message : e));
+          b.disabled = false;
+        });
+      };
+    });
+  }).catch(function(e){
+    body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">오류: ' + (e && e.message ? e.message : e) + '</div>';
+  });
+}
+
+// 화면 2-1: 관리자가 특정 학과대표에게 1:1 메시지
+function renderLeaderNewSingle() {
+  var body = document.getElementById('leaderChatBody');
+  var footer = document.getElementById('leaderChatFooter');
+  var title = document.getElementById('leaderChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '<button id="leaderChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>학과 선택 발송';
+
+  // 대상 학과 목록 (DEPARTMENT_LEADERS 기반)
+  var deptList = [];
+  if (typeof DEPARTMENT_LEADERS !== 'undefined') {
+    Object.keys(DEPARTMENT_LEADERS).forEach(function(d){
+      if (DEPARTMENT_LEADERS[d] && DEPARTMENT_LEADERS[d].name) {
+        deptList.push({ dept: d, name: DEPARTMENT_LEADERS[d].name });
+      }
+    });
+  }
+  var optsHtml = deptList.map(function(x){
+    return '<option value="' + x.dept + '">' + x.dept + ' (' + x.name + ')</option>';
+  }).join('');
+
+  body.innerHTML =
+    '<div style="padding:16px;">' +
+      '<div style="margin-bottom:14px;">' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">대상 학과</label>' +
+        '<select id="leaderSingleDept" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;">' + optsHtml + '</select>' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">메시지 내용</label>' +
+        '<textarea id="leaderSingleText" rows="6" placeholder="내용을 입력하세요..." style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      '</div>' +
+    '</div>';
+  footer.innerHTML =
+    '<button id="leaderSingleSendBtn" style="width:100%;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">📤 보내기</button>';
+
+  document.getElementById('leaderChatBackBtn').onclick = renderLeaderChatList;
+  document.getElementById('leaderSingleSendBtn').onclick = function(){
+    var dept = document.getElementById('leaderSingleDept').value;
+    var text = document.getElementById('leaderSingleText').value.trim();
+    if (!dept) { alert('학과를 선택하세요.'); return; }
+    if (!text) { alert('내용을 입력하세요.'); return; }
+    var btn = document.getElementById('leaderSingleSendBtn');
+    btn.disabled = true; btn.textContent = '전송 중...';
+    createOrGetLeaderThread(dept).then(function(tid){
+      return sendLeaderMessage(tid, text).then(function(){ return tid; });
+    }).then(function(tid){
+      alert('전송되었습니다.');
+      renderLeaderChatRoom(tid);
+    }).catch(function(e){
+      alert('전송 실패: ' + (e && e.message ? e.message : e));
+      btn.disabled = false; btn.textContent = '📤 보내기';
+    });
+  };
+}
+
+// 화면 2-2: 학과대표가 관리자에게 메시지
+function renderLeaderNewToAdmin() {
+  var user = _getLeaderMsgUser();
+  if (!user || user.role !== 'leader') { alert('학과대표만 사용 가능합니다.'); return; }
+
+  var body = document.getElementById('leaderChatBody');
+  var footer = document.getElementById('leaderChatFooter');
+  var title = document.getElementById('leaderChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '<button id="leaderChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>관리자에게 새 메시지';
+  body.innerHTML =
+    '<div style="padding:16px;">' +
+      '<div style="background:#eff6ff;padding:10px;border-radius:6px;font-size:13px;color:#1e40af;margin-bottom:14px;">' +
+        '보내는 사람: ' + user.dept + ' (' + (user.name || '대표') + ')' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">메시지 내용</label>' +
+        '<textarea id="leaderToAdminText" rows="6" placeholder="관리자에게 전달할 내용을 입력하세요..." style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      '</div>' +
+    '</div>';
+  footer.innerHTML =
+    '<button id="leaderToAdminSendBtn" style="width:100%;padding:12px;background:#10b981;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">📤 보내기</button>';
+
+  document.getElementById('leaderChatBackBtn').onclick = renderLeaderChatList;
+  document.getElementById('leaderToAdminSendBtn').onclick = function(){
+    var text = document.getElementById('leaderToAdminText').value.trim();
+    if (!text) { alert('내용을 입력하세요.'); return; }
+    var btn = document.getElementById('leaderToAdminSendBtn');
+    btn.disabled = true; btn.textContent = '전송 중...';
+    createOrGetLeaderThread(user.dept).then(function(tid){
+      return sendLeaderMessage(tid, text).then(function(){ return tid; });
+    }).then(function(tid){
+      alert('전송되었습니다.');
+      renderLeaderChatRoom(tid);
+    }).catch(function(e){
+      alert('전송 실패: ' + (e && e.message ? e.message : e));
+      btn.disabled = false; btn.textContent = '📤 보내기';
+    });
+  };
+}
+
+// 화면 3: 단체 공지 발송
+function renderLeaderBroadcast() {
+  var body = document.getElementById('leaderChatBody');
+  var footer = document.getElementById('leaderChatFooter');
+  var title = document.getElementById('leaderChatTitle');
+  if (!body) return;
+
+  title.innerHTML = '<button id="leaderChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>📢 단체 공지';
+
+  // 대상 학과 목록
+  var deptList = [];
+  if (typeof DEPARTMENT_LEADERS !== 'undefined') {
+    Object.keys(DEPARTMENT_LEADERS).forEach(function(d){
+      if (DEPARTMENT_LEADERS[d] && DEPARTMENT_LEADERS[d].name) deptList.push(d);
+    });
+  }
+  var deptChecks = deptList.map(function(d){
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;cursor:pointer;">' +
+      '<input type="checkbox" class="leader-bc-dept" value="' + d + '" checked style="width:16px;height:16px;">' +
+      '<span>' + d + '</span></label>';
+  }).join('');
+
+  body.innerHTML =
+    '<div style="padding:16px;">' +
+      '<div style="background:#fef3c7;padding:10px;border-radius:6px;font-size:13px;color:#92400e;margin-bottom:14px;">' +
+        '※ 각 학과대표에게 별도 1:1 대화방으로 발송됩니다. 학과대표 답장은 관리자만 볼 수 있습니다.' +
+      '</div>' +
+      '<div style="margin-bottom:14px;">' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">제목 (선택)</label>' +
+        '<input type="text" id="leaderBcTitle" placeholder="예: 여름방학 안내" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;">' +
+      '</div>' +
+      '<div style="margin-bottom:14px;">' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">대상 학과 (전체 선택됨)</label>' +
+        '<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px;max-height:200px;overflow-y:auto;">' +
+          '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;cursor:pointer;border-bottom:1px solid #e5e7eb;margin-bottom:4px;font-weight:bold;">' +
+            '<input type="checkbox" id="leaderBcSelectAll" checked style="width:16px;height:16px;">' +
+            '<span>전체 선택/해제</span></label>' +
+          deptChecks +
+        '</div>' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;font-weight:bold;margin-bottom:6px;font-size:14px;">내용</label>' +
+        '<textarea id="leaderBcText" rows="5" placeholder="공지 내용을 입력하세요..." style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:15px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      '</div>' +
+    '</div>';
+
+  footer.innerHTML =
+    '<button id="leaderBcSendBtn" style="width:100%;padding:12px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">📢 단체 발송</button>';
+
+  document.getElementById('leaderChatBackBtn').onclick = renderLeaderChatList;
+  document.getElementById('leaderBcSelectAll').onchange = function(){
+    var checked = this.checked;
+    Array.prototype.forEach.call(document.querySelectorAll('.leader-bc-dept'), function(cb){ cb.checked = checked; });
+  };
+  document.getElementById('leaderBcSendBtn').onclick = function(){
+    var t = document.getElementById('leaderBcTitle').value.trim();
+    var txt = document.getElementById('leaderBcText').value.trim();
+    var targets = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.leader-bc-dept:checked'), function(cb){ targets.push(cb.value); });
+    if (!txt) { alert('내용을 입력하세요.'); return; }
+    if (targets.length === 0) { alert('대상 학과를 1개 이상 선택하세요.'); return; }
+    if (!confirm(targets.length + '개 학과에 단체 공지를 발송하시겠습니까?')) return;
+    var btn = document.getElementById('leaderBcSendBtn');
+    btn.disabled = true; btn.textContent = '전송 중...';
+    broadcastLeaderNotice(t, txt, targets).then(function(results){
+      var ok = results.filter(function(r){ return r.success; }).length;
+      var fail = results.length - ok;
+      alert('전송 완료: 성공 ' + ok + '건, 실패 ' + fail + '건');
+      renderLeaderChatList();
+    }).catch(function(e){
+      alert('발송 실패: ' + (e && e.message ? e.message : e));
+      btn.disabled = false; btn.textContent = '📢 단체 발송';
+    });
+  };
+}
+
+// 화면 4: 대화방 (메시지 보기 + 답장)
+function renderLeaderChatRoom(threadId) {
+  var body = document.getElementById('leaderChatBody');
+  var footer = document.getElementById('leaderChatFooter');
+  var title = document.getElementById('leaderChatTitle');
+  if (!body) return;
+  var user = _getLeaderMsgUser();
+  var myLabel = user.role === 'admin' ? '관리자' : user.dept;
+
+  title.innerHTML = '<button id="leaderChatBackBtn" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;margin-right:8px;">←</button>대화방';
+  body.innerHTML = '<div style="padding:30px;text-align:center;color:#888;">불러오는 중...</div>';
+  footer.innerHTML =
+    '<div style="display:flex;gap:6px;">' +
+      '<textarea id="leaderReplyInput" rows="2" placeholder="답장 입력..." style="flex:1;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;resize:none;box-sizing:border-box;"></textarea>' +
+      '<button id="leaderReplyBtn" style="padding:0 16px;background:#10b981;color:#fff;border:none;border-radius:6px;font-weight:bold;cursor:pointer;">전송</button>' +
+    '</div>';
+  document.getElementById('leaderChatBackBtn').onclick = renderLeaderChatList;
+
+  db.collection('leaderMessageThreads').doc(threadId).collection('messages')
+    .orderBy('sentAt', 'asc').get().then(function(snap){
+      var html = '<div style="padding:12px;">';
+      snap.forEach(function(doc){
+        try {
+          var m = doc.data();
+          var isMine = m.sender === myLabel;
+          var time = '';
+          if (m.sentAt) {
+            var d = new Date(m.sentAt);
+            if (!isNaN(d.getTime())) {
+              time = (d.getMonth()+1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            }
+          }
+          var align = isMine ? 'flex-end' : 'flex-start';
+          var bg = isMine ? '#8b5cf6' : '#fff';
+          var color = isMine ? '#fff' : '#111';
+          var editedMark = m.edited ? ' <span style="font-size:10px;opacity:0.7;">(수정됨)</span>' : '';
+          var bubbleStyle = 'background:' + bg + ';color:' + color + ';padding:10px 12px;border-radius:12px;font-size:14px;white-space:pre-wrap;word-break:break-word;border:1px solid #e5e7eb;' + (isMine ? 'cursor:pointer;' : '');
+          var bubbleAttrs = isMine
+            ? ' class="leader-bubble-mine" data-mid="' + doc.id + '" data-text="' + (m.text || '').replace(/"/g,'&quot;').replace(/\n/g,'&#10;') + '" title="클릭하여 수정"'
+            : '';
+          html += '<div style="display:flex;justify-content:' + align + ';margin-bottom:10px;">' +
+            '<div style="max-width:75%;">' +
+              (isMine ? '' : '<div style="font-size:12px;color:#6b7280;margin-bottom:2px;">' + (m.sender || '') + '</div>') +
+              '<div' + bubbleAttrs + ' style="' + bubbleStyle + '">' + (m.text || '').replace(/</g,'&lt;') + '</div>' +
+              '<div style="font-size:11px;color:#9ca3af;margin-top:2px;text-align:' + (isMine ? 'right' : 'left') + ';">' + time + editedMark + '</div>' +
+            '</div>' +
+          '</div>';
+        } catch(e) {}
+      });
+      html += '</div>';
+      body.innerHTML = html;
+      body.scrollTop = body.scrollHeight;
+
+      // 내 말풍선 클릭 → 수정
+      Array.prototype.forEach.call(document.querySelectorAll('.leader-bubble-mine'), function(bub){
+        bub.onclick = function(){
+          var mid = bub.getAttribute('data-mid');
+          var curText = bub.getAttribute('data-text').replace(/&#10;/g,'\n');
+          var newText = prompt('메시지 수정:', curText);
+          if (newText === null) return;
+          newText = newText.trim();
+          if (!newText) { alert('내용을 입력하세요.'); return; }
+          if (newText === curText) return;
+          updateLeaderMessage(threadId, mid, newText).then(function(){
+            renderLeaderChatRoom(threadId);
+          }).catch(function(e){ alert('수정 실패: ' + (e && e.message ? e.message : e)); });
+        };
+      });
+
+      markLeaderThreadAsRead(threadId).catch(function(){});
+    }).catch(function(e){
+      body.innerHTML = '<div style="padding:30px;text-align:center;color:#ef4444;">오류: ' + (e && e.message ? e.message : e) + '</div>';
+    });
+
+  document.getElementById('leaderReplyBtn').onclick = function(){
+    var input = document.getElementById('leaderReplyInput');
+    var text = input.value.trim();
+    if (!text) return;
+    var btn = document.getElementById('leaderReplyBtn');
+    btn.disabled = true; btn.textContent = '...';
+    sendLeaderMessage(threadId, text).then(function(){
+      input.value = '';
+      btn.disabled = false; btn.textContent = '전송';
+      renderLeaderChatRoom(threadId);
+    }).catch(function(e){
+      alert('전송 실패: ' + (e && e.message ? e.message : e));
+      btn.disabled = false; btn.textContent = '전송';
+    });
+  };
 }
 
 // 메인 화면 우측 하단에 "방학 안내 다시 보기" 버튼 표시/숨김
@@ -10752,11 +12348,22 @@ async function addVacationNoticeFloatBtn() {
   }
   if (document.getElementById('vacationNoticeFloatBtn')) return;
   
+  // ★ 1단계: 빈 버튼 즉시 생성 (다른 버튼과 동시 표시)
+  var btn = document.createElement('button');
+  btn.id = 'vacationNoticeFloatBtn';
+  btn.onclick = function(){ reviewVacationNotice(); };
+  btn.style.cssText = 'position:fixed;bottom:58px;right:16px;width:140px;height:36px;padding:0;border-radius:9999px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
+  btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>';
+  btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
+  btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
+  btn.title = '방학 안내';
+  document.body.appendChild(btn);
+  
+  // ★ 2단계: 비동기로 데이터 조회 후 카운트 업데이트
   try {
     var applicableNotices = [];
     
     if (currentMode === 'admin' || currentMode === 'office' || currentMode === 'leader') {
-      // 관리자/사감/리더는 모든 활성 공지를 직접 조회 (학과 필터 무시)
       var snap = await db.collection('vacationNotices').where('active', '==', true).get();
       snap.forEach(function(d){
         var data = d.data() || {};
@@ -10764,30 +12371,29 @@ async function addVacationNoticeFloatBtn() {
       });
       applicableNotices.sort(function(a,b){ return (a.priority||100) - (b.priority||100); });
     } else {
-      // 학생은 본인 학과 필터링 (조기 종료 과정은 대상에서 제외됨)
       var dept = await _getCurrentStudentDept();
       applicableNotices = await _getApplicableNotices(dept);
     }
     
+    // 공지가 없으면 버튼 제거
     if (applicableNotices.length === 0) {
       var ex = document.getElementById('vacationNoticeFloatBtn');
       if (ex) ex.remove();
       return;
     }
     
+    // 공지 개수 업데이트
     var count = applicableNotices.length;
-    var btn = document.createElement('button');
-    btn.id = 'vacationNoticeFloatBtn';
-    btn.onclick = function(){ reviewVacationNotice(); };
-    btn.style.cssText = 'position:fixed;bottom:100px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
-    btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + 
-      (count > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;">' + count + '</span>' : '');
-    btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
-    btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
-    btn.title = '방학 안내 다시 보기 (' + count + '개)';
-    document.body.appendChild(btn);
+    var currentBtn = document.getElementById('vacationNoticeFloatBtn');
+    if (currentBtn) {
+      currentBtn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + 
+        (count > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;">' + count + '</span>' : '');
+      currentBtn.title = '방학 안내 다시 보기 (' + count + '개)';
+    }
   } catch(e) {
     console.warn('방학 공지 버튼 표시 실패:', e.message);
+    var ex = document.getElementById('vacationNoticeFloatBtn');
+    if (ex) ex.remove();
   }
 }
 
@@ -10822,11 +12428,11 @@ async function addAdminChatFloatBtn() {
   var btn = document.createElement('button');
   btn.id = 'adminChatFloatBtn';
   btn.onclick = function(){ openAdminChatModal(); };
-  btn.style.cssText = 'position:fixed;bottom:180px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;box-shadow:0 6px 18px rgba(16,185,129,0.4);cursor:pointer;z-index:39;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
-  btn.innerHTML = '<i class="fas fa-comments"></i><span>관리자 메시지</span><span id="adminChatBadge" style="display:none;background:white;color:#dc2626;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:bold;margin-left:2px;">0</span>';
+  btn.style.cssText = 'position:fixed;bottom:180px;right:24px;padding:10px 16px;border-radius:24px;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;box-shadow:0 6px 18px rgba(16,185,129,0.4);cursor:pointer;z-index:39;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
+  btn.innerHTML = '<i class="fas fa-comments"></i><span>관리자 톡</span><span id="adminChatBadge" style="display:none;background:white;color:#dc2626;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:bold;margin-left:2px;">0</span>';
   btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
   btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
-  btn.title = '관리자 메시지';
+  btn.title = '관리자 톡';
   document.body.appendChild(btn);
   
   // 실시간 미읽음 카운트 리스너 등록
@@ -10865,7 +12471,7 @@ function _setupAdminChatListener() {
       if (_adminChatUnreadCount > prevCount && prevCount >= 0) {
         var newMsgs = _adminChatUnreadCount - prevCount;
         if (typeof showToast === 'function') {
-          showToast('💬 새 관리자 메시지 ' + newMsgs + '건', 'info');
+          showToast('💬 새 관리자(사감실) 메시지 ' + newMsgs + '건', 'info');
         }
         _playAdminChatSound();
       }
@@ -11156,17 +12762,13 @@ function renderAdminChatRoom(threadId) {
   var myName = _getCurrentAdminName();
   db.collection('adminMessageThreads').doc(threadId).collection('messages')
             .orderBy('sentAt', 'asc').get().then(function(snap){
-      console.log('[채팅방] 조회 성공, 개수:', snap.size);
       var html = '<div style="padding:12px;">';
       var count = 0;
       snap.forEach(function(doc){
         try {
-          count++;
-          console.log('[채팅방] 메시지 ' + count + ' 처리 시작');
-          var m = doc.data();
-          console.log('[채팅방] 메시지 데이터:', m);
+          count++;    
+          var m = doc.data();  
           var isMine = m.sender === myName;
-          console.log('[채팅방] isMine:', isMine, 'myName:', myName);
                 var time = '';
         var rawTime = m.sentAt || m.createdAt;
         if (rawTime) {
@@ -11189,13 +12791,11 @@ function renderAdminChatRoom(threadId) {
             '<div' + bubbleAttrs + ' style="' + bubbleStyle + '">' + (m.text || '').replace(/</g,'&lt;') + '</div>' +
             '<div style="font-size:11px;color:#9ca3af;margin-top:2px;text-align:' + (isMine ? 'right' : 'left') + ';">' + time + editedMark + '</div>' +
           '</div>' +
-        '</div>';
-          console.log('[채팅방] 메시지 ' + count + ' HTML 추가 완료');
+        '</div>';     
         } catch(err) {
           console.error('[채팅방] 메시지 ' + count + ' 처리 에러:', err.message, err.stack);
         }
       });
-      console.log('[채팅방] 최종 html 길이:', html.length);
             html += '</div>';
       body.innerHTML = html;
       body.scrollTop = body.scrollHeight;
@@ -11311,8 +12911,9 @@ function renderAdminChatEdit(threadId) {
     var _origRenderForNotice = window.render;
     window.render = function(){
       var ret = _origRenderForNotice.apply(this, arguments);
-            setTimeout(addVacationNoticeFloatBtn, 150);
-      setTimeout(alignFloatBtns, 200);
+      addVacationNoticeFloatBtn();
+      setTimeout(addLeaderChatFloatBtn, 160);
+      setTimeout(alignFloatBtns, 250);
       return ret;
     };
   }
