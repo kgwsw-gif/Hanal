@@ -1703,7 +1703,46 @@ if(!found){
 }
 isGuestLoggedIn=isGuest;currentStudent=name;if(isGuest){currentMode='admin';isAdminLoggedIn=true;}else{currentMode='student';try{if(typeof initPushNotification==='function')initPushNotification();}catch(e){console.error('푸시 호출 실패:',e);}}closeModal();render();showToast(isGuest?name+' 게스트 로그인 (조회전용)':name+'님 환영합니다','success');if(!isGuest){setTimeout(function(){if(typeof checkVacationNotice==='function')checkVacationNotice(false);},1500);}})
 }
-async function logout(){try{await firebase.auth().signOut()}catch(e){}isAdminLoggedIn=false;isSuperAdmin=false;isLeaderLoggedIn=false;leaderDepartment=null;isGuestLoggedIn=false;currentStudent=null;currentMode=null;render();showToast('로그아웃 완료','info')}
+async function logout(){
+  // ✅ 로그아웃 전 모든 리스너 정리 (permission-denied 방지)
+  try {
+    if (window._globalListenerUnsubs && Array.isArray(window._globalListenerUnsubs)) {
+      window._globalListenerUnsubs.forEach(function(unsub){
+        try { if (typeof unsub === 'function') unsub(); } catch(e){}
+      });
+      window._globalListenerUnsubs = [];
+    }
+    if (typeof unsubscribeAll === 'function') {
+      try { unsubscribeAll(); } catch(e){}
+    }
+    if (typeof unsubscribeOne === 'function') {
+      ['adminList','adminRoom','leaderList','leaderRoom',
+       'adminChatListener','leaderChatListener',
+       'globalAdminMessages','globalLeaderMessages'].forEach(function(key){
+        try { unsubscribeOne(key); } catch(e){}
+      });
+    }
+    ['_adminChatUnsub','_leaderChatUnsub','_globalAdminUnsub','_globalLeaderUnsub'].forEach(function(key){
+      try {
+        if (typeof window[key] === 'function') { window[key](); window[key] = null; }
+      } catch(e){}
+    });
+    console.log('✅ 로그아웃 전 리스너 정리 완료');
+  } catch(e) {
+    console.warn('리스너 정리 중 오류(무시 가능):', e);
+  }
+  
+  try{await firebase.auth().signOut()}catch(e){}
+  isAdminLoggedIn=false;
+  isSuperAdmin=false;
+  isLeaderLoggedIn=false;
+  leaderDepartment=null;
+  isGuestLoggedIn=false;
+  currentStudent=null;
+  currentMode=null;
+  render();
+  showToast('로그아웃 완료','info');
+}
 
 function currentStudentDept(){if(isGuestLoggedIn&&students['_guest']&&students['_guest'].includes(currentStudent))return '_guest';for(var i=0;i<departments.length;i++)if(students[departments[i]]&&students[departments[i]].includes(currentStudent))return departments[i];var all=window._secureData.getAllStudents();for(var dept in all)if(all[dept]&&all[dept].includes(currentStudent))return dept;return null}
 
