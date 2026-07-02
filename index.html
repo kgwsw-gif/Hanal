@@ -11086,6 +11086,70 @@ async function addUnreadBadgesToAdminList() {
   console.log('✅ 학과대표 목록 미읽음 배지 hook 등록');
 })();
 
+// ✅ 관리자 표시명을 '관리자(사감실)'로 통일하는 훅
+(function(){
+  if (window._adminDisplayNameHooked) return;
+  window._adminDisplayNameHooked = true;
+  
+  var ADMIN_ID = '관리자';
+  var ADMIN_DISPLAY = '관리자(사감실)';
+  
+  // DOM에서 '관리자' 텍스트를 '관리자(사감실)'로 치환하는 함수
+  function replaceAdminText(container) {
+    if (!container) return;
+    var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+    var nodesToReplace = [];
+    var node;
+    while (node = walker.nextNode()) {
+      // 이미 치환된 것은 스킵
+      if (node.nodeValue.indexOf(ADMIN_DISPLAY) !== -1) continue;
+      // 정확히 '관리자'만 있거나, '관리자' 뒤에 공백/특수문자가 오는 경우
+      if (/(^|[\s\/\-·:])관리자($|[\s\/\-·:])/.test(node.nodeValue)) {
+        nodesToReplace.push(node);
+      }
+    }
+    nodesToReplace.forEach(function(n){
+      n.nodeValue = n.nodeValue.replace(/(^|[\s\/\-·:])관리자($|[\s\/\-·:])/g, '$1' + ADMIN_DISPLAY + '$2');
+    });
+  }
+  
+  // 학과대표 대화방 목록 렌더링 후 치환
+  if (typeof renderLeaderChatList === 'function') {
+    var _origRLC = renderLeaderChatList;
+    window.renderLeaderChatList = function() {
+      var result = _origRLC.apply(this, arguments);
+      setTimeout(function(){
+        replaceAdminText(document.getElementById('leaderChatBody'));
+        replaceAdminText(document.getElementById('leaderChatTitle'));
+      }, 350);
+      return result;
+    };
+  }
+  
+  // 학과대표 대화방 진입 시 (메시지 헤더 등) 치환
+  if (typeof subscribeLeaderMessages === 'function') {
+    var _origSLM = subscribeLeaderMessages;
+    window.subscribeLeaderMessages = function() {
+      var result = _origSLM.apply(this, arguments);
+      setTimeout(function(){
+        replaceAdminText(document.getElementById('leaderChatBody'));
+      }, 200);
+      // 메시지가 계속 렌더링될 수 있으므로 반복 감시
+      var body = document.getElementById('leaderChatBody');
+      if (body && !body._adminNameObserver) {
+        var observer = new MutationObserver(function(){
+          replaceAdminText(body);
+        });
+        observer.observe(body, { childList: true, subtree: true, characterData: true });
+        body._adminNameObserver = observer;
+      }
+      return result;
+    };
+  }
+  
+  console.log('✅ 관리자 표시명 치환 훅 등록 (관리자 → 관리자(사감실))');
+})();
+
 /* ================================================================
    STEP B: 실시간 메시지 갱신 (B안 - 대화방 열린 동안만)
    - 모달 열림 시: onSnapshot 리스너 등록
