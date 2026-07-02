@@ -11403,13 +11403,13 @@ function subscribeLeaderMessages(threadId) {
 
 // 현재 사용자 정보 (관리자 or 학과대표)
 function _getLeaderMsgUser() {
-  // 관리자 모드
   if (typeof isAdminLoggedIn !== 'undefined' && isAdminLoggedIn) {
     return { role: 'admin', name: '관리자', dept: null };
   }
-  // 학과대표 모드
   if (typeof isLeaderLoggedIn !== 'undefined' && isLeaderLoggedIn) {
-    var dept = (typeof currentLeaderDept !== 'undefined') ? currentLeaderDept : 
+    // ✅ leaderDepartment(실제 사용 변수) 우선, currentLeaderDept, localStorage 순
+    var dept = (typeof leaderDepartment !== 'undefined' && leaderDepartment) ? leaderDepartment :
+               (typeof currentLeaderDept !== 'undefined' && currentLeaderDept) ? currentLeaderDept : 
                (localStorage.getItem('saved_leader_dept') || '');
     var leaderName = '';
     if (typeof DEPARTMENT_LEADERS !== 'undefined' && DEPARTMENT_LEADERS[dept]) {
