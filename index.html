@@ -9741,6 +9741,414 @@ async function autoConfirmDueMoveIns() {
 }
 
 // ============ 예비입사자 관리 플로팅 버튼 ============
+// ============ 예비입사자 엑셀 템플릿 다운로드 ============
+function downloadPendingTemplate() {
+    loadExcelJS().then(function() {
+        var wb = new ExcelJS.Workbook();
+        var ws = wb.addWorksheet('예비입사자');
+        
+        // 헤더 정의
+        ws.columns = [
+            { header: '학과', key: 'dept', width: 25 },
+            { header: '이름', key: 'name', width: 15 },
+            { header: '호실', key: 'room', width: 10 },
+            { header: '비밀번호', key: 'password', width: 15 },
+            { header: '생년', key: 'birth', width: 12 },
+            { header: '입사예정일', key: 'expDate', width: 15 }
+        ];
+        
+        // 헤더 스타일
+        ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF59E0B' } };
+        ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+        ws.getRow(1).height = 25;
+        ws.getRow(1).eachCell(function(cell) {
+            cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+        });
+        
+        // 예시 데이터
+        var tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        var tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
+        
+        ws.addRow({ dept: '스마트전기과', name: '홍길동', room: '301', password: '1234', birth: '1997', expDate: tomorrowStr });
+        ws.addRow({ dept: '스마트전기과', name: '김철수', room: '302', password: '5678', birth: '98', expDate: tomorrowStr });
+        ws.addRow({ dept: '자동차도장과', name: '이영희', room: '', password: 'abc123', birth: '', expDate: '' });
+        
+        // 안내 행
+        ws.addRow({});
+        ws.addRow({ dept: '📌 작성 안내' }).font = { bold: true };
+        ws.addRow({ dept: '• 학과, 이름, 비밀번호는 필수 항목입니다.' });
+        ws.addRow({ dept: '• 호실이 비어있으면 미배정 상태로 등록됩니다.' });
+        ws.addRow({ dept: '• 생년은 1997, 97 등 자유롭게 입력 가능 (선택)' });
+        ws.addRow({ dept: '• 입사예정일이 비어있으면 업로드 시 지정한 날짜로 자동 설정됩니다.' });
+        ws.addRow({ dept: '• 이미 등록된 이름은 자동으로 건너뜁니다.' });
+        ws.addRow({ dept: '• 예시 3줄을 지우고 실제 데이터를 입력하세요.' });
+        
+        wb.xlsx.writeBuffer().then(function(buf) {
+            var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = '예비입사자_템플릿.xlsx';
+            a.click();
+            showToast('템플릿 다운로드 완료', 'success');
+        }).catch(function(e) {
+            showToast('생성 실패: ' + e.message, 'error');
+        });
+    }).catch(function(e) {
+        showToast('ExcelJS 로드 실패: ' + e.message, 'error');
+    });
+}
+
+// ============ 예비입사자 엑셀 업로드 ============
+function uploadPendingExcel() {
+    loadExcelJS().then(function() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.xlsx,.xls';
+        input.onchange = async function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            
+            var reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    showToast('파일 분석 중...', 'info');
+                    var wb = new ExcelJS.Workbook();
+                    await wb.xlsx.load(new Uint8Array(e.target.result));
+                    var ws = wb.worksheets[0];
+                    if (!ws) { showToast('시트 없음', 'error'); return; }
+                    
+                    // 헤더 인식
+                    var headers = [];
+                    ws.getRow(1).eachCell(function(c, cn) { headers[cn] = c.value ? c.value.toString() : ''; });
+                    var dC = headers.findIndex(function(h) { return h && h.toString().includes('학과'); });
+                    var nC = headers.findIndex(function(h) { return h && h.toString().includes('이름'); });
+                    var rC = headers.findIndex(function(h) { return h && h.toString().includes('호실'); });
+                    var pC = headers.findIndex(function(h) { return h && h.toString().includes('비밀번호'); });
+                    var bC = headers.findIndex(function(h) { return h && h.toString().includes('생년'); });
+                    var eC = headers.findIndex(function(h) { return h && (h.toString().includes('입사예정일') || h.toString().includes('예정일')); });
+                    
+                    if (dC === -1 || nC === -1 || pC === -1) {
+                        showToast('필수 컬럼 없음 (학과, 이름, 비밀번호)', 'error');
+                        return;
+                    }
+                    
+                    // 데이터 수집
+                    var data = [];
+                    ws.eachRow(function(row, rn) {
+                        if (rn === 1) return; // 헤더 스킵
+                        var dept = row.getCell(dC).value ? row.getCell(dC).value.toString().trim() : '';
+                        var name = row.getCell(nC).value ? row.getCell(nC).value.toString().trim() : '';
+                        var room = (rC !== -1 && row.getCell(rC).value) ? row.getCell(rC).value.toString().trim() : '';
+                        var pw = row.getCell(pC).value ? row.getCell(pC).value.toString().trim() : '';
+                        var birth = (bC !== -1 && row.getCell(bC).value) ? row.getCell(bC).value.toString().trim() : '';
+                        var expDate = '';
+                        if (eC !== -1 && row.getCell(eC).value) {
+                            var v = row.getCell(eC).value;
+                            if (v instanceof Date) {
+                                expDate = v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') + '-' + String(v.getDate()).padStart(2, '0');
+                            } else {
+                                expDate = v.toString().trim();
+                            }
+                        }
+                        // 안내 행 스킵 (📌 등이 포함된 행)
+                        if (dept.indexOf('📌') !== -1 || dept.indexOf('•') !== -1) return;
+                        if (dept && name && pw) {
+                            data.push({ dept: dept, name: name, room: room, password: pw, birth: birth, expDate: expDate });
+                        }
+                    });
+                    
+                    if (data.length === 0) {
+                        showToast('등록할 데이터가 없습니다', 'warning');
+                        return;
+                    }
+                    
+                    // 사전 검증: 학과 존재, 중복, 정원
+                    var invalidDepts = [];
+                    var duplicates = [];
+                    var validData = [];
+                    var seenNames = {};
+                    
+                    for (var i = 0; i < data.length; i++) {
+                        var d = data[i];
+                        if (!departments.includes(d.dept)) {
+                            invalidDepts.push({ row: i + 2, name: d.name, dept: d.dept });
+                            continue;
+                        }
+                        // 이미 등록된 이름
+                        var alreadyExists = false;
+                        departments.forEach(function(dp) {
+                            if ((students[dp] || []).includes(d.name)) alreadyExists = true;
+                        });
+                        if (alreadyExists) {
+                            duplicates.push({ row: i + 2, name: d.name });
+                            continue;
+                        }
+                        // 엑셀 내 중복
+                        if (seenNames[d.name]) {
+                            duplicates.push({ row: i + 2, name: d.name + ' (엑셀 내 중복)' });
+                            continue;
+                        }
+                        seenNames[d.name] = true;
+                        validData.push(d);
+                    }
+                    
+                    if (validData.length === 0) {
+                        var msg = '등록 가능한 데이터가 없습니다.\n\n';
+                        if (invalidDepts.length > 0) msg += '학과 미등록: ' + invalidDepts.length + '건\n';
+                        if (duplicates.length > 0) msg += '중복(스킵): ' + duplicates.length + '건\n';
+                        showToast(msg, 'warning');
+                        return;
+                    }
+                    
+                    // 기본 입사예정일 지정 모달
+                    var tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    var tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0');
+                    
+                    var missingDateCount = validData.filter(function(d) { return !d.expDate; }).length;
+                    
+                    var summaryHtml = '';
+                    summaryHtml += '<div class="bg-info-50 border border-info-200 rounded-xl p-3 mb-3">';
+                    summaryHtml += '<div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-clipboard-check mr-1"></i>업로드 요약</div>';
+                    summaryHtml += '<div class="text-xs text-gray-700 space-y-1">';
+                    summaryHtml += '<div>✅ 등록 가능: <b class="text-success-600">' + validData.length + '건</b></div>';
+                    if (invalidDepts.length > 0) summaryHtml += '<div>❌ 학과 미등록: <b class="text-danger-600">' + invalidDepts.length + '건</b></div>';
+                    if (duplicates.length > 0) summaryHtml += '<div>⏭️ 중복(스킵): <b class="text-warning-600">' + duplicates.length + '건</b></div>';
+                    if (missingDateCount > 0) summaryHtml += '<div>📅 예정일 미기입: <b>' + missingDateCount + '건</b> (기본값 적용됨)</div>';
+                    summaryHtml += '</div></div>';
+                    
+                    if (invalidDepts.length > 0) {
+                        summaryHtml += '<div class="bg-danger-50 border border-danger-200 rounded-xl p-2 mb-3 text-xs text-danger-700 max-h-24 overflow-y-auto">';
+                        summaryHtml += '<div class="font-bold mb-1">학과 미등록 목록:</div>';
+                        invalidDepts.slice(0, 10).forEach(function(x) {
+                            summaryHtml += '<div>• ' + escapeHtml(x.name) + ' → ' + escapeHtml(x.dept) + '</div>';
+                        });
+                        if (invalidDepts.length > 10) summaryHtml += '<div>...외 ' + (invalidDepts.length - 10) + '건</div>';
+                        summaryHtml += '</div>';
+                    }
+                    
+                    if (duplicates.length > 0) {
+                        summaryHtml += '<div class="bg-warning-50 border border-warning-200 rounded-xl p-2 mb-3 text-xs text-warning-700 max-h-24 overflow-y-auto">';
+                        summaryHtml += '<div class="font-bold mb-1">중복(스킵) 목록:</div>';
+                        duplicates.slice(0, 10).forEach(function(x) {
+                            summaryHtml += '<div>• ' + escapeHtml(x.name) + '</div>';
+                        });
+                        if (duplicates.length > 10) summaryHtml += '<div>...외 ' + (duplicates.length - 10) + '건</div>';
+                        summaryHtml += '</div>';
+                    }
+                    
+                    openModal(
+                        '<div class="p-6">' +
+                        '<h3 class="text-xl font-bold text-gray-900 mb-4"><i class="fas fa-upload text-blue-500 mr-2"></i>예비 입사자 일괄 업로드</h3>' +
+                        summaryHtml +
+                        '<div class="mb-4">' +
+                        '<label class="block text-sm font-bold text-yellow-700 mb-2"><i class="fas fa-calendar-check mr-1"></i>기본 입사 예정일</label>' +
+                        '<input type="date" id="bulkPendingExpDate" value="' + tomorrowStr + '" class="w-full px-4 py-3 bg-yellow-50 border-2 border-yellow-300 rounded-xl text-base" style="font-size:16px">' +
+                        '<div class="text-xs text-gray-500 mt-1">* 엑셀에 입사예정일이 비어있는 행에만 적용됩니다</div>' +
+                        '</div>' +
+                        '<div class="flex gap-3">' +
+                        '<button onclick="closeModal()" class="flex-1 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button>' +
+                        '<button onclick="executePendingBulkUpload()" class="flex-1 py-3.5 bg-blue-500 text-white rounded-2xl font-bold text-sm btn-press shadow-button"><i class="fas fa-check-double mr-1"></i>' + validData.length + '명 등록</button>' +
+                        '</div></div>'
+                    );
+                    
+                    window._pendingBulkData = validData;
+                    
+                } catch (err) {
+                    showToast('파일 처리 실패: ' + err.message, 'error');
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        input.click();
+    });
+}
+
+async function executePendingBulkUpload() {
+    var validData = window._pendingBulkData || [];
+    if (validData.length === 0) { showToast('데이터가 없습니다', 'error'); return; }
+    var defaultDateEl = document.getElementById('bulkPendingExpDate');
+    var defaultDate = defaultDateEl ? defaultDateEl.value : '';
+    if (!defaultDate) { showToast('기본 입사 예정일을 선택하세요', 'warning'); return; }
+    
+    closeModal();
+    
+    // 진행 상황 오버레이
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10000';
+    overlay.innerHTML =
+        '<div style="background:white;border-radius:24px;padding:36px;text-align:center;min-width:380px;max-width:480px;box-shadow:0 25px 60px rgba(0,0,0,0.3)">' +
+        '<i class="fas fa-spinner fa-spin" style="font-size:40px;color:#3b82f6;margin-bottom:16px"></i>' +
+        '<div style="font-size:18px;font-weight:bold;color:#1f2937;margin-bottom:8px">예비 입사자 등록 중...</div>' +
+        '<div id="bulkPendingStatus" style="font-size:13px;color:#6b7280;margin-bottom:16px">준비 중...</div>' +
+        '<div style="background:#f3f4f6;border-radius:12px;padding:4px"><div id="bulkPendingBar" style="background:linear-gradient(90deg,#3b82f6,#2563eb);height:10px;border-radius:8px;width:0%;transition:width 0.3s"></div></div>' +
+        '<div id="bulkPendingLog" style="margin-top:16px;text-align:left;max-height:150px;overflow-y:auto;font-size:11px;color:#4b5563;font-family:monospace"></div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+    
+    function updateProgress(pct, text, success) {
+        var bar = document.getElementById('bulkPendingBar');
+        var status = document.getElementById('bulkPendingStatus');
+        var log = document.getElementById('bulkPendingLog');
+        if (bar) bar.style.width = pct + '%';
+        if (status) status.textContent = text;
+        if (log) {
+            var color = success === false ? '#dc2626' : '#059669';
+            var icon = success === false ? '✗' : '✓';
+            log.innerHTML = '<div style="color:' + color + '">' + icon + ' ' + text + '</div>' + log.innerHTML;
+        }
+    }
+    
+    var successCount = 0;
+    var failCount = 0;
+    var failList = [];
+    var todayDate = getCurrentDate();
+    
+    // 학과별로 그룹화
+    var byDept = {};
+    validData.forEach(function(d) {
+        if (!byDept[d.dept]) byDept[d.dept] = [];
+        byDept[d.dept].push(d);
+    });
+    
+    var totalCount = validData.length;
+    var processedCount = 0;
+    
+    try {
+        for (var deptName in byDept) {
+            var deptStudents = byDept[deptName];
+            
+            // 현재 학과 학생 목록 최신 조회
+            var deptDoc = await db.collection('students').doc(deptName).get();
+            var currentList = (deptDoc.exists && deptDoc.data().students) ? deptDoc.data().students.slice() : [];
+            
+            for (var j = 0; j < deptStudents.length; j++) {
+                var s = deptStudents[j];
+                processedCount++;
+                var pct = Math.round((processedCount / totalCount) * 100);
+                updateProgress(pct, s.name + ' 등록 중... (' + processedCount + '/' + totalCount + ')');
+                
+                try {
+                    // 호실 정원 체크
+                    if (s.room) {
+                        var roomCount = 0;
+                        departments.forEach(function(dp) {
+                            (students[dp] || []).forEach(function(nn) {
+                                if (window._secureData.getRoomNumber(nn) === s.room) roomCount++;
+                            });
+                        });
+                        if (roomCount >= 2) {
+                            failCount++;
+                            failList.push(s.name + ' (' + s.room + '호 정원초과)');
+                            updateProgress(pct, s.name + ' 호실 초과로 건너뜀', false);
+                            continue;
+                        }
+                    }
+                    
+                    // 나이 계산
+                    var ageVal = null;
+                    if (s.birth) {
+                        var by = parseInt(s.birth);
+                        if (by >= 1950 && by <= 2015) { ageVal = new Date().getFullYear() - by; }
+                        else if (by >= 0 && by <= 99) { var fullYear = by <= 30 ? 2000 + by : 1900 + by; ageVal = new Date().getFullYear() - fullYear; }
+                    }
+                    
+                    var expDate = s.expDate || defaultDate;
+                    
+                    // roomNumbers 등록
+                    var roomData = {
+                        department: deptName,
+                        registeredDate: todayDate,
+                        status: 'pending',
+                        expectedMoveInDate: expDate,
+                        pendingCreatedAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    if (s.room) roomData.room = s.room;
+                    if (ageVal) roomData.age = ageVal;
+                    await db.collection('roomNumbers').doc(s.name).set(roomData);
+                    
+                    // passwords 등록
+                    await db.collection('passwords').doc(s.name).set({
+                        password: s.password,
+                        department: deptName,
+                        registeredDate: todayDate,
+                        status: 'pending',
+                        updatedAt: new Date().toISOString()
+                    });
+                    
+                    // students 배열에 추가
+                    if (currentList.indexOf(s.name) === -1) currentList.push(s.name);
+                    
+                    successCount++;
+                    updateProgress(pct, s.name + ' 등록 완료');
+                } catch (err) {
+                    failCount++;
+                    failList.push(s.name + ' (' + (err.message || err.code) + ')');
+                    updateProgress(pct, s.name + ' 실패: ' + (err.message || err.code), false);
+                    console.error('개별 등록 실패:', s.name, err);
+                }
+            }
+            
+            // 학과별 students 배열 최종 정렬 및 저장
+            currentList.sort(function(a, b) {
+                var ra = parseInt(window._secureData.getRoomNumber(a) || '999');
+                var rb = parseInt(window._secureData.getRoomNumber(b) || '999');
+                return ra - rb;
+            });
+            await db.collection('students').doc(deptName).set({
+                students: currentList,
+                updatedAt: new Date().toISOString()
+            });
+        }
+        
+        updateProgress(100, '✅ 일괄 등록 완료!');
+        
+        setTimeout(function() {
+            overlay.remove();
+            var resultMsg = '<div class="text-success-600 space-y-1">' +
+                '<div>✅ 성공: <b>' + successCount + '명</b></div>';
+            if (failCount > 0) {
+                resultMsg += '<div class="text-danger-600">❌ 실패: <b>' + failCount + '명</b></div>';
+                if (failList.length > 0) {
+                    resultMsg += '<div class="text-xs text-gray-500 mt-2">실패 목록:</div>';
+                    resultMsg += '<div class="text-xs text-danger-600 max-h-24 overflow-y-auto">';
+                    failList.slice(0, 10).forEach(function(x) { resultMsg += '<div>• ' + escapeHtml(x) + '</div>'; });
+                    if (failList.length > 10) resultMsg += '<div>...외 ' + (failList.length - 10) + '건</div>';
+                    resultMsg += '</div>';
+                }
+            }
+            resultMsg += '</div>';
+            
+            openModal(
+                '<div class="p-6 text-center">' +
+                '<div style="width:80px;height:80px;margin:0 auto 16px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center">' +
+                '<i class="fas fa-check" style="font-size:40px;color:white"></i>' +
+                '</div>' +
+                '<h3 class="text-xl font-bold text-success-700 mb-2">일괄 등록 완료</h3>' +
+                '<div class="bg-success-50 border border-success-200 rounded-xl p-4 mb-4 text-left text-sm">' +
+                resultMsg +
+                '</div>' +
+                '<button onclick="closeModal();render()" class="w-full py-3.5 bg-success-500 text-white rounded-2xl font-bold text-base btn-press shadow-button">확인</button>' +
+                '</div>'
+            );
+            
+            showToast(successCount + '명 예비 등록 완료' + (failCount > 0 ? ' (' + failCount + '명 실패)' : ''), 'success');
+            if (successCount > 0) showSuccessAnimation('일괄 등록 완료', successCount + '명 예비 입사자 등록');
+            render();
+        }, 800);
+        
+        window._pendingBulkData = null;
+    } catch (e) {
+        overlay.remove();
+        showToast('일괄 등록 오류: ' + e.message, 'error');
+        console.error('일괄 등록 오류:', e);
+    }
+}
+
 function showPendingManagePanel() {
     var pendingList = [];
     // ★ _secureData 기준으로 구성 (students 캠시 동기화 문제 회피)
@@ -9786,7 +10194,7 @@ function showPendingManagePanel() {
     if (pendingList.length > 0) h += ' <span class="text-base text-yellow-600">(' + pendingList.length + '명)</span>';
     h += '</h3></div>';
     
-    h += '<div class="grid grid-cols-2 gap-2 mb-4">';
+        h += '<div class="grid grid-cols-2 gap-2 mb-3">';
     h += '<button onclick="closeModal();showAddPendingStudentModal()" class="py-3 bg-yellow-500 text-white rounded-xl font-bold text-sm btn-press shadow-button"><i class="fas fa-plus mr-1"></i>예비 등록</button>';
     if (pendingList.length > 0) {
         h += '<button onclick="closeModal();autoConfirmDueMoveIns()" class="py-3 bg-success-500 text-white rounded-xl font-bold text-sm btn-press shadow-button"><i class="fas fa-magic mr-1"></i>예정일 도래 일괄처리</button>';
@@ -9794,6 +10202,11 @@ function showPendingManagePanel() {
         h += '<button class="py-3 bg-surface-100 text-gray-400 rounded-xl font-bold text-sm" disabled><i class="fas fa-magic mr-1"></i>일괄처리</button>';
     }
     h += '</div>';
+    h += '<div class="grid grid-cols-2 gap-2 mb-4">';
+    h += '<button onclick="downloadPendingTemplate()" class="py-2.5 bg-white text-blue-600 rounded-xl font-bold text-sm btn-press border-2 border-blue-200"><i class="fas fa-download mr-1"></i>템플릿 다운로드</button>';
+    h += '<button onclick="uploadPendingExcel()" class="py-2.5 bg-blue-500 text-white rounded-xl font-bold text-sm btn-press shadow-button"><i class="fas fa-upload mr-1"></i>엑셀 업로드</button>';
+    h += '</div>';
+
     
     if (pendingList.length === 0) {
         h += '<div class="text-center py-8 text-gray-400 bg-surface-50 rounded-2xl border border-surface-200"><i class="fas fa-inbox text-3xl mb-2"></i><div class="text-sm">예비 입사자가 없습니다</div><div class="text-xs mt-1">"예비 등록" 버튼으로 등록하세요</div></div>';
