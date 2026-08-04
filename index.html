@@ -1679,7 +1679,7 @@ function verifyAndSubmit(name,cb){var pw=window._secureData.getPassword(name);if
 async function getIPAddress(){try{var r=await fetch('https://api.ipify.org?format=json');return(await r.json()).ip}catch(e){return'알 수 없음'}}
 async function saveLoginLog(info,success){var ip=await getIPAddress();try{await db.collection('loginLogs').add({timestamp:new Date().toISOString(),success:success,adminType:info,browser:navigator.userAgent.includes('Chrome')?'Chrome':'Other',device:/Mobile|Android|iPhone/i.test(navigator.userAgent)?'Mobile':'PC',ip:ip})}catch(e){}}
 
-function showAdminLogin(){if(isAdminLoggedIn){currentMode='admin';render();return}var savedEmail=localStorage.getItem('saved_admin_email')||'';var savedAPw=localStorage.getItem('saved_admin_pw')||'';openInputModal('관리자 로그인',[{label:'이메일',type:'email',placeholder:'admin@hwaseong.com',value:savedEmail},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedAPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedEmail||!!savedAPw}],async function(){var email=document.getElementById('modalInput0').value.trim(),pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!email||!pw){showToast('모든 항목 입력','warning');return}if(remember){localStorage.setItem('saved_admin_email',email);localStorage.setItem('saved_admin_pw',pw)}else{localStorage.removeItem('saved_admin_email');localStorage.removeItem('saved_admin_pw')}try{if(isAdminLoggedIn){closeModal();currentMode='admin';render();return}await firebase.auth().signInWithEmailAndPassword(email,pw);if(isAdminLoggedIn)return;isSuperAdmin=(email==='super@hwaseong.com');isAdminLoggedIn=true;currentMode='admin';saveLoginLog(isSuperAdmin?'슈퍼관리자':'일반관리자',true);closeModal();render();showToast(isSuperAdmin?'슈퍼관리자 로그인':'관리자 로그인','success');setTimeout(function(){if(typeof _verifyStudentIntegrity==='function')_verifyStudentIntegrity();},3000)
+function showAdminLogin(){if(isAdminLoggedIn){currentMode='admin';render();return}var savedEmail=localStorage.getItem('saved_admin_email')||'';var savedAPw=localStorage.getItem('saved_admin_pw')||'';openInputModal('관리자 로그인',[{label:'이메일',type:'email',placeholder:'admin@hwaseong.com',value:savedEmail},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedAPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedEmail||!!savedAPw}],async function(){var email=document.getElementById('modalInput0').value.trim(),pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!email||!pw){showToast('모든 항목 입력','warning');return}if(remember){localStorage.setItem('saved_admin_email',email);localStorage.setItem('saved_admin_pw',pw)}else{localStorage.removeItem('saved_admin_email');localStorage.removeItem('saved_admin_pw')}try{if(isAdminLoggedIn){closeModal();currentMode='admin';render();return}await firebase.auth().signInWithEmailAndPassword(email,pw);if(isAdminLoggedIn)return;isSuperAdmin=(email==='super@hwaseong.com'||email==='super1@hwaseong.com');isAdminLoggedIn=true;currentMode='admin';saveLoginLog(isSuperAdmin?'슈퍼관리자':'일반관리자',true);closeModal();render();showToast(isSuperAdmin?'슈퍼관리자 로그인':'관리자 로그인','success');setTimeout(function(){if(typeof _verifyStudentIntegrity==='function')_verifyStudentIntegrity();},3000)
 }catch(error){saveLoginLog(email,false);var msgs={'auth/user-not-found':'계정 없음','auth/wrong-password':'비밀번호 오류','auth/invalid-email':'이메일 형식 오류','auth/invalid-credential':'인증 오류'};showToast(msgs[error.code]||'로그인 실패','error')}})}
 
 function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(isLeaderLoggedIn){currentMode='leader';render();return}var savedDept=localStorage.getItem('saved_leader_dept')||'';var savedLPw=localStorage.getItem('saved_leader_pw')||'';var opts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'&&DEPARTMENT_LEADERS[d]}).map(function(d){var ln=DEPARTMENT_LEADERS[d].name;var masked=ln.length<=2?ln[0]+'*':ln[0]+'*'+ln.substring(2);return{value:d,label:d+' ('+masked+')'}});openInputModal('학과대표 로그인',[{label:'학과 선택',type:'select',options:[{value:'',label:'선택하세요'}].concat(opts),value:savedDept},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedLPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedDept||!!savedLPw}],function(){var dept=document.getElementById('modalInput0').value,pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!dept){showToast('학과 선택 필요','warning');return}if(remember){localStorage.setItem('saved_leader_dept',dept);localStorage.setItem('saved_leader_pw',pw)}else{localStorage.removeItem('saved_leader_dept');localStorage.removeItem('saved_leader_pw')}if(DEPARTMENT_LEADERS[dept]&&pw===DEPARTMENT_LEADERS[dept].password){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(DEPARTMENT_LEADERS[dept].name+'님 환영합니다','success')}else showToast('비밀번호 오류','error')})}
@@ -2659,7 +2659,7 @@ async function executeResignDelete(reqId){
             updateProgress(35,'학생 명단 정리 ✓');
         }
         
-        var collections=[
+                var collections=[
             {col:'submissions',field:'name',label:'출결 이력',key:'submissions'},
             {col:'outings',field:'name',label:'외출 이력',key:'outings'},
             {col:'outingHistory',field:'name',label:'외출 기록',key:'outings'},
@@ -2691,6 +2691,27 @@ async function executeResignDelete(reqId){
                     updateProgress(Math.round(progressBase+progressStep*(i+1)),c.label+' '+cnt+'건 삭제 ✓');
                 }
             }catch(e){console.log(c.col+' 삭제 실패:',e.message)}
+        }
+        
+        // 서약서 데이터 및 서명 이미지 삭제 (개인정보처리방침 준수)
+        updateProgress(88,'서약서 데이터 삭제 중...');
+        try {
+            var agreeDoc = await db.collection('dormitoryAgreements').doc(name).get();
+            if (agreeDoc.exists) {
+                var agreeData = agreeDoc.data();
+                // 서명 이미지 Storage에서 삭제 (Phase 2 이후)
+                if (agreeData.signatureStoragePath) {
+                    try {
+                        await storage.ref(agreeData.signatureStoragePath).delete();
+                        updateProgress(89, '서명 이미지 삭제 ✓');
+                    } catch(sigErr) { console.log('서명 이미지 삭제 실패(무시):', sigErr.message); }
+                }
+                // Firestore 문서 삭제
+                await db.collection('dormitoryAgreements').doc(name).delete();
+                updateProgress(89, '서약서 삭제 완료 ✓');
+            }
+        } catch(agreeErr) {
+            console.log('서약서 삭제 실패:', agreeErr.message);
         }
         
         updateProgress(90,'메시지 삭제 중...');
@@ -4089,7 +4110,7 @@ async function executeStudentDelete(dept,name){
             updateProgress(35,'학생 명단 정리 ✓');
         }
         
-        var collections=[
+                var collections=[
             {col:'submissions',field:'name',label:'출결 이력',key:'submissions'},
             {col:'outings',field:'name',label:'외출 이력',key:'outings'},
             {col:'outingHistory',field:'name',label:'외출 기록',key:'outings'},
@@ -4100,7 +4121,6 @@ async function executeStudentDelete(dept,name){
             {col:'hvacRequests',field:'requestedBy',label:'냉난방 신청',key:'hvac'},
             {col:'lotteryResults',field:'student',label:'복권 결과',key:'lottery'}
         ];
-
         
         var progressBase=40;
         var progressStep=50/collections.length;
@@ -4159,6 +4179,25 @@ async function executeStudentDelete(dept,name){
             updateProgress(91,'퇴사 이력 보존 완료 ✓');
         } catch(e) {
             console.log('퇴사 이력 보존 실패:', e.message);
+        }
+        
+        // 서약서 데이터 및 서명 이미지 삭제 (개인정보처리방침 준수)
+        updateProgress(88,'서약서 데이터 삭제 중...');
+        try {
+            var agreeDoc = await db.collection('dormitoryAgreements').doc(name).get();
+            if (agreeDoc.exists) {
+                var agreeData = agreeDoc.data();
+                if (agreeData.signatureStoragePath) {
+                    try {
+                        await storage.ref(agreeData.signatureStoragePath).delete();
+                        updateProgress(89, '서명 이미지 삭제 ✓');
+                    } catch(sigErr) { console.log('서명 이미지 삭제 실패(무시):', sigErr.message); }
+                }
+                await db.collection('dormitoryAgreements').doc(name).delete();
+                updateProgress(89, '서약서 삭제 완료 ✓');
+            }
+        } catch(agreeErr) {
+            console.log('서약서 삭제 실패:', agreeErr.message);
         }
         
         updateProgress(92,'메시지 삭제 중...');
@@ -4698,14 +4737,15 @@ async function executeResetNewTerm(clearDepts){
         }catch(e){console.log('Storage 사진 조회 실패:',e.message)}
         
         // 2. 모든 컬렉션 삭제 (출결 이력 포함)
-        var cols=[
+         var cols=[
             'students','departmentLeaders','roomNumbers','passwords',
             'resignRequests','hvacRequests','facilityRequests','messages',
             'accessRequests','photos','penaltyPoints','dormDocuments',
             'submissions','outings','outingHistory','vehicleNumbers',
             'fcmTokens','lotteryResults','passwordChangeLogs','loginLogs',
-            'roomMemos'
+            'roomMemos','dormitoryAgreements'
         ];
+
         
         var progressBase=15;
         var progressStep=75/cols.length;
@@ -6989,7 +7029,11 @@ function renderAdminSettings(){
     +'<div class="bg-surface-50 rounded-2xl p-6 border border-surface-200"><h3 class="font-bold text-danger-700 text-lg mb-4"><i class="fas fa-user-minus"></i> 교육생 삭제</h3><div class="space-y-3">'
     +'<select id="delStudentDept" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" onchange="updateDelStudentList()" style="font-size:16px"><option value="">학과 선택</option>'+deptOpts+'</select>'
     +'<select id="delStudentName" class="w-full px-4 py-3 bg-white border-2 border-surface-200 rounded-xl text-base" style="font-size:16px"><option value="">교육생 선택</option></select>'
-    +'<button onclick="deleteStudentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button>'
+        +'<button onclick="deleteStudentAction()" class="w-full py-3.5 bg-danger-50 border-2 border-danger-200 text-danger-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-trash-alt mr-1"></i> 삭제</button>'
+    +'</div></div>'
+    +'<div class="bg-surface-50 rounded-2xl p-6 border border-surface-200 mt-5"><h3 class="font-bold text-indigo-700 text-lg mb-4"><i class="fas fa-file-signature"></i> 서약서 관리</h3><div class="space-y-3">'
+    +'<div class="text-sm text-gray-600 mb-2">교육생이 제출한 디지털 입사 서약서를 조회하고 다운로드할 수 있습니다.</div>'
+    +'<button onclick="showAgreementManagePanel()" class="w-full py-3.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-clipboard-list mr-1"></i> 제출 목록 조회</button>'
     +'</div></div>'
     +'</div>';
 
@@ -8620,8 +8664,8 @@ function showPrivacyPolicyModal(){
     
     h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>한국폴리텍대학 화성캠퍼스 기숙사(행복관)</div><div class="text-xs text-primary-600 mt-1">시행일: 2026년 3월 2일</div></div>';
     
-    h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-clipboard-list mr-1"></i>1. 수집하는 개인정보</div><div class="space-y-1.5 text-sm text-info-600">';
-    ['이름, 학과, 호실 (필수)','비밀번호 (필수)','교육생 사진 (필수, 입사 신청 시 제출한 사진을 활용)','로그인 기록, 접속 IP (필수)','차량번호 (선택, 차량 소유자만)'].forEach(function(t){h+='<div class="flex items-start gap-2"><i class="fas fa-check-circle text-info-400 mt-1" style="font-size:10px"></i><span>'+t+'</span></div>'});
+        h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-clipboard-list mr-1"></i>1. 수집하는 개인정보</div><div class="space-y-1.5 text-sm text-info-600">';
+    ['이름, 학과, 호실 (필수)','비밀번호 (필수)','교육생 사진 (필수, 입사 신청 시 제출한 사진을 활용)','로그인 기록, 접속 IP (필수)','차량번호 (선택, 차량 소유자만)','입사 서약서 정보 (필수: 주소, 연락처, 건강여부, 보호자정보, 서명)','출생년도 (필수, 나이 산출용)'].forEach(function(t){h+='<div class="flex items-start gap-2"><i class="fas fa-check-circle text-info-400 mt-1" style="font-size:10px"></i><span>'+t+'</span></div>'});
 h+='</div></div>';
     
     h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-bullseye mr-1"></i>2. 이용 목적</div><div class="space-y-1.5 text-sm text-gray-600">';
@@ -10717,6 +10761,7 @@ async function confirmVacationNotice() {
 // 이메일 → 표시 이름 매핑
 var ADMIN_NAME_MAP = {
   'super@hwaseong.com': '김형준',
+  'super1@hwaseong.com': '김형준',
   'kimhj@hwaseong.com': '김형준',
   'kimyp@hwaseong.com': '김연필'
 };
@@ -13748,8 +13793,1771 @@ function renderAdminChatEdit(threadId) {
   setTimeout(addVacationNoticeFloatBtn, 1500);
 })();
 </script>
+<script>
+// ========================================================================
+// 기숙사 입사 서약서 & 개인정보 동의서 시스템 (Phase 1)
+// ========================================================================
+// Phase 1: 데이터 구조 + 학생 팝업 UI (Step 1, Step 2)
+// - 서명 캔버스 (Step 3)는 Phase 2에서 구현
+// - 관리자 조회는 Phase 3에서 구현
+// - PDF 다운로드는 Phase 4에서 구현
+// ========================================================================
+
+(function() {
+    'use strict';
+    
+    // ============ 설정 ============
+    var AGREEMENT_CONFIG = {
+        collection: 'dormitoryAgreements',      // Firestore 컬렉션명
+        settingsDoc: 'agreementControl',        // 관리자 설정 문서
+        version: '1.0'                          // 서약서 버전
+    };
+    
+    // ============ 상태 관리 ============
+    var _agreementState = {
+        modalOpen: false,
+        currentStep: 1,
+        totalSteps: 3,
+        data: {}          // 임시 입력 데이터 저장
+    };
+    
+    // 관리자 설정 (기본값)
+    var _agreementSettings = {
+        enabled: false,              // 기능 활성화 여부 (관리자 스위치)
+        applyFromDate: '',           // 이 날짜 이후 입사자만 적용
+        applyToAll: false            // 전체 학생에게 적용
+    };
+    
+    // ============ 관리자 설정 로드 ============
+    function loadAgreementSettings() {
+        if (!db) return;
+        db.collection('settings').doc(AGREEMENT_CONFIG.settingsDoc).onSnapshot(function(doc) {
+            if (doc.exists) {
+                var data = doc.data();
+                _agreementSettings.enabled = data.enabled === true;
+                _agreementSettings.applyFromDate = data.applyFromDate || '';
+                _agreementSettings.applyToAll = data.applyToAll === true;
+                console.log('[서약서] 설정 로드:', _agreementSettings);
+            }
+        }, function(err) {
+            console.log('[서약서] 설정 로드 실패:', err.message);
+        });
+    }
+    
+    // ============ 서약서 제출 대상 여부 확인 ============
+    function isAgreementRequired(studentName) {
+        // 테스트 모드
+        if (window._agreementTest === true) return true;
+        
+        // 기능 비활성화
+        if (!_agreementSettings.enabled) return false;
+        
+        // 게스트 제외
+        if (isGuestLoggedIn) return false;
+        
+        // 전체 적용
+        if (_agreementSettings.applyToAll) return true;
+        
+        // 날짜 기준 적용
+        if (_agreementSettings.applyFromDate) {
+            var regDate = window._secureData.getRegisteredDate(studentName);
+            if (regDate && regDate >= _agreementSettings.applyFromDate) return true;
+        }
+        
+        return false;
+    }
+    
+    // ============ 학생이 이미 제출했는지 확인 ============
+    async function hasSubmittedAgreement(studentName) {
+        if (!db) return false;
+        try {
+            var doc = await db.collection(AGREEMENT_CONFIG.collection).doc(studentName).get();
+            return doc.exists && doc.data().status === 'submitted';
+        } catch (e) {
+            console.log('[서약서] 제출 확인 실패:', e.message);
+            return false;
+        }
+    }
+    
+    // ============ 팝업 표시 여부 판단 (메인 로직) ============
+    async function checkAgreementRequirement() {
+        // 학생 모드가 아니면 스킵
+        if (currentMode !== 'student' || !currentStudent) return;
+        
+        // 이미 팝업 열려있으면 스킵
+        if (_agreementState.modalOpen) return;
+        
+        // 대상자인지 확인
+        if (!isAgreementRequired(currentStudent)) return;
+        
+        // 이미 제출했는지 확인
+        var submitted = await hasSubmittedAgreement(currentStudent);
+        if (submitted) return;
+        
+        // 팝업 표시 (앱 잠금)
+        showAgreementModal();
+    }
+    
+    // ============ 서약서 팝업 표시 ============
+    function showAgreementModal() {
+        _agreementState.modalOpen = true;
+        _agreementState.currentStep = 1;
+        _agreementState.data = {};
+        
+        // 자동 채움 데이터 미리 저장
+        var dept = currentStudentDept() || '';
+        var room = window._secureData.getRoomNumber(currentStudent) || '';
+        var age = window._secureData.getAge(currentStudent);
+        var vehicle = vehicleNumbers[currentStudent] || '';
+        var birthYear = age ? (new Date().getFullYear() - age) : '';
+        
+        _agreementState.data.name = currentStudent;
+        _agreementState.data.department = dept;
+        _agreementState.data.room = room;
+        _agreementState.data.birthYear = birthYear;
+        _agreementState.data.vehicleNumber = vehicle;
+        
+        renderAgreementStep();
+    }
+    
+    // ============ 단계별 렌더링 ============
+    function renderAgreementStep() {
+        var step = _agreementState.currentStep;
+        var overlay = document.getElementById('agreementOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'agreementOverlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:100000;padding:0';
+            document.body.appendChild(overlay);
+        }
+        
+        var html = '<div style="background:white;max-width:500px;width:100%;height:100%;max-height:100vh;overflow-y:auto;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,0.3)">';
+        
+        // ===== 헤더 (진행바) =====
+        html += '<div style="padding:16px 20px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;position:sticky;top:0;z-index:10">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+        html += '<div style="font-size:18px;font-weight:900">📋 기숙사 입사 서약서</div>';
+        html += '<div style="font-size:13px;font-weight:700;opacity:0.9">Step ' + step + ' / ' + _agreementState.totalSteps + '</div>';
+        html += '</div>';
+        // 진행바
+        var progress = (step / _agreementState.totalSteps) * 100;
+        html += '<div style="height:6px;background:rgba(255,255,255,0.3);border-radius:99px;overflow:hidden">';
+        html += '<div style="width:' + progress + '%;height:100%;background:white;border-radius:99px;transition:width 0.4s"></div>';
+        html += '</div>';
+        html += '</div>';
+        
+        // ===== 본문 =====
+        html += '<div style="flex:1;padding:20px;overflow-y:auto">';
+        if (step === 1) html += renderStep1();
+        else if (step === 2) html += renderStep2();
+        else if (step === 3) html += renderStep3Placeholder();
+        html += '</div>';
+        
+        // ===== 하단 버튼 =====
+        html += '<div style="padding:16px 20px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;gap:8px">';
+        if (step > 1) {
+            html += '<button onclick="window._agreementPrev()" style="flex:1;padding:16px;background:#e5e7eb;color:#374151;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer">이전</button>';
+        }
+         if (step < _agreementState.totalSteps) {
+            html += '<button onclick="window._agreementNext()" style="flex:2;padding:16px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(59,130,246,0.4)">다음 →</button>';
+        }
+        // Step 3(마지막)에서는 본문 내 "최종 제출하기" 버튼 사용
+        html += '</div>';
+        
+        html += '</div>';
+        overlay.innerHTML = html;
+        
+        // 배경 스크롤 잠금
+        document.body.style.overflow = 'hidden';
+    }
+    
+        // ============ Step 1: 기본 정보 ============
+    function renderStep1() {
+    var d = _agreementState.data;
+    var isSmartElec = d.department === '스마트전기과';
+    
+    var h = '';
+    h += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin-bottom:18px">';
+    h += '<div style="font-size:15px;color:#1e40af;font-weight:700"><i class="fas fa-info-circle"></i> 종이 서약서를 대체하는 전자 서약서입니다.</div>';
+    h += '<div style="font-size:14px;color:#3730a3;margin-top:6px;line-height:1.6">모든 항목을 정확히 입력해 주세요. 제출 후에는 수정할 수 없습니다.</div>';
+    h += '</div>';
+    
+    h += '<h2 style="font-size:20px;font-weight:900;color:#111827;margin-bottom:16px">📋 신청자 인적사항</h2>';
+    
+    // 자동 채움 정보 (읽기 전용)
+    h += '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:18px">';
+    h += '<div style="font-size:14px;font-weight:800;color:#6b7280;margin-bottom:12px">🔒 자동으로 입력된 정보 (수정 불가)</div>';
+    h += _makeRow('성명', d.name);
+    h += _makeRow('학과', d.department);
+    h += _makeRow('호실', d.room || '(미배정)');
+    // 출생년도는 화면에서 숨김 처리 (데이터는 내부적으로 유지되어 저장 시 함께 전송됨)
+    h += '</div>';
+    
+    // 학생 입력 항목
+    h += '<div style="background:white;border:2px solid #dbeafe;border-radius:12px;padding:18px">';
+    h += '<div style="font-size:15px;font-weight:800;color:#1e40af;margin-bottom:14px">✏️ 아래 정보를 입력해 주세요</div>';
+    
+    // 스마트전기과만 반 선택
+    if (isSmartElec) {
+        h += _makeLabel('반 선택', true);
+        h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">';
+        var electricSelected = d.subClass === '전기반';
+        var fireSelected = d.subClass === '소방반';
+        h += '<button onclick="window._agreementSetSubClass(\'전기반\')" style="padding:16px;border:2px solid ' + (electricSelected ? '#3b82f6' : '#e5e7eb') + ';background:' + (electricSelected ? '#eff6ff' : 'white') + ';color:' + (electricSelected ? '#1e40af' : '#6b7280') + ';border-radius:10px;font-size:16px;font-weight:800;cursor:pointer">⚡ 전기반</button>';
+        h += '<button onclick="window._agreementSetSubClass(\'소방반\')" style="padding:16px;border:2px solid ' + (fireSelected ? '#3b82f6' : '#e5e7eb') + ';background:' + (fireSelected ? '#eff6ff' : 'white') + ';color:' + (fireSelected ? '#1e40af' : '#6b7280') + ';border-radius:10px;font-size:16px;font-weight:800;cursor:pointer">🔥 소방반</button>';
+        h += '</div>';
+    }
+    
+    // 주소
+    h += _makeLabel('주소', true);
+    h += _makeInput('agrAddress', d.address || '', '예: 서울시 강남구 ○○동 123');
+    
+    // 집 전화
+    h += _makeLabel('집 전화 (선택)', false);
+    h += _makeInput('agrHomeTel', d.homeTel || '', '예: 02-1234-5678', 'tel');
+    
+    // 휴대폰
+    h += _makeLabel('휴대폰', true);
+    h += _makeInput('agrMobile', d.mobile || '', '예: 010-1234-5678', 'tel');
+    
+    // 건강 여부
+    h += _makeLabel('건강 여부', true);
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
+    ['건강', '보통', '허약', '지병'].forEach(function(status) {
+        var selected = d.health === status;
+        h += '<button onclick="window._agreementSetHealth(\'' + status + '\')" style="padding:14px;border:2px solid ' + (selected ? '#10b981' : '#e5e7eb') + ';background:' + (selected ? '#ecfdf5' : 'white') + ';color:' + (selected ? '#047857' : '#6b7280') + ';border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">' + status + '</button>';
+    });
+    h += '</div>';
+    if (d.health === '지병') {
+        h += '<div style="margin-top:10px">';
+        h += _makeInput('agrHealthDetail', d.healthDetail || '', '지병명을 입력해 주세요');
+        h += '</div>';
+    }
+    h += '<div style="margin-bottom:16px"></div>';
+    
+    // 비상 연락처
+    h += _makeLabel('비상시 연락처', true);
+    h += _makeInput('agrEmergency', d.emergency || '', '예: 010-1234-5678', 'tel');
+    
+    // 차량번호
+    h += _makeLabel('차량번호 (차량 소유자만 입력)', false);
+    h += _makeInput('agrVehicle', d.vehicleNumber || '', '예: 12가 3456');
+    h += '<div style="font-size:13px;color:#6b7280;margin-top:-2px;margin-bottom:14px">📌 캠퍼스 내 주차장 이용 시 필수</div>';
+    
+    h += '<hr style="margin:22px 0;border:none;border-top:1px solid #e5e7eb">';
+    h += '<div style="font-size:17px;font-weight:900;color:#374151;margin-bottom:14px">👨‍👩‍👦 보호자 인적사항</div>';
+    
+    // 보호자 성명
+    h += _makeLabel('보호자 성명', true);
+    h += _makeInput('agrGuardianName', d.guardianName || '', '예: 홍길순');
+    
+    // 가족 관계
+    h += _makeLabel('가족 관계', true);
+    h += _makeInput('agrGuardianRel', d.guardianRel || '', '예: 부, 모, 형, 자매 등');
+    
+    // 보호자 연락처
+    h += _makeLabel('보호자 연락처', true);
+    h += _makeInput('agrGuardianTel', d.guardianTel || '', '예: 010-1234-5678', 'tel');
+    
+    h += '</div>';
+    return h;
+}
+
+
+        // ============ Step 2: 개인정보 동의서 ============
+    function renderStep2() {
+    var d = _agreementState.data;
+    var h = '';
+    
+    // ============ 기숙사 입사 서약서 본문 ============
+    // 오늘 날짜 생성
+    var today = new Date();
+    var todayStr = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
+    
+    h += '<div style="background:white;border:2px solid #d4a574;border-radius:12px;padding:24px;margin-bottom:20px">';
+    h += '<h2 style="text-align:center;font-size:22px;font-weight:900;color:#111827;margin:0 0 20px 0;letter-spacing:6px">기 숙 사 입 사 서 약 서</h2>';
+    
+    h += '<p style="font-size:15px;color:#333;line-height:1.9;text-align:justify;margin:0 0 24px 0;text-indent:1em">';
+    h += '상기 본인은 기숙사생으로서 생활지도 규칙을 준수하고, 교육 훈련에 매진하며, 제반 지시사항을 성실히 따를 것과 학생 상호 간의 예절을 지키고, 학생의 품위를 잃지 않도록 노력하며, 규칙위반, 시설물 파손과 그에 따른 사고, 호실 내 청결 유지 등 손해 발생에 대해서는 본인이 책임질 것을 서약합니다.';
+    h += '</p>';
+    
+    // 오늘 날짜
+    h += '<p style="text-align:center;font-size:16px;color:#333;margin:28px 0 20px 0;font-weight:600">' + todayStr + '</p>';
+    
+    // 신청자
+    h += '<p style="text-align:center;font-size:16px;color:#333;margin:20px 0 16px 0;font-weight:500">';
+    h += '신청자 : <span style="display:inline-block;min-width:140px;border-bottom:1px solid #333;padding:0 10px;font-weight:800;font-size:17px">' + (d.name || '') + '</span> (인)';
+    h += '</p>';
+    
+    // 수신처
+    h += '<p style="text-align:center;font-size:15px;color:#333;margin:24px 0 0 0;font-weight:600">한국폴리텍대학 화성캠퍼스 지역대학장 귀하</p>';
+    h += '</div>';
+    // ============ 서약서 본문 끝 ============
+    
+    h += '<h2 style="font-size:20px;font-weight:900;color:#111827;margin-bottom:16px">🔒 개인정보 수집·이용 동의서</h2>';
+    
+    h += '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:16px;margin-bottom:18px">';
+    h += '<div style="font-size:15px;color:#92400e;font-weight:800;margin-bottom:8px">⚠️ 반드시 읽어보시고 동의해 주세요</div>';
+    h += '<div style="font-size:14px;color:#78350f;line-height:1.7">한국폴리텍대학 화성캠퍼스는 적법한 절차에 따라 최소한의 개인정보만 수집합니다.</div>';
+    h += '</div>';
+    
+    // 수집 항목
+    h += '<div style="background:white;border:2px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">';
+    h += '<div style="font-size:16px;font-weight:900;color:#111827;margin-bottom:14px">📋 개인정보 수집·이용 내역</div>';
+    
+    h += '<table style="width:100%;font-size:14px;border-collapse:collapse">';
+    h += '<thead><tr style="background:#f3f4f6"><th style="padding:10px;border:1px solid #e5e7eb;font-weight:800;font-size:14px">수집 항목</th><th style="padding:10px;border:1px solid #e5e7eb;font-weight:800;font-size:14px">이용 목적</th><th style="padding:10px;border:1px solid #e5e7eb;font-weight:800;font-size:14px">보유기간</th></tr></thead>';
+    h += '<tbody>';
+    h += '<tr><td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;line-height:1.6">사진, 출생년도, 차량번호, 개인 정보</td><td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;line-height:1.6">기숙사 인원보고 시스템 등록 및 관리</td><td style="padding:10px;border:1px solid #e5e7eb;background:#fef2f2;color:#991b1b;font-weight:700;font-size:13px">퇴사 시 삭제</td></tr>';
+    h += '</tbody></table>';
+    
+    h += '<div style="font-size:13px;color:#6b7280;margin-top:12px;line-height:1.7">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 미동의 시 앱 이용이 제한되며 사감실을 통한 별도 절차가 필요합니다.</div>';
+    h += '</div>';
+    
+    // 동의 선택
+    h += '<div style="background:white;border:2px solid #dbeafe;border-radius:12px;padding:18px;margin-bottom:16px">';
+    h += '<div style="font-size:16px;font-weight:900;color:#1e40af;margin-bottom:14px">✍️ 위와 같이 개인정보의 수집·이용에 동의하십니까?</div>';
+    
+    var agreed = d.privacyAgreed === true;
+    var disagreed = d.privacyAgreed === false;
+    
+    h += '<button onclick="window._agreementSetPrivacy(true)" style="width:100%;padding:18px;border:2px solid ' + (agreed ? '#10b981' : '#e5e7eb') + ';background:' + (agreed ? '#ecfdf5' : 'white') + ';color:' + (agreed ? '#047857' : '#374151') + ';border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:10px;text-align:left">' + (agreed ? '✅' : '⭕') + ' 동의합니다</button>';
+    h += '<button onclick="window._agreementSetPrivacy(false)" style="width:100%;padding:18px;border:2px solid ' + (disagreed ? '#ef4444' : '#e5e7eb') + ';background:' + (disagreed ? '#fef2f2' : 'white') + ';color:' + (disagreed ? '#991b1b' : '#374151') + ';border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;text-align:left">' + (disagreed ? '❌' : '⭕') + ' 동의하지 않습니다</button>';
+    
+    if (disagreed) {
+        h += '<div style="margin-top:16px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px">';
+        h += '<div style="font-size:15px;font-weight:900;color:#991b1b;margin-bottom:8px">⚠️ 미동의 시 안내</div>';
+        h += '<div style="font-size:14px;color:#7f1d1d;line-height:1.7">개인정보 수집·이용에 동의하지 않으실 경우, 본 앱을 사용하실 수 없습니다.<br><br>기숙사 사감실을 방문하여 별도의 절차(수기 대장 이용)를 안내받으시기 바랍니다.</div>';
+        h += '<div style="margin-top:12px;padding:12px;background:white;border-radius:8px">';
+        h += '<div style="font-size:14px;color:#6b7280;font-weight:700">📞 사감실 연락처: 031-350-3133</div>';
+        h += '</div>';
+        h += '</div>';
+    }
+    h += '</div>';
+    
+    return h;
+}
+
+    
+        // ============ Step 3: 서명 및 제출 (Phase 2) ============
+    function renderStep3Placeholder() {
+        var d = _agreementState.data;
+        var isSubmitting = _agreementState.isSubmitting === true;
+        
+        var h = '';
+        
+        // 안내
+        h += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin-bottom:18px">';
+        h += '<div style="font-size:15px;color:#1e40af;font-weight:700">✍️ 마지막 단계입니다</div>';
+        h += '<div style="font-size:14px;color:#3730a3;margin-top:6px;line-height:1.6">아래 서약 내용을 다시 한번 확인하시고, 서명란에 본인의 이름을 직접 서명해 주세요.</div>';
+        h += '</div>';
+        
+        // 서약 내용 요약
+        h += '<div style="background:#fffbeb;border:2px solid #fcd34d;border-radius:12px;padding:16px;margin-bottom:18px">';
+        h += '<div style="font-size:14px;font-weight:800;color:#92400e;margin-bottom:8px">📜 서약 내용 재확인</div>';
+        h += '<div style="font-size:13px;color:#78350f;line-height:1.8">상기 본인은 기숙사생으로서 생활지도 규칙을 준수하고, 교육 훈련에 매진하며, 제반 지시사항을 성실히 따를 것과 학생 상호 간의 예절을 지키고, 학생의 품위를 잃지 않도록 노력하며, 규칙위반, 시설물 파손과 그에 따른 사고, 호실 내 청결 유지 등 손해 발생에 대해서는 본인이 책임질 것을 서약합니다.</div>';
+        h += '</div>';
+        
+        // 제출자 정보 요약
+        h += '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:18px">';
+        h += '<div style="font-size:14px;font-weight:800;color:#6b7280;margin-bottom:10px">제출자 정보</div>';
+        h += _makeRow('성명', d.name);
+        h += _makeRow('학과', d.department + (d.subClass ? ' / ' + d.subClass : ''));
+        h += _makeRow('호실', d.room || '(미배정)');
+        var today = new Date();
+        var todayStr = today.getFullYear() + '년 ' + (today.getMonth() + 1) + '월 ' + today.getDate() + '일';
+        h += _makeRow('제출일', todayStr);
+        h += '</div>';
+        
+        // 서명 캔버스
+        h += '<div style="background:white;border:2px solid #dbeafe;border-radius:12px;padding:18px;margin-bottom:16px">';
+        h += '<label style="display:block;font-size:15px;font-weight:800;color:#1e40af;margin-bottom:10px">✍️ 서명란 <span style="color:#ef4444">*</span></label>';
+        h += '<div style="font-size:13px;color:#6b7280;margin-bottom:10px;line-height:1.6">📌 아래 흰 영역에 손가락(모바일) 또는 마우스(PC)로 직접 서명해 주세요.</div>';
+        
+        h += '<div style="position:relative;border:2px dashed #cbd5e1;border-radius:10px;background:#fefefe;overflow:hidden">';
+        h += '<canvas id="agreementSignatureCanvas" style="display:block;width:100%;height:200px;touch-action:none;cursor:crosshair;background:white"></canvas>';
+        h += '<div id="agreementSignaturePlaceholder" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#cbd5e1;font-size:14px;font-weight:600;pointer-events:none">여기에 서명해 주세요</div>';
+        h += '</div>';
+        
+        h += '<div style="display:flex;gap:8px;margin-top:10px">';
+        h += '<button onclick="window._agreementClearSignature()" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">🔄 다시 그리기</button>';
+        h += '<div id="agreementStrokeInfo" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;color:#6b7280;font-weight:600">획: 0개</div>';
+        h += '</div>';
+        h += '</div>';
+        
+        // 최종 안내
+        h += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:14px;margin-bottom:16px">';
+        h += '<div style="font-size:13px;color:#991b1b;line-height:1.7">⚠️ <b>제출 후에는 수정하거나 열람할 수 없습니다.</b><br>서명 후 "최종 제출" 버튼을 누르면 관리자에게 전송됩니다.</div>';
+        h += '</div>';
+        
+        // 제출 버튼
+        if (isSubmitting) {
+            h += '<button disabled style="width:100%;padding:18px;background:#94a3b8;color:white;border:none;border-radius:12px;font-size:16px;font-weight:900">제출 중... 잠시만 기다려 주세요</button>';
+        } else {
+            h += '<button onclick="window._agreementSubmit()" style="width:100%;padding:18px;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:12px;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 4px 12px rgba(16,185,129,0.4)">✅ 최종 제출하기</button>';
+        }
+        
+        // 캔버스 초기화는 렌더링 후 실행
+        setTimeout(function() { _initSignatureCanvas(); }, 50);
+        
+        return h;
+    }
+    
+    // ============ 헬퍼 ============
+    function _makeRow(label, value) {
+        return '<div style="display:flex;align-items:center;padding:8px 0;font-size:15px"><span style="width:90px;color:#6b7280;font-weight:600">' + label + '</span><span style="flex:1;color:#111827;font-weight:800">' + escapeHtml(value || '') + '</span></div>';
+    }
+    function _makeLabel(text, required) {
+        return '<label style="display:block;font-size:15px;font-weight:800;color:#374151;margin-bottom:8px;margin-top:12px">' + escapeHtml(text) + (required ? ' <span style="color:#ef4444">*</span>' : '') + '</label>';
+    }
+    function _makeInput(id, value, placeholder, type) {
+        type = type || 'text';
+        return '<input type="' + type + '" id="' + id + '" value="' + escapeHtml(value) + '" placeholder="' + escapeHtml(placeholder) + '" style="width:100%;padding:15px;border:2px solid #e5e7eb;border-radius:10px;font-size:16px;font-weight:600;color:#111827;box-sizing:border-box;margin-bottom:6px" oninput="window._agreementInput(\'' + id + '\',this.value)">';
+    }
+
+    // ============ 입력 저장 (전역 함수) ============
+    window._agreementInput = function(id, value) {
+        var map = {
+            'agrAddress': 'address',
+            'agrHomeTel': 'homeTel',
+            'agrMobile': 'mobile',
+            'agrHealthDetail': 'healthDetail',
+            'agrEmergency': 'emergency',
+            'agrVehicle': 'vehicleNumber',
+            'agrGuardianName': 'guardianName',
+            'agrGuardianRel': 'guardianRel',
+            'agrGuardianTel': 'guardianTel'
+        };
+        var key = map[id];
+        if (key) _agreementState.data[key] = value;
+    };
+    
+    window._agreementSetSubClass = function(val) {
+        _agreementState.data.subClass = val;
+        renderAgreementStep();
+    };
+    
+    window._agreementSetHealth = function(val) {
+        _agreementState.data.health = val;
+        if (val !== '지병') delete _agreementState.data.healthDetail;
+        renderAgreementStep();
+    };
+    
+    window._agreementSetPrivacy = function(agreed) {
+        _agreementState.data.privacyAgreed = agreed;
+        renderAgreementStep();
+    };
+    
+    // ============ 이전/다음 버튼 ============
+    window._agreementPrev = function() {
+        if (_agreementState.currentStep > 1) {
+            _agreementState.currentStep--;
+            renderAgreementStep();
+        }
+    };
+    
+    window._agreementNext = function() {
+        if (!validateCurrentStep()) return;
+        if (_agreementState.currentStep < _agreementState.totalSteps) {
+            _agreementState.currentStep++;
+            renderAgreementStep();
+        }
+    };
+    
+    // ============ 현재 스텝 유효성 검증 ============
+    function validateCurrentStep() {
+        var d = _agreementState.data;
+        var step = _agreementState.currentStep;
+        
+        if (step === 1) {
+            if (d.department === '스마트전기과' && !d.subClass) {
+                alert('전기반 또는 소방반을 선택해 주세요.');
+                return false;
+            }
+            if (!d.address || !d.address.trim()) { alert('주소를 입력해 주세요.'); return false; }
+            if (!d.mobile || !d.mobile.trim()) { alert('휴대폰 번호를 입력해 주세요.'); return false; }
+            if (!d.health) { alert('건강 여부를 선택해 주세요.'); return false; }
+            if (d.health === '지병' && (!d.healthDetail || !d.healthDetail.trim())) { alert('지병명을 입력해 주세요.'); return false; }
+            if (!d.emergency || !d.emergency.trim()) { alert('비상시 연락처를 입력해 주세요.'); return false; }
+            if (!d.guardianName || !d.guardianName.trim()) { alert('보호자 성명을 입력해 주세요.'); return false; }
+            if (!d.guardianRel || !d.guardianRel.trim()) { alert('가족 관계를 입력해 주세요.'); return false; }
+            if (!d.guardianTel || !d.guardianTel.trim()) { alert('보호자 연락처를 입력해 주세요.'); return false; }
+        }
+        else if (step === 2) {
+            if (d.privacyAgreed === undefined) { alert('개인정보 수집·이용 동의 여부를 선택해 주세요.'); return false; }
+            if (d.privacyAgreed === false) { alert('개인정보 수집·이용에 동의하지 않으실 경우 앱 사용이 제한됩니다.\n\n사감실(031-350-3133)로 문의해 주세요.'); return false; }
+        }
+        
+        return true;
+    }
+    
+    // ============ Phase 2: 서명 캔버스 ============
+    var _signatureCtx = null;
+    var _signatureDrawing = false;
+    var _signatureStrokes = 0;
+    var _signatureHasContent = false;
+    var _signatureLastX = 0;
+    var _signatureLastY = 0;
+    
+    function _initSignatureCanvas() {
+        var canvas = document.getElementById('agreementSignatureCanvas');
+        if (!canvas) return;
+        
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * 2;
+        canvas.height = rect.height * 2;
+        
+        var ctx = canvas.getContext('2d');
+        ctx.scale(2, 2);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        _signatureCtx = ctx;
+        _signatureStrokes = 0;
+        _signatureHasContent = false;
+        _updateStrokeInfo();
+        
+        function getPos(e) {
+            var r = canvas.getBoundingClientRect();
+            var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - r.left, y: clientY - r.top };
+        }
+        
+        function startDraw(e) {
+            e.preventDefault();
+            _signatureDrawing = true;
+            var p = getPos(e);
+            _signatureLastX = p.x;
+            _signatureLastY = p.y;
+            _signatureStrokes++;
+            _updateStrokeInfo();
+            _hidePlaceholder();
+        }
+        
+        function draw(e) {
+            if (!_signatureDrawing) return;
+            e.preventDefault();
+            var p = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(_signatureLastX, _signatureLastY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            _signatureLastX = p.x;
+            _signatureLastY = p.y;
+            _signatureHasContent = true;
+        }
+        
+        function endDraw(e) {
+            if (_signatureDrawing) {
+                e.preventDefault();
+                _signatureDrawing = false;
+            }
+        }
+        
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mouseleave', endDraw);
+        canvas.addEventListener('touchstart', startDraw, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
+        canvas.addEventListener('touchend', endDraw, { passive: false });
+    }
+    
+    function _updateStrokeInfo() {
+        var el = document.getElementById('agreementStrokeInfo');
+        if (el) {
+            el.textContent = '획: ' + _signatureStrokes + '개';
+            el.style.color = _signatureStrokes >= 3 ? '#059669' : '#6b7280';
+            el.style.fontWeight = _signatureStrokes >= 3 ? '800' : '600';
+        }
+    }
+    
+    function _hidePlaceholder() {
+        var p = document.getElementById('agreementSignaturePlaceholder');
+        if (p) p.style.display = 'none';
+    }
+    
+    window._agreementClearSignature = function() {
+        var canvas = document.getElementById('agreementSignatureCanvas');
+        if (!canvas || !_signatureCtx) return;
+        var rect = canvas.getBoundingClientRect();
+        _signatureCtx.clearRect(0, 0, rect.width, rect.height);
+        _signatureStrokes = 0;
+        _signatureHasContent = false;
+        _updateStrokeInfo();
+        var p = document.getElementById('agreementSignaturePlaceholder');
+        if (p) p.style.display = 'block';
+    };
+    
+    // ============ Phase 2: 최종 제출 ============
+    window._agreementSubmit = async function() {
+        if (!_signatureHasContent || _signatureStrokes < 3) {
+            alert('⚠️ 서명이 부족합니다.\n\n최소 3개 이상의 획으로 본인의 이름을 서명해 주세요.');
+            return;
+        }
+        
+        var d = _agreementState.data;
+        var missing = [];
+        if (!d.name) missing.push('성명');
+        if (!d.department) missing.push('학과');
+        if (d.department === '스마트전기과' && !d.subClass) missing.push('반 선택');
+        if (!d.address) missing.push('주소');
+        if (!d.mobile) missing.push('휴대폰');
+        if (!d.health) missing.push('건강 여부');
+        if (d.health === '지병' && !d.healthDetail) missing.push('지병명');
+        if (!d.emergency) missing.push('비상시 연락처');
+        if (!d.guardianName) missing.push('보호자 성명');
+        if (!d.guardianRel) missing.push('가족 관계');
+        if (!d.guardianTel) missing.push('보호자 연락처');
+        if (d.privacyAgreed !== true) missing.push('개인정보 수집·이용 동의');
+        
+        if (missing.length > 0) {
+            alert('⚠️ 다음 항목이 누락되었습니다:\n\n• ' + missing.join('\n• ') + '\n\n이전 단계로 돌아가 입력해 주세요.');
+            return;
+        }
+        
+        if (!confirm('서약서를 최종 제출합니다.\n\n제출 후에는 수정하거나 다시 볼 수 없습니다.\n계속 진행하시겠습니까?')) {
+            return;
+        }
+        
+        var canvas = document.getElementById('agreementSignatureCanvas');
+        if (!canvas) {
+            alert('❌ 서명 캔버스를 찾을 수 없습니다. 페이지를 새로고침해 주세요.');
+            return;
+        }
+        var signatureDataUrl = canvas.toDataURL('image/png');
+        
+        _agreementState.isSubmitting = true;
+        renderAgreementStep();
+        
+        try {
+            var now = new Date();
+            var todayStr = now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일';
+            var todayISO = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            
+            var payload = {
+                studentId: d.studentId || (d.name + '_' + d.department),
+                name: d.name || '',
+                department: d.department || '',
+                subClass: d.subClass || '',
+                room: d.room || '',
+                birthYear: d.birthYear || '',
+                
+                address: d.address || '',
+                homeTel: d.homeTel || '',
+                mobile: d.mobile || '',
+                emergency: d.emergency || '',
+                vehicleNumber: d.vehicleNumber || '',
+                
+                health: d.health || '',
+                healthDetail: d.healthDetail || '',
+                
+                guardianName: d.guardianName || '',
+                guardianRel: d.guardianRel || '',
+                guardianTel: d.guardianTel || '',
+                
+                privacyAgreed: true,
+                signature: signatureDataUrl,
+                signatureStrokes: _signatureStrokes,
+                
+                submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                submittedDate: todayStr,
+                submittedDateISO: todayISO,
+                
+                status: 'submitted',
+                appVersion: 'phase2',
+                userAgent: (navigator.userAgent || '').substring(0, 200)
+            };
+            
+            var docId = payload.studentId.replace(/[\/\.\#\$\[\]]/g, '_');
+            await db.collection('dormitoryAgreements').doc(docId).set(payload);
+            
+            console.log('✅ 서약서 제출 완료:', docId);
+            
+            _agreementState.isSubmitting = false;
+            _closeAgreementPopup();
+            
+            setTimeout(function() {
+                alert('✅ 서약서 제출이 완료되었습니다.\n\n이제 앱을 정상적으로 이용하실 수 있습니다.');
+            }, 200);
+            
+        } catch (err) {
+            console.error('❌ 서약서 제출 실패:', err);
+            _agreementState.isSubmitting = false;
+            renderAgreementStep();
+            alert('❌ 제출 중 오류가 발생했습니다.\n\n' + (err.message || err) + '\n\n네트워크를 확인하시고 다시 시도해 주세요.');
+        }
+    };
+    
+    function _closeAgreementPopup() {
+        var overlay = document.getElementById('agreementOverlay');
+        if (overlay) overlay.remove();
+        _agreementState.modalOpen = false;
+        _agreementState.submitted = true;
+        document.body.style.overflow = '';
+    }
+    
+    // ============ 팝업 닫기 (내부용 - 테스트) ============
+    // ============ 테스트용: 팝업 강제 열기 ============
+window._agreementForceOpen = function(sampleData) {
+    _agreementState.currentStep = 1;
+    _agreementState.totalSteps = 3;
+    _agreementState.modalOpen = true;
+    _agreementState.isSubmitting = false;
+    _agreementState.data = sampleData || {
+        studentId: 'test_001',
+        name: '홍길동',
+        department: '스마트전기과',
+        room: '101',
+        birthYear: '2000'
+    };
+    renderAgreementStep();
+    console.log('[서약서] 테스트 팝업 열림');
+};
+
+    window._agreementForceClose = function() {
+        var overlay = document.getElementById('agreementOverlay');
+        if (overlay) overlay.remove();
+        _agreementState.modalOpen = false;
+        document.body.style.overflow = '';
+        console.log('[서약서] 테스트 모드로 팝업 강제 종료');
+    };
+    
+    // ============ 관리자 콘솔 도구 ============
+    window._agreementAdminEnable = async function(enabled, applyFromDate, applyToAll) {
+        if (!db) { console.log('DB 미준비'); return; }
+        try {
+            await db.collection('settings').doc(AGREEMENT_CONFIG.settingsDoc).set({
+                enabled: enabled === true,
+                applyFromDate: applyFromDate || '',
+                applyToAll: applyToAll === true,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+            console.log('✅ 서약서 시스템 설정 저장 완료:', { enabled: enabled, applyFromDate: applyFromDate, applyToAll: applyToAll });
+        } catch (e) {
+            console.error('설정 저장 실패:', e);
+        }
+    };
+    
+    window._agreementAdminStatus = function() {
+        console.log('========== 서약서 시스템 상태 ==========');
+        console.log('현재 설정:', _agreementSettings);
+        console.log('테스트 모드:', window._agreementTest === true ? 'ON' : 'OFF');
+        console.log('현재 사용자:', currentStudent || '없음');
+        console.log('학생 모드:', currentMode === 'student');
+        console.log('=======================================');
+        console.log('\n[테스트 명령어]');
+        console.log('  window._agreementTest = true    // 테스트 팝업 강제 표시');
+        console.log('  window._agreementTest = false   // 테스트 해제');
+        console.log('  window._agreementForceClose()   // 팝업 강제 닫기');
+        console.log('\n[관리자 명령어]');
+        console.log('  window._agreementAdminEnable(true, "2026-08-01", false)  // 8/1 이후 입사자만');
+        console.log('  window._agreementAdminEnable(true, "", true)             // 전체 학생');
+        console.log('  window._agreementAdminEnable(false)                       // 기능 끄기');
+    };
+    
+    // ============ render() 후크 (학생 로그인 감지) ============
+    function _hookRender() {
+        if (window._agreementRenderHooked) return;
+        window._agreementRenderHooked = true;
+        var _origRender = window.render;
+        if (typeof _origRender !== 'function') {
+            setTimeout(_hookRender, 500);
+            return;
+        }
+        window.render = function() {
+            _origRender.apply(this, arguments);
+            if (currentMode === 'student' && currentStudent) {
+                setTimeout(checkAgreementRequirement, 1000);
+            }
+        };
+        console.log('[서약서] render() 후크 등록 완료');
+    }
+    
+    // ============ 초기화 ============
+    function init() {
+        if (typeof db === 'undefined' || !db) {
+            setTimeout(init, 500);
+            return;
+        }
+        loadAgreementSettings();
+        _hookRender();
+        console.log('✅ 기숙사 입사 서약서 시스템 Phase 2 로드 완료');
+        console.log('   상태 확인: window._agreementAdminStatus()');
+    }
+    
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(init, 100);
+    } else {
+        document.addEventListener('DOMContentLoaded', init);
+    }
+})();
+// ==================== Phase 3-A: 서약서 관리 패널 ====================
+window.showAgreementManagePanel = async function() {
+  // 오버레이 생성
+  let overlay = document.getElementById('agreementManageOverlay');
+  if (overlay) overlay.remove();
+  
+  overlay = document.createElement('div');
+  overlay.id = 'agreementManageOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9998;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px;';
+  overlay.innerHTML = 
+    '<div style="background:white;border-radius:16px;width:100%;max-width:900px;margin:20px auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.2);">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #e5e7eb;padding-bottom:16px;">'
+    +   '<h2 style="font-size:22px;font-weight:bold;color:#4338ca;margin:0;"><i class="fas fa-file-signature"></i> 서약서 제출 목록</h2>'
+    +   '<button onclick="closeAgreementManagePanel()" style="background:#f3f4f6;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;color:#6b7280;"><i class="fas fa-times"></i></button>'
+    + '</div>'
+    + '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">'
+    +   '<select id="agrMgmtDeptFilter" onchange="renderAgreementList()" style="flex:1;min-width:180px;padding:10px 14px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;">'
+    +     '<option value="">전체 학과</option>'
+    +     '<option value="자동차도장과">자동차도장과</option>'
+    +     '<option value="산업설비과">산업설비과</option>'
+    +     '<option value="주얼리목공예과">주얼리목공예과</option>'
+    +     '<option value="스마트자동차과">스마트자동차과</option>'
+    +     '<option value="스마트전기과">스마트전기과</option>'
+    +     '<option value="스마트기계과">스마트기계과</option>'
+    +     '<option value="스마트표면처리과">스마트표면처리과</option>'
+    +   '</select>'
+    +   '<input type="text" id="agrMgmtNameSearch" oninput="renderAgreementList()" placeholder="이름 검색" style="flex:1;min-width:180px;padding:10px 14px;border:2px solid #e5e7eb;border-radius:10px;font-size:15px;">'
+    +   '<button onclick="loadAgreementList()" style="padding:10px 18px;background:#eef2ff;border:2px solid #c7d2fe;color:#4338ca;border-radius:10px;font-weight:bold;font-size:15px;cursor:pointer;"><i class="fas fa-sync-alt"></i> 새로고침</button>'
+    +   '<button onclick="downloadAgreementExcel()" style="padding:10px 18px;background:#ecfdf5;border:2px solid #a7f3d0;color:#059669;border-radius:10px;font-weight:bold;font-size:15px;cursor:pointer;"><i class="fas fa-file-excel"></i> 엑셀 다운로드</button>'
+    + '</div>'
+    + '<div id="agrMgmtCountArea" style="margin-bottom:12px;padding:10px 14px;background:#eef2ff;border-radius:10px;color:#4338ca;font-weight:bold;font-size:15px;">로딩 중...</div>'
+    + '<div id="agrMgmtListArea" style="max-height:60vh;overflow-y:auto;">'
+    +   '<div style="text-align:center;padding:40px;color:#9ca3af;font-size:15px;"><i class="fas fa-spinner fa-spin fa-2x"></i><div style="margin-top:12px;">데이터를 불러오는 중입니다...</div></div>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  
+  // 데이터 로드
+  await loadAgreementList();
+};
+
+window.closeAgreementManagePanel = function() {
+  const overlay = document.getElementById('agreementManageOverlay');
+  if (overlay) overlay.remove();
+  window._agreementListCache = null;
+};
+
+window.loadAgreementList = async function() {
+  const listArea = document.getElementById('agrMgmtListArea');
+  const countArea = document.getElementById('agrMgmtCountArea');
+  if (!listArea) return;
+  
+  listArea.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af;font-size:15px;"><i class="fas fa-spinner fa-spin fa-2x"></i><div style="margin-top:12px;">데이터를 불러오는 중입니다...</div></div>';
+  countArea.textContent = '로딩 중...';
+  
+  try {
+    const snap = await db.collection('dormitoryAgreements')
+      .orderBy('submittedAt', 'desc')
+      .get();
+    
+    const list = [];
+    snap.forEach(doc => {
+      list.push({ id: doc.id, ...doc.data() });
+    });
+    
+    window._agreementListCache = list;
+    renderAgreementList();
+  } catch (err) {
+    console.error('서약서 목록 로드 실패:', err);
+    listArea.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;font-size:15px;"><i class="fas fa-exclamation-triangle fa-2x"></i><div style="margin-top:12px;">데이터 로드 실패: ' + (err.message || '알 수 없는 오류') + '</div></div>';
+    countArea.textContent = '오류 발생';
+  }
+};
+
+window.renderAgreementList = function() {
+  const listArea = document.getElementById('agrMgmtListArea');
+  const countArea = document.getElementById('agrMgmtCountArea');
+  const deptFilter = document.getElementById('agrMgmtDeptFilter')?.value || '';
+  const nameSearch = (document.getElementById('agrMgmtNameSearch')?.value || '').trim().toLowerCase();
+  
+  if (!listArea || !window._agreementListCache) return;
+  
+  let filtered = window._agreementListCache;
+  if (deptFilter) filtered = filtered.filter(a => a.department === deptFilter);
+  if (nameSearch) filtered = filtered.filter(a => (a.name || '').toLowerCase().includes(nameSearch));
+  
+  countArea.innerHTML = '<i class="fas fa-users"></i> 총 <span style="color:#dc2626;">' + filtered.length + '</span>명 제출 (전체 ' + window._agreementListCache.length + '명)';
+  
+  if (filtered.length === 0) {
+    listArea.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af;font-size:15px;"><i class="fas fa-inbox fa-2x"></i><div style="margin-top:12px;">제출된 서약서가 없습니다.</div></div>';
+    return;
+  }
+  
+  let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+  filtered.forEach(a => {
+    const submittedDate = a.submittedDate || '-';
+    const dept = a.department || '-';
+    const name = a.name || '-';
+    const room = a.room || '-';
+    const subClass = a.subClass ? '(' + a.subClass + ')' : '';
+    
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;gap:10px;flex-wrap:wrap;">'
+      + '<div style="flex:1;min-width:200px;">'
+      +   '<div style="font-weight:bold;font-size:16px;color:#111827;">' + name + ' <span style="font-size:13px;color:#6b7280;font-weight:normal;">| ' + dept + ' ' + subClass + '</span></div>'
+      +   '<div style="font-size:13px;color:#6b7280;margin-top:4px;"><i class="fas fa-home"></i> ' + room + '호실 · <i class="fas fa-calendar"></i> ' + submittedDate + '</div>'
+      + '</div>'
+      + '<button onclick="viewAgreementDetail(\'' + a.id + '\')" style="padding:8px 16px;background:#eef2ff;border:2px solid #c7d2fe;color:#4338ca;border-radius:8px;font-weight:bold;font-size:14px;cursor:pointer;white-space:nowrap;"><i class="fas fa-eye"></i> 상세보기</button>'
+      + '</div>';
+  });
+  html += '</div>';
+  
+  listArea.innerHTML = html;
+};
+
+window.viewAgreementDetail = function(docId) {
+  if (!window._agreementListCache) return;
+  const data = window._agreementListCache.find(a => a.id === docId);
+  if (!data) {
+    alert('데이터를 찾을 수 없습니다.');
+    return;
+  }
+  
+  // 상세 오버레이 생성
+  let detail = document.getElementById('agreementDetailOverlay');
+  if (detail) detail.remove();
+  
+  detail = document.createElement('div');
+  detail.id = 'agreementDetailOverlay';
+  detail.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px;';
+  
+  // 필드 헬퍼
+  const val = (v) => (v === undefined || v === null || v === '') ? '<span style="color:#9ca3af;">-</span>' : v;
+  const yn = (v) => v ? '<span style="color:#059669;font-weight:bold;">✓ 동의</span>' : '<span style="color:#dc2626;">✗ 미동의</span>';
+  
+  // 슈퍼관리자 여부 판별
+  const isSuper = (typeof isSuperAdmin !== 'undefined' && isSuperAdmin) || 
+                  (typeof window.isSuperAdmin !== 'undefined' && window.isSuperAdmin);
+  
+  const signatureImg = data.signature 
+    ? '<img src="' + data.signature + '" style="max-width:300px;max-height:150px;border:2px solid #e5e7eb;border-radius:8px;background:white;padding:8px;">'
+    : '<span style="color:#9ca3af;">서명 없음</span>';
+  
+  const sectionStyle = 'background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px;';
+  const titleStyle = 'font-weight:bold;font-size:15px;color:#4338ca;margin-bottom:10px;border-bottom:1px solid #e5e7eb;padding-bottom:6px;';
+  const rowStyle = 'display:flex;padding:6px 0;font-size:14px;gap:10px;';
+  const labelStyle = 'min-width:100px;color:#6b7280;font-weight:600;';
+  const valueStyle = 'flex:1;color:#111827;';
+  
+  const row = (label, value) => '<div style="' + rowStyle + '"><div style="' + labelStyle + '">' + label + '</div><div style="' + valueStyle + '">' + value + '</div></div>';
+  
+  detail.innerHTML = 
+    '<div style="background:white;border-radius:16px;width:100%;max-width:700px;margin:20px auto;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,0.3);">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #e5e7eb;padding-bottom:16px;">'
+    +   '<h2 style="font-size:20px;font-weight:bold;color:#4338ca;margin:0;"><i class="fas fa-file-alt"></i> 서약서 상세 내용</h2>'
+    +   '<button onclick="closeAgreementDetail()" style="background:#f3f4f6;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;color:#6b7280;"><i class="fas fa-times"></i></button>'
+    + '</div>'
+    
+    // 학생 정보
+    + '<div style="' + sectionStyle + '">'
+    +   '<div style="' + titleStyle + '"><i class="fas fa-user"></i> 학생 정보</div>'
+    +   row('이름', val(data.name))
+    +   row('학과', val(data.department))
+    +   row('반', val(data.subClass))
+    +   row('호실', val(data.room))
+    +   row('출생년도', val(data.birthYear))
+    +   row('휴대전화', val(data.mobile))
+    +   row('주소', val(data.address))
+    +   row('차량번호', val(data.vehicleNumber))
+    + '</div>'
+    
+    // 보호자 정보
+    + '<div style="' + sectionStyle + '">'
+    +   '<div style="' + titleStyle + '"><i class="fas fa-user-friends"></i> 보호자 / 비상연락처</div>'
+    +   row('보호자명', val(data.guardianName))
+    +   row('관계', val(data.guardianRelation))
+    +   row('연락처', val(data.guardianPhone))
+    +   row('비상연락', val(data.emergencyContact))
+    + '</div>'
+    
+    // 건강 정보
+    + '<div style="' + sectionStyle + '">'
+    +   '<div style="' + titleStyle + '"><i class="fas fa-heartbeat"></i> 건강 상태</div>'
+    +   row('특이사항', val(data.healthNotes || data.health))
+    +   row('알레르기', val(data.allergies))
+    +   row('복용약물', val(data.medications))
+    + '</div>'
+    
+    // 동의 사항
+    + '<div style="' + sectionStyle + '">'
+    +   '<div style="' + titleStyle + '"><i class="fas fa-check-circle"></i> 동의 사항</div>'
+    +   row('개인정보 수집·이용', yn(data.privacyAgreed))
+    +   row('서약서 동의', yn(data.oathAgreed !== false))
+    + '</div>'
+    
+    // 전자 서명
+    + '<div style="' + sectionStyle + '">'
+    +   '<div style="' + titleStyle + '"><i class="fas fa-signature"></i> 전자 서명</div>'
+    +   '<div style="text-align:center;padding:10px;">' + signatureImg + '</div>'
+    +   (data.signatureStrokes ? '<div style="text-align:center;font-size:12px;color:#6b7280;margin-top:8px;">획 수: ' + data.signatureStrokes + '</div>' : '')
+    + '</div>'
+    
+    // 제출 정보
+    + '<div style="' + sectionStyle + '">'
+    +   '<div style="' + titleStyle + '"><i class="fas fa-clock"></i> 제출 정보</div>'
+    +   row('제출 일자', val(data.submittedDate))
+    +   row('문서 ID', '<span style="font-family:monospace;font-size:12px;color:#6b7280;">' + data.id + '</span>')
+    + '</div>'
+    
+        // 하단 버튼
+    + '<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">'
+    +   '<button onclick="closeAgreementDetail()" style="flex:1;min-width:120px;padding:12px;background:#f3f4f6;border:2px solid #e5e7eb;color:#374151;border-radius:10px;font-weight:bold;font-size:15px;cursor:pointer;"><i class="fas fa-times"></i> 닫기</button>'
+    +   '<button onclick="downloadAgreementPdf(\'' + data.id + '\')" style="flex:1;min-width:120px;padding:12px;background:#eef2ff;border:2px solid #c7d2fe;color:#4338ca;border-radius:10px;font-weight:bold;font-size:15px;cursor:pointer;"><i class="fas fa-file-pdf"></i> PDF 다운로드</button>'
+    +   (isSuper 
+      ? '<button onclick="deleteAgreement(\'' + data.id + '\')" style="flex:1;min-width:120px;padding:12px;background:#fef2f2;border:2px solid #fecaca;color:#dc2626;border-radius:10px;font-weight:bold;font-size:15px;cursor:pointer;"><i class="fas fa-trash-alt"></i> 삭제</button>'
+      : '')
+    + '</div>'
+    + '</div>';
+  
+  document.body.appendChild(detail);
+};
+
+window.closeAgreementDetail = function() {
+  const detail = document.getElementById('agreementDetailOverlay');
+  if (detail) detail.remove();
+};
+
+window.deleteAgreement = async function(docId) {
+  if (!confirm('정말 이 서약서를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  
+  try {
+    await db.collection('dormitoryAgreements').doc(docId).delete();
+    alert('삭제되었습니다.');
+    closeAgreementDetail();
+    await loadAgreementList();
+  } catch (err) {
+    console.error('삭제 실패:', err);
+    alert('삭제 실패: ' + (err.message || '알 수 없는 오류'));
+  }
+};
+// ==================== Phase 3-C: 라이브러리 로더 ====================
+window._loadScript = function(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src="' + src + '"]')) {
+      resolve();
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('스크립트 로드 실패: ' + src));
+    document.head.appendChild(s);
+  });
+};
+
+window._ensurePdfLibs = async function() {
+  if (typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined') {
+    await window._loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }
+  if (typeof window.html2canvas === 'undefined') {
+    await window._loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  }
+};
+
+window._ensureXlsxLib = async function() {
+  if (typeof window.XLSX === 'undefined') {
+    await window._loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  }
+};
+// ==================== 개별 PDF 다운로드 ====================
+window.downloadAgreementPdf = async function(docId) {
+  const data = window._agreementListCache?.find(a => a.id === docId);
+  if (!data) { alert('데이터를 찾을 수 없습니다.'); return; }
+  
+  const btn = event?.target?.closest('button');
+  const origHtml = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 생성 중...'; }
+  
+  try {
+    await window._ensurePdfLibs();
+    
+    // PDF용 임시 렌더링 컨테이너
+    const container = document.createElement('div');
+        container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:white;padding:30px 40px;font-family:"Malgun Gothic","맑은 고딕",sans-serif;color:#111;';
+    
+    const v = (x) => (x === undefined || x === null || x === '') ? '-' : x;
+    const yn = (x) => x ? '✓ 동의' : '✗ 미동의';
+    
+    container.innerHTML = 
+      '<div style="text-align:center;margin-bottom:20px;">'
+      + '<h1 style="font-size:24px;font-weight:bold;margin:0 0 8px 0;">기숙사 입사 서약서 및 개인정보 수집·이용 동의서</h1>'
+      + '<div style="font-size:13px;color:#666;">한국폴리텍대학 화성캠퍼스</div>'
+      + '</div>'
+      
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
+      + '<tr><td colspan="4" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">1. 학생 정보</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">이름</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.name) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">학과</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.department) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">반</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.subClass) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">호실</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.room) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">출생년도</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.birthYear) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">휴대전화</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.mobile) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">주소</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.address) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">차량번호</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.vehicleNumber) + '</td></tr>'
+      + '</table>'
+      
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
+      + '<tr><td colspan="4" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">2. 보호자 / 비상연락처</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">보호자명</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.guardianName) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">관계</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.guardianRelation) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">연락처</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.guardianPhone) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">비상연락</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.emergencyContact) + '</td></tr>'
+      + '</table>'
+      
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
+      + '<tr><td colspan="2" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">3. 건강 상태</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:20%;font-weight:bold;">특이사항</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.healthNotes || data.health) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">알레르기</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.allergies) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">복용약물</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.medications) + '</td></tr>'
+      + '</table>'
+      
+      + '<div style="border:2px solid #4338ca;border-radius:8px;padding:16px;margin-bottom:20px;font-size:13px;line-height:1.8;">'
+      + '<div style="font-weight:bold;font-size:15px;margin-bottom:10px;text-align:center;">기숙사 입사 서약서</div>'
+      + '<div>상기 본인은 기숙사생으로서 생활지도 규칙을 준수하고, 교육 훈련에 매진하며, 제반 지시사항을 성실히 따를 것과 학생 상호 간의 예절을 지키고, 학생의 품위를 잃지 않도록 노력하며, 규칙위반, 시설물 파손과 그에 따른 사고, 호실 내 청결 유지 등 손해 발생에 대해서는 본인이 책임질 것을 서약합니다.</div>'
+      + '<div style="text-align:right;margin-top:16px;font-weight:bold;">개인정보 수집·이용 동의: ' + yn(data.privacyAgreed) + '</div>'
+      + '</div>'
+      
+      + '<div style="text-align:center;margin:20px 0;font-size:14px;">'
+      + '<div style="margin-bottom:8px;font-weight:bold;">제출일자: ' + v(data.submittedDate) + '</div>'
+      + '<div style="margin:20px 0;">신청자: <span style="font-weight:bold;font-size:16px;">' + v(data.name) + '</span> (서명)</div>'
+      + (data.signature 
+        ? '<div style="text-align:center;margin:15px 0;"><img src="' + data.signature + '" style="max-width:220px;max-height:110px;border:1px solid #d1d5db;background:white;padding:6px;"></div>'
+        : '<div style="color:#9ca3af;">서명 없음</div>')
+      + '<div style="margin-top:24px;font-weight:bold;">한국폴리텍대학 화성캠퍼스 지역대학장 귀하</div>'
+      + '</div>';
+    
+    document.body.appendChild(container);
+    
+    // html2canvas로 캡처
+    const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    document.body.removeChild(container);
+    
+    const imgData = canvas.toDataURL('image/png');
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    const pdf = new jsPDFCtor('p', 'mm', 'a4');
+    
+    const pdfWidth = 210;
+    const pdfPageHeight = 297;
+    const naturalHeight = (canvas.height * pdfWidth) / canvas.width;
+    
+    // A4 한 장에 강제로 맞춤 (약간 넘치는 경우 자동 축소)
+    const finalHeight = Math.min(naturalHeight, pdfPageHeight);
+    const finalWidth = naturalHeight > pdfPageHeight 
+      ? (canvas.width * pdfPageHeight) / canvas.height 
+      : pdfWidth;
+    const xOffset = (pdfWidth - finalWidth) / 2;
+    
+    pdf.addImage(imgData, 'PNG', xOffset, 0, finalWidth, finalHeight);
+    
+    const fileName = '서약서_' + (data.department || '') + '_' + (data.name || '') + '_' + (data.submittedDate || '').replace(/[^0-9]/g, '') + '.pdf';
+    pdf.save(fileName);
+  } catch (err) {
+    console.error('PDF 생성 실패:', err);
+    alert('PDF 생성 실패: ' + (err.message || '알 수 없는 오류'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+  }
+};
+
+// ==================== 전체 Excel 다운로드 ====================
+window.downloadAgreementExcel = async function() {
+  if (!window._agreementListCache || window._agreementListCache.length === 0) {
+    alert('다운로드할 데이터가 없습니다.');
+    return;
+  }
+  
+  const deptFilter = document.getElementById('agrMgmtDeptFilter')?.value || '';
+  const nameSearch = (document.getElementById('agrMgmtNameSearch')?.value || '').trim().toLowerCase();
+  let list = window._agreementListCache;
+  if (deptFilter) list = list.filter(a => a.department === deptFilter);
+  if (nameSearch) list = list.filter(a => (a.name || '').toLowerCase().includes(nameSearch));
+  
+  if (list.length === 0) { alert('필터 조건에 맞는 데이터가 없습니다.'); return; }
+  
+  const btn = event?.target?.closest('button');
+  const origHtml = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 생성 중...'; }
+  
+  try {
+    await window._ensureXlsxLib();
+    
+    const rows = list.map((a, i) => ({
+      '번호': i + 1,
+      '제출일자': a.submittedDate || '',
+      '학과': a.department || '',
+      '반': a.subClass || '',
+      '이름': a.name || '',
+      '호실': a.room || '',
+      '출생년도': a.birthYear || '',
+      '휴대전화': a.mobile || '',
+      '주소': a.address || '',
+      '차량번호': a.vehicleNumber || '',
+      '보호자명': a.guardianName || '',
+      '보호자관계': a.guardianRelation || '',
+      '보호자연락처': a.guardianPhone || '',
+      '비상연락': a.emergencyContact || '',
+      '건강특이사항': a.healthNotes || a.health || '',
+      '알레르기': a.allergies || '',
+      '복용약물': a.medications || '',
+      '개인정보동의': a.privacyAgreed ? '동의' : '미동의',
+      '서명여부': a.signature ? '있음' : '없음',
+      '문서ID': a.id || ''
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // 컬럼 너비 자동 조정
+    ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length * 2, 12) }));
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '서약서 제출 목록');
+    
+    const today = new Date();
+    const dateStr = today.getFullYear() + ('0' + (today.getMonth() + 1)).slice(-2) + ('0' + today.getDate()).slice(-2);
+    const fileName = '기숙사_서약서_제출목록_' + dateStr + '.xlsx';
+    
+    XLSX.writeFile(wb, fileName);
+  } catch (err) {
+    console.error('Excel 생성 실패:', err);
+    alert('Excel 생성 실패: ' + (err.message || '알 수 없는 오류'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+  }
+};
+
+// ==================== 자동 서약서 체크 (학생 로그인 시) ====================
+window._checkAgreementForStudent = async function() {
+  try {
+    // 학생 모드가 아니면 종료
+    if (typeof currentMode === 'undefined' || currentMode !== 'student') return;
+    
+    // 학생 이름 확인
+    const studentName = window.currentStudent;
+    if (!studentName || typeof studentName !== 'string') return;
+    
+    // 게스트 계정 제외
+    if (studentName === '게스트' || studentName.includes('guest')) return;
+    
+    // 이미 팝업이 열려있으면 재실행 방지
+    if (document.getElementById('agreementOverlay')) return;
+    
+    // 최근 체크 시각 확인 (5초 내 재실행 방지)
+    const now = Date.now();
+    if (window._lastAgreementCheck && (now - window._lastAgreementCheck) < 5000) return;
+    window._lastAgreementCheck = now;
+    
+    console.log('[서약서 자동 체크] 학생:', studentName);
+    
+    // 1) 서약서 시스템 설정 확인
+    const settingDoc = await db.collection('settings').doc('agreementSystem').get();
+    if (!settingDoc.exists) {
+      console.log('[서약서] 시스템 설정 없음');
+      return;
+    }
+    const settings = settingDoc.data();
+    if (!settings.enabled) {
+      console.log('[서약서] 시스템 비활성화');
+      return;
+    }
+    
+    // 2) 이미 제출했는지 확인
+    const submitSnap = await db.collection('dormitoryAgreements')
+      .where('name', '==', studentName)
+      .limit(1)
+      .get();
+    if (!submitSnap.empty) {
+      console.log('[서약서] 이미 제출 완료');
+      return;
+    }
+    
+    // 3) 학생 상세 정보 로드 (roomNumbers 컬렉션)
+    const studentDoc = await db.collection('roomNumbers').doc(studentName).get();
+    if (!studentDoc.exists) {
+      console.log('[서약서] 학생 상세 정보 없음:', studentName);
+      return;
+    }
+    const studentData = studentDoc.data();
+    
+    // 4) 상태 확인 (active 학생만)
+    if (studentData.status && studentData.status !== 'active') {
+      console.log('[서약서] 비활성 학생:', studentData.status);
+      return;
+    }
+    
+    // 5) applyFromDate 조건 확인
+    if (settings.applyFromDate && studentData.registeredDate) {
+      if (studentData.registeredDate < settings.applyFromDate) {
+        console.log('[서약서] 대상 기간 이전 입사자');
+        return;
+      }
+    }
+    
+    // 6) applyToAll이 false이고 특정 대상 지정이 있는 경우 필터링
+    if (settings.applyToAll === false) {
+      const targets = settings.targetStudents || [];
+      if (targets.length > 0 && !targets.includes(studentName)) {
+        console.log('[서약서] 대상 학생 아님');
+        return;
+      }
+    }
+    
+    // 7) 모든 조건 통과 → 팝업 열기
+    console.log('[서약서] ✅ 조건 통과, 팝업 표시');
+    window._agreementForceOpen({
+      studentId: studentName,
+      name: studentName,
+      department: studentData.department || '',
+      room: studentData.room || '',
+      birthYear: studentData.age ? String(new Date().getFullYear() - studentData.age) : ''
+    });
+    
+  } catch (err) {
+    console.error('[서약서] 자동 체크 오류:', err);
+  }
+};
+
+// render 함수에 자동 체크 훅 추가
+(function() {
+  const origRender = window.render;
+  if (typeof origRender !== 'function') {
+    console.warn('[서약서] render 함수를 찾을 수 없어 훅 설치 실패');
+    return;
+  }
+  
+  window.render = function() {
+    const result = origRender.apply(this, arguments);
+    // 렌더링 후 서약서 체크 (약간의 지연으로 상태 안정화)
+    setTimeout(() => window._checkAgreementForStudent(), 300);
+    return result;
+  };
+  
+  console.log('[서약서] 자동 체크 훅 설치 완료');
+})();
+
+// 초기 로드 시에도 한 번 체크
+setTimeout(() => window._checkAgreementForStudent(), 1000);
+// ==================== 퇴사 시 서약서 자동 삭제 훅 ====================
+window._deleteAgreementByStudent = async function(studentName) {
+  if (!studentName || typeof studentName !== 'string') return { deleted: 0 };
+  
+  try {
+    const snap = await db.collection('dormitoryAgreements')
+      .where('name', '==', studentName)
+      .get();
+    
+    if (snap.empty) {
+      console.log('[서약서 파기] 삭제 대상 없음:', studentName);
+      return { deleted: 0 };
+    }
+    
+    const batch = db.batch();
+    snap.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    
+    console.log('[서약서 파기] ✅ ' + studentName + ' 서약서 ' + snap.size + '건 삭제 완료 (개인정보 파기)');
+    return { deleted: snap.size };
+  } catch (err) {
+    console.error('[서약서 파기] 실패:', err);
+    return { deleted: 0, error: err };
+  }
+};
+
+// 퇴사 처리 함수 오버라이드 (handleStudentResign)
+(function() {
+  if (typeof window.handleStudentResign === 'function' && !window._resignHookInstalled) {
+    const origHandleResign = window.handleStudentResign;
+    window.handleStudentResign = async function() {
+      const args = arguments;
+      
+      // 원본 실행 전에 학생 이름 캡처 (인자에서 추출)
+      let targetName = null;
+      for (let i = 0; i < args.length; i++) {
+        if (typeof args[i] === 'string' && args[i].length < 50) {
+          targetName = args[i];
+          break;
+        }
+      }
+      
+      // 원본 함수 실행
+      const result = await origHandleResign.apply(this, args);
+      
+      // 서약서 삭제 (원본이 성공한 후)
+      if (targetName) {
+        const delResult = await window._deleteAgreementByStudent(targetName);
+        if (delResult.deleted > 0 && typeof showToast === 'function') {
+          showToast('개인정보 파기: 서약서 ' + delResult.deleted + '건 삭제', 'info');
+        }
+      }
+      
+      return result;
+    };
+    window._resignHookInstalled = true;
+    console.log('[서약서] handleStudentResign 훅 설치 완료');
+  }
+})();
+
+// 강제 삭제 함수 오버라이드 (forceDeleteStudent)
+(function() {
+  if (typeof window.forceDeleteStudent === 'function' && !window._forceDeleteHookInstalled) {
+    const origForceDelete = window.forceDeleteStudent;
+    window.forceDeleteStudent = async function() {
+      const args = arguments;
+      
+      let targetName = null;
+      for (let i = 0; i < args.length; i++) {
+        if (typeof args[i] === 'string' && args[i].length < 50) {
+          targetName = args[i];
+          break;
+        }
+      }
+      
+      const result = await origForceDelete.apply(this, args);
+      
+      if (targetName) {
+        const delResult = await window._deleteAgreementByStudent(targetName);
+        if (delResult.deleted > 0 && typeof showToast === 'function') {
+          showToast('개인정보 파기: 서약서 ' + delResult.deleted + '건 삭제', 'info');
+        }
+      }
+      
+      return result;
+    };
+    window._forceDeleteHookInstalled = true;
+    console.log('[서약서] forceDeleteStudent 훅 설치 완료');
+  }
+})();
+
+// deleteStudentAction 오버라이드 (관리자 UI에서 사용하는 삭제 함수)
+(function() {
+  if (typeof window.deleteStudentAction === 'function' && !window._deleteStudentHookInstalled) {
+    const origDeleteAction = window.deleteStudentAction;
+    window.deleteStudentAction = async function() {
+      // 현재 UI에서 선택된 학생 이름 추출
+      const nameSelect = document.getElementById('delStudentName');
+      const targetName = nameSelect?.value || null;
+      
+      const result = await origDeleteAction.apply(this, arguments);
+      
+      if (targetName) {
+        const delResult = await window._deleteAgreementByStudent(targetName);
+        if (delResult.deleted > 0 && typeof showToast === 'function') {
+          showToast('개인정보 파기: 서약서 ' + delResult.deleted + '건 삭제', 'info');
+        }
+      }
+      
+      return result;
+    };
+    window._deleteStudentHookInstalled = true;
+    console.log('[서약서] deleteStudentAction 훅 설치 완료');
+  }
+})();
+// ==================== 전화번호 자동 하이픈 + 주소 검색 ====================
+
+// 다음 우편번호 API 로드
+window._loadDaumPostcode = function() {
+  return new Promise((resolve, reject) => {
+    if (typeof daum !== 'undefined' && daum.Postcode) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';  // ← https:// 명시
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('우편번호 스크립트 로드 실패'));
+    document.head.appendChild(s);
+  });
+};
+
+// 전화번호 포맷팅 (자동 하이픈)
+window._formatPhone = function(value) {
+  // 숫자만 추출
+  const nums = (value || '').replace(/[^0-9]/g, '');
+  const len = nums.length;
+  
+  if (len === 0) return '';
+  
+  // 휴대전화 (010, 011, 016~019)
+  if (/^01[016-9]/.test(nums)) {
+    if (len < 4) return nums;
+    if (len < 8) return nums.substring(0, 3) + '-' + nums.substring(3);
+    if (len <= 10) return nums.substring(0, 3) + '-' + nums.substring(3, 6) + '-' + nums.substring(6);
+    return nums.substring(0, 3) + '-' + nums.substring(3, 7) + '-' + nums.substring(7, 11);
+  }
+  
+  // 서울 지역번호 (02)
+  if (nums.startsWith('02')) {
+    if (len < 3) return nums;
+    if (len < 6) return nums.substring(0, 2) + '-' + nums.substring(2);
+    if (len <= 9) return nums.substring(0, 2) + '-' + nums.substring(2, 5) + '-' + nums.substring(5);
+    return nums.substring(0, 2) + '-' + nums.substring(2, 6) + '-' + nums.substring(6, 10);
+  }
+  
+  // 기타 지역번호 (031, 032, ..., 070, 080)
+  if (/^(0[3-9]|070|080)/.test(nums)) {
+    if (len < 4) return nums;
+    if (len < 7) return nums.substring(0, 3) + '-' + nums.substring(3);
+    if (len <= 10) return nums.substring(0, 3) + '-' + nums.substring(3, 6) + '-' + nums.substring(6);
+    return nums.substring(0, 3) + '-' + nums.substring(3, 7) + '-' + nums.substring(7, 11);
+  }
+  
+  // 기타
+  return nums;
+};
+
+// 전화번호 필드에 자동 하이픈 이벤트 붙이기
+window._attachPhoneFormatter = function(fieldId) {
+  const el = document.getElementById(fieldId);
+  if (!el || el.dataset.phoneHooked === 'true') return;
+  el.dataset.phoneHooked = 'true';
+  
+  el.setAttribute('inputmode', 'numeric');
+  el.setAttribute('maxlength', '13');
+  
+  // 초기값이 있으면 포맷팅
+  if (el.value) el.value = window._formatPhone(el.value);
+  
+  el.addEventListener('input', function(e) {
+    const cursorPos = el.selectionStart;
+    const oldLen = el.value.length;
+    const formatted = window._formatPhone(el.value);
+    el.value = formatted;
+    
+    // 커서 위치 조정 (하이픈이 추가되면 뒤로 이동)
+    const newLen = formatted.length;
+    const diff = newLen - oldLen;
+    const newPos = Math.max(0, cursorPos + diff);
+    el.setSelectionRange(newPos, newPos);
+    
+    // state에도 반영
+    if (typeof window._agreementInput === 'function') {
+      const key = el.id.replace('agr', '');
+      const dataKey = key.charAt(0).toLowerCase() + key.slice(1);
+      window._agreementInput(dataKey, formatted);
+    }
+  });
+};
+
+// 주소 검색 팝업 열기
+window._openAddressSearch = async function() {
+  try {
+    await window._loadDaumPostcode();
+    
+    new daum.Postcode({
+      oncomplete: function(data) {
+        const addr = document.getElementById('agrAddress');
+        const detailInput = document.getElementById('agrAddressDetail');
+        if (!addr) return;
+        
+        // 도로명 주소 + 지번 조합
+        let fullAddr = data.roadAddress || data.jibunAddress || '';
+        let extra = '';
+        if (data.bname) extra += data.bname;
+        if (data.buildingName) extra += (extra ? ', ' : '') + data.buildingName;
+        if (extra) fullAddr += ' (' + extra + ')';
+        
+        addr.value = fullAddr;
+        
+        // state에 저장
+        if (typeof window._agreementInput === 'function') {
+          window._agreementInput('address', fullAddr);
+          window._agreementInput('roadAddress', data.roadAddress || '');
+          window._agreementInput('jibunAddress', data.jibunAddress || '');
+          window._agreementInput('zonecode', data.zonecode || '');
+        }
+        
+        // 상세주소 입력창으로 포커스
+        setTimeout(() => {
+          if (detailInput) detailInput.focus();
+        }, 100);
+      },
+      theme: {
+        bgColor: "#ffffff",
+        searchBgColor: "#4338ca",
+        contentBgColor: "#ffffff",
+        pageBgColor: "#f9fafb",
+        textColor: "#111827",
+        queryTextColor: "#ffffff"
+      }
+    }).open();
+  } catch (err) {
+    console.error('주소 검색 오류:', err);
+    alert('주소 검색을 열 수 없습니다: ' + err.message);
+  }
+};
+
+// 주소 필드를 검색 버튼 + 도로명주소 + 상세주소 구조로 변환
+// ============================================
+// 주소 필드 세팅 (검색 버튼 + 상세주소 필드 추가)
+// ============================================
+window._setupAddressField = function() {
+  const addrInput = document.getElementById('agrAddress');
+  if (!addrInput || addrInput.dataset.addrHooked === 'true') return;
+  addrInput.dataset.addrHooked = 'true';
+  
+  // 읽기 전용으로 변경 (검색으로만 입력)
+  addrInput.readOnly = true;
+  addrInput.placeholder = '주소 검색 버튼을 눌러주세요';
+  addrInput.style.background = '#f9fafb';
+  addrInput.style.cursor = 'pointer';
+  addrInput.onclick = function() { window._openAddressSearch(); };
+  
+  // 검색 버튼 삽입
+  const searchBtn = document.createElement('button');
+  searchBtn.type = 'button';
+  searchBtn.innerHTML = '<i class="fas fa-search"></i> 주소 검색';
+  searchBtn.style.cssText = 'width:100%;padding:12px;margin-top:8px;background:#eef2ff;border:2px solid #c7d2fe;color:#4338ca;border-radius:10px;font-weight:bold;font-size:15px;cursor:pointer;';
+  searchBtn.onclick = function() { window._openAddressSearch(); };
+  addrInput.parentNode.insertBefore(searchBtn, addrInput.nextSibling);
+  
+  // 상세주소 입력 필드 추가
+  const detailWrap = document.createElement('div');
+  detailWrap.style.marginTop = '8px';
+  detailWrap.innerHTML = 
+    '<input type="text" id="agrAddressDetail" placeholder="상세주소 (동/호수, 예: 101동 202호)" ' +
+    'class="' + addrInput.className + '" style="' + (addrInput.getAttribute('style') || '') + ';background:white;cursor:text;" ' +
+    'onblur="if(window._agreementInput) window._agreementInput(\'addressDetail\', this.value);">';
+  searchBtn.parentNode.insertBefore(detailWrap, searchBtn.nextSibling);
+  
+  // 기존 저장된 상세주소 복원
+  const d = window._agreementState?.data;
+  if (d && d.addressDetail) {
+    const detailInput = document.getElementById('agrAddressDetail');
+    if (detailInput) detailInput.value = d.addressDetail;
+  }
+};
+
+// ============================================
+// 주소 검색 팝업 (embed 방식 - file:// 환경 호환)
+// ============================================
+window._openAddressSearch = async function() {
+  try {
+    await window._loadDaumPostcode();
+  } catch (e) {
+    alert('주소 검색을 열 수 없습니다: ' + e.message);
+    return;
+  }
+  
+  // 이전 인스턴스 제거
+  const prev = document.getElementById('agrAddressEmbedBox');
+  if (prev) prev.remove();
+  
+  // 배경 오버레이
+  const overlay = document.createElement('div');
+  overlay.id = 'agrAddressEmbedBox';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  
+  // 모달 박스
+  const modal = document.createElement('div');
+  modal.style.cssText = 'width:500px;max-width:92vw;height:520px;max-height:85vh;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.3);overflow:hidden;position:relative;';
+  
+  // 헤더
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:12px 16px;background:#4338ca;color:#fff;font-weight:bold;font-size:15px;display:flex;justify-content:space-between;align-items:center;';
+  header.innerHTML = '<span>🔍 주소 검색</span>';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = 'background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;';
+  closeBtn.onclick = () => overlay.remove();
+  header.appendChild(closeBtn);
+  modal.appendChild(header);
+  
+  // 임베드 대상 (헤더 제외한 나머지 공간)
+  const target = document.createElement('div');
+  target.style.cssText = 'width:100%;height:calc(100% - 48px);';
+  modal.appendChild(target);
+  
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  
+  // 오버레이(배경) 클릭 시 닫기
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  
+  new daum.Postcode({
+    oncomplete: function(data) {
+      const road = data.roadAddress || '';
+      const jibun = data.jibunAddress || '';
+      const zonecode = data.zonecode || '';
+      let fullAddr = road;
+      if (jibun && jibun !== road) fullAddr += ' (' + jibun + ')';
+      
+      const addrInput = document.getElementById('agrAddress');
+      if (addrInput) addrInput.value = fullAddr;
+      
+      if (window._agreementInput) {
+        window._agreementInput('address', fullAddr);
+        window._agreementInput('roadAddress', road);
+        window._agreementInput('jibunAddress', jibun);
+        window._agreementInput('zonecode', zonecode);
+      } else if (window._agreementState && window._agreementState.data) {
+        window._agreementState.data.address = fullAddr;
+        window._agreementState.data.roadAddress = road;
+        window._agreementState.data.jibunAddress = jibun;
+        window._agreementState.data.zonecode = zonecode;
+      }
+      
+      overlay.remove();
+      const detailInput = document.getElementById('agrAddressDetail');
+      if (detailInput) detailInput.focus();
+    },
+    width: '100%',
+    height: '100%'
+  }).embed(target);
+};
+
+// ============================================
+// MutationObserver로 팝업 필드 감지 후 자동 적용
+// ============================================
+(function() {
+  if (window._phoneAddrObserverInstalled) return;
+  
+  const applyFieldEnhancements = function() {
+    // 전화번호 4개 필드
+    ['agrHomeTel', 'agrMobile', 'agrEmergency', 'agrGuardianTel'].forEach(id => {
+      if (document.getElementById(id) && window._attachPhoneFormatter) {
+        window._attachPhoneFormatter(id);
+      }
+    });
+    
+    // 주소 필드
+    if (document.getElementById('agrAddress')) {
+      window._setupAddressField();
+    }
+  };
+  
+  // DOM 변경 감지 (팝업 열림/재렌더 감지)
+  const observer = new MutationObserver(function(mutations) {
+    for (const m of mutations) {
+      for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        // 서약서 관련 필드가 추가되었는지 확인
+        if (node.querySelector && (
+          node.querySelector('#agrAddress') || 
+          node.querySelector('#agrMobile') ||
+          node.id === 'agrAddress' ||
+          node.id === 'agrMobile'
+        )) {
+          setTimeout(applyFieldEnhancements, 50);
+          return;
+        }
+      }
+    }
+  });
+  
+  observer.observe(document.body, { childList: true, subtree: true });
+  window._phoneAddrObserver = observer;
+  window._phoneAddrObserverInstalled = true;
+  
+  // 이미 열려있는 팝업이 있으면 즉시 적용
+  applyFieldEnhancements();
+  
+  console.log('[서약서] 전화번호/주소 옵저버 설치 완료');
+})();
+</script>
 </body>
 </html>
+
 
 
 
