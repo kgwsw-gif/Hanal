@@ -13927,12 +13927,12 @@ function renderAdminChatEdit(threadId) {
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'agreementOverlay';
-            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:100000;padding:0';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:100000;padding:0';
             document.body.appendChild(overlay);
         }
         
-        var html = '<div style="background:white;max-width:500px;width:100%;height:100%;max-height:100vh;overflow-y:auto;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,0.3)">';
-        
+        var html = '<div style="background:white;max-width:500px;width:100%;height:100%;max-height:100dvh;overflow-y:auto;display:flex;flex-direction:column;box-shadow:0 25px 60px rgba(0,0,0,0.3);padding-bottom:env(safe-area-inset-bottom)">';
+   
         // ===== 헤더 (진행바) =====
         html += '<div style="padding:16px 20px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;position:sticky;top:0;z-index:10">';
         html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
