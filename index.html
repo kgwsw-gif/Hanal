@@ -14035,10 +14035,6 @@ function renderAdminChatEdit(threadId) {
     }
     h += '<div style="margin-bottom:16px"></div>';
     
-    // 비상 연락처
-    h += _makeLabel('비상시 연락처', true);
-    h += _makeInput('agrEmergency', d.emergency || '', '예: 010-1234-5678', 'tel');
-    
     // 차량번호
     h += _makeLabel('차량번호 (차량 소유자만 입력)', false);
     h += _makeInput('agrVehicle', d.vehicleNumber || '', '예: 12가 3456');
@@ -14222,7 +14218,6 @@ function renderAdminChatEdit(threadId) {
             'agrHomeTel': 'homeTel',
             'agrMobile': 'mobile',
             'agrHealthDetail': 'healthDetail',
-            'agrEmergency': 'emergency',
             'agrVehicle': 'vehicleNumber',
             'agrGuardianName': 'guardianName',
             'agrGuardianRel': 'guardianRel',
@@ -14278,7 +14273,6 @@ function renderAdminChatEdit(threadId) {
             if (!d.mobile || !d.mobile.trim()) { alert('휴대폰 번호를 입력해 주세요.'); return false; }
             if (!d.health) { alert('건강 여부를 선택해 주세요.'); return false; }
             if (d.health === '지병' && (!d.healthDetail || !d.healthDetail.trim())) { alert('지병명을 입력해 주세요.'); return false; }
-            if (!d.emergency || !d.emergency.trim()) { alert('비상시 연락처를 입력해 주세요.'); return false; }
             if (!d.guardianName || !d.guardianName.trim()) { alert('보호자 성명을 입력해 주세요.'); return false; }
             if (!d.guardianRel || !d.guardianRel.trim()) { alert('가족 관계를 입력해 주세요.'); return false; }
             if (!d.guardianTel || !d.guardianTel.trim()) { alert('보호자 연락처를 입력해 주세요.'); return false; }
@@ -14407,7 +14401,6 @@ function renderAdminChatEdit(threadId) {
         if (!d.mobile) missing.push('휴대폰');
         if (!d.health) missing.push('건강 여부');
         if (d.health === '지병' && !d.healthDetail) missing.push('지병명');
-        if (!d.emergency) missing.push('비상시 연락처');
         if (!d.guardianName) missing.push('보호자 성명');
         if (!d.guardianRel) missing.push('가족 관계');
         if (!d.guardianTel) missing.push('보호자 연락처');
@@ -14448,7 +14441,6 @@ function renderAdminChatEdit(threadId) {
                 address: d.address || '',
                 homeTel: d.homeTel || '',
                 mobile: d.mobile || '',
-                emergency: d.emergency || '',
                 vehicleNumber: d.vehicleNumber || '',
                 
                 health: d.health || '',
@@ -14770,7 +14762,6 @@ window.viewAgreementDetail = function(docId) {
     +   row('보호자명', val(data.guardianName))
     +   row('관계', val(data.guardianRelation))
     +   row('연락처', val(data.guardianPhone))
-    +   row('비상연락', val(data.emergencyContact))
     + '</div>'
     
     // 건강 정보
@@ -14903,8 +14894,7 @@ window.downloadAgreementPdf = async function(docId) {
       + '<tr><td colspan="4" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">2. 보호자 / 비상연락처</td></tr>'
       + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">보호자명</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.guardianName) + '</td>'
       + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">관계</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.guardianRelation) + '</td></tr>'
-      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">연락처</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.guardianPhone) + '</td>'
-      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">비상연락</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.emergencyContact) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">연락처</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.guardianPhone) + '</td></tr>'
       + '</table>'
       
       + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
@@ -14998,7 +14988,6 @@ window.downloadAgreementExcel = async function() {
       '보호자명': a.guardianName || '',
       '보호자관계': a.guardianRelation || '',
       '보호자연락처': a.guardianPhone || '',
-      '비상연락': a.emergencyContact || '',
       '건강특이사항': a.healthNotes || a.health || '',
       '알레르기': a.allergies || '',
       '복용약물': a.medications || '',
@@ -15603,9 +15592,9 @@ window._openAddressSearch = async function() {
   
   const applyFieldEnhancements = function() {
     // 전화번호 4개 필드
-    ['agrHomeTel', 'agrMobile', 'agrEmergency', 'agrGuardianTel'].forEach(id => {
-      if (document.getElementById(id) && window._attachPhoneFormatter) {
-        window._attachPhoneFormatter(id);
+    ['agrHomeTel', 'agrMobile', 'agrGuardianTel'].forEach(id => {
+  if (document.getElementById(id) && window._attachPhoneFormatter) {
+    window._attachPhoneFormatter(id);
       }
     });
     
