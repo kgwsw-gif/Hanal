@@ -15257,14 +15257,20 @@ window._deleteAgreementByStudent = async function(studentName) {
 
 // 다음 우편번호 API 로드
 window._loadDaumPostcode = function() {
-  return new Promise((resolve, reject) => {
-    if (typeof daum !== 'undefined' && daum.Postcode) { resolve(); return; }
+  if (typeof daum !== 'undefined' && daum.Postcode) {
+    return Promise.resolve();
+  }
+  if (window._daumLoadPromise) {
+    return window._daumLoadPromise;
+  }
+  window._daumLoadPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';  // ← https:// 명시
+    s.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
     s.onload = () => resolve();
     s.onerror = () => reject(new Error('우편번호 스크립트 로드 실패'));
     document.head.appendChild(s);
   });
+  return window._daumLoadPromise;
 };
 
 // 전화번호 포맷팅 (자동 하이픈)
@@ -15390,17 +15396,26 @@ window._openAddressSearch = async function() {
 // ============================================
 window._setupAddressField = function() {
   const addrInput = document.getElementById('agrAddress');
-  if (!addrInput || addrInput.dataset.addrHooked === 'true') return;
+  if (!addrInput) return;
+  
+  const savedAddr = window._agreementState?.data?.address || window._addressBackup?.address || '';
+  const savedDetail = window._agreementState?.data?.addressDetail || window._addressBackup?.addressDetail || '';
+  
+  if (savedAddr) addrInput.value = savedAddr;
+  
+  if (addrInput.dataset.addrHooked === 'true') {
+    const d = document.getElementById('agrAddressDetail');
+    if (d && savedDetail) d.value = savedDetail;
+    return;
+  }
   addrInput.dataset.addrHooked = 'true';
   
-  // 읽기 전용으로 변경 (검색으로만 입력)
   addrInput.readOnly = true;
   addrInput.placeholder = '주소 검색 버튼을 눌러주세요';
   addrInput.style.background = '#f9fafb';
   addrInput.style.cursor = 'pointer';
   addrInput.onclick = function() { window._openAddressSearch(); };
   
-  // 검색 버튼 삽입
   const searchBtn = document.createElement('button');
   searchBtn.type = 'button';
   searchBtn.innerHTML = '<i class="fas fa-search"></i> 주소 검색';
@@ -15408,102 +15423,176 @@ window._setupAddressField = function() {
   searchBtn.onclick = function() { window._openAddressSearch(); };
   addrInput.parentNode.insertBefore(searchBtn, addrInput.nextSibling);
   
-  // 상세주소 입력 필드 추가
   const detailWrap = document.createElement('div');
   detailWrap.style.marginTop = '8px';
-  detailWrap.innerHTML = 
-    '<input type="text" id="agrAddressDetail" placeholder="상세주소 (동/호수, 예: 101동 202호)" ' +
-    'class="' + addrInput.className + '" style="' + (addrInput.getAttribute('style') || '') + ';background:white;cursor:text;" ' +
-    'onblur="if(window._agreementInput) window._agreementInput(\'addressDetail\', this.value);">';
+  const detailInput = document.createElement('input');
+  detailInput.type = 'text';
+  detailInput.id = 'agrAddressDetail';
+  detailInput.placeholder = '상세주소 (동/호수, 예: 101동 202호)';
+  detailInput.className = addrInput.className;
+  detailInput.style.cssText = (addrInput.getAttribute('style') || '') + ';background:white;cursor:text;';
+  detailInput.addEventListener('input', function() {
+    window._addressBackup = window._addressBackup || {};
+    window._addressBackup.addressDetail = this.value;
+    if (!window._agreementState) window._agreementState = {};
+    if (!window._agreementState.data) window._agreementState.data = {};
+    window._agreementState.data.addressDetail = this.value;
+  });
+  detailWrap.appendChild(detailInput);
   searchBtn.parentNode.insertBefore(detailWrap, searchBtn.nextSibling);
   
-  // 기존 저장된 상세주소 복원
-  const d = window._agreementState?.data;
-  if (d && d.addressDetail) {
-    const detailInput = document.getElementById('agrAddressDetail');
-    if (detailInput) detailInput.value = d.addressDetail;
-  }
+  if (savedDetail) detailInput.value = savedDetail;
 };
+// ============================================
+// 건강여부 클릭 시 주소 유지 + 스크롤 유지
+// ============================================
+(function() {
+  if (window._healthHookInstalled) return;
+  
+  // _agreementSetHealth가 로드된 후에 훅 설치
+  const installHook = function() {
+    if (typeof window._agreementSetHealth !== 'function') {
+      setTimeout(installHook, 100);
+      return;
+    }
+    if (window._healthHookInstalled) return;
+    
+    const orig = window._agreementSetHealth;
+    window._agreementSetHealth = function(val) {
+      const popup = document.getElementById('agreementOverlay') || document.querySelector('[id*="greement"]');
+      let scrollTarget = null;
+      let savedScrollTop = 0;
+      if (popup) {
+        const all = popup.querySelectorAll('*');
+        for (const el of all) {
+          if (el.scrollTop > 0) { scrollTarget = el; savedScrollTop = el.scrollTop; break; }
+        }
+      }
+      
+      const addrInput = document.getElementById('agrAddress');
+      const detailInput = document.getElementById('agrAddressDetail');
+      if (addrInput?.value) {
+        if (!window._agreementState) window._agreementState = {};
+        if (!window._agreementState.data) window._agreementState.data = {};
+        window._agreementState.data.address = addrInput.value;
+        window._addressBackup = window._addressBackup || {};
+        window._addressBackup.address = addrInput.value;
+      }
+      if (detailInput?.value) {
+        window._agreementState.data.addressDetail = detailInput.value;
+        window._addressBackup.addressDetail = detailInput.value;
+      }
+      
+      const result = orig.apply(this, arguments);
+      
+      [0, 16, 50, 100].forEach(delay => {
+        setTimeout(() => {
+          if (document.activeElement?.tagName === 'INPUT' && 
+              (document.activeElement.readOnly || document.activeElement.id === 'agrAddress')) {
+            document.activeElement.blur();
+          }
+          if (popup && savedScrollTop > 0) {
+            const all = popup.querySelectorAll('*');
+            for (const el of all) {
+              if (el.scrollHeight > el.clientHeight) {
+                el.scrollTop = savedScrollTop;
+              }
+            }
+          }
+        }, delay);
+      });
+      
+      return result;
+    };
+    window._healthHookInstalled = true;
+    console.log('✅ 건강여부 클릭 훅 설치 완료');
+  };
+  
+  installHook();
+})();
 
 // ============================================
 // 주소 검색 팝업 (embed 방식 - file:// 환경 호환)
 // ============================================
 window._openAddressSearch = async function() {
-  try {
-    await window._loadDaumPostcode();
-  } catch (e) {
-    alert('주소 검색을 열 수 없습니다: ' + e.message);
-    return;
+  if (typeof daum === 'undefined' || !daum.Postcode) {
+    try {
+      await window._loadDaumPostcode();
+    } catch (e) {
+      alert('주소 검색을 열 수 없습니다: ' + e.message);
+      return;
+    }
+    let retry = 0;
+    while ((typeof daum === 'undefined' || !daum.Postcode) && retry < 20) {
+      await new Promise(r => setTimeout(r, 50));
+      retry++;
+    }
   }
   
-  // 이전 인스턴스 제거
   const prev = document.getElementById('agrAddressEmbedBox');
   if (prev) prev.remove();
   
-  // 배경 오버레이
   const overlay = document.createElement('div');
   overlay.id = 'agrAddressEmbedBox';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:2147483647;display:flex;align-items:center;justify-content:center;';
   
-  // 모달 박스
   const modal = document.createElement('div');
-  modal.style.cssText = 'width:500px;max-width:92vw;height:520px;max-height:85vh;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.3);overflow:hidden;position:relative;';
+  modal.style.cssText = 'width:500px;max-width:92vw;height:520px;max-height:85vh;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.3);overflow:hidden;position:relative;display:flex;flex-direction:column;';
   
-  // 헤더
   const header = document.createElement('div');
-  header.style.cssText = 'padding:12px 16px;background:#4338ca;color:#fff;font-weight:bold;font-size:15px;display:flex;justify-content:space-between;align-items:center;';
+  header.style.cssText = 'padding:12px 16px;background:#4338ca;color:#fff;font-weight:bold;font-size:15px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;';
   header.innerHTML = '<span>🔍 주소 검색</span>';
   const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = '✕';
+  closeBtn.type = 'button'; closeBtn.textContent = '✕';
   closeBtn.style.cssText = 'background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;';
   closeBtn.onclick = () => overlay.remove();
   header.appendChild(closeBtn);
   modal.appendChild(header);
   
-  // 임베드 대상 (헤더 제외한 나머지 공간)
   const target = document.createElement('div');
-  target.style.cssText = 'width:100%;height:calc(100% - 48px);';
+  target.id = 'agrDaumTarget';
+  target.style.cssText = 'width:100%;flex:1;min-height:0;';
   modal.appendChild(target);
   
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   
-  // 오버레이(배경) 클릭 시 닫기
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
-  
-  new daum.Postcode({
-    oncomplete: function(data) {
-      const road = data.roadAddress || '';
-      const jibun = data.jibunAddress || '';
-      const zonecode = data.zonecode || '';
-      let fullAddr = road;
-      if (jibun && jibun !== road) fullAddr += ' (' + jibun + ')';
-      
-      const addrInput = document.getElementById('agrAddress');
-      if (addrInput) addrInput.value = fullAddr;
-      
-      if (window._agreementInput) {
-        window._agreementInput('address', fullAddr);
-        window._agreementInput('roadAddress', road);
-        window._agreementInput('jibunAddress', jibun);
-        window._agreementInput('zonecode', zonecode);
-      } else if (window._agreementState && window._agreementState.data) {
-        window._agreementState.data.address = fullAddr;
-        window._agreementState.data.roadAddress = road;
-        window._agreementState.data.jibunAddress = jibun;
-        window._agreementState.data.zonecode = zonecode;
-      }
-      
+  requestAnimationFrame(() => {
+    try {
+      new daum.Postcode({
+        oncomplete: function(data) {
+          const road = data.roadAddress || '';
+          const jibun = data.jibunAddress || '';
+          let fullAddr = road;
+          if (jibun && jibun !== road) fullAddr += ' (' + jibun + ')';
+          
+          window._addressBackup = window._addressBackup || {};
+          window._addressBackup.address = fullAddr;
+          
+          const addrInput = document.getElementById('agrAddress');
+          if (addrInput) addrInput.value = fullAddr;
+          
+          if (!window._agreementState) window._agreementState = {};
+          if (!window._agreementState.data) window._agreementState.data = {};
+          window._agreementState.data.address = fullAddr;
+          
+          if (typeof window._agreementInput === 'function') {
+            window._agreementInput('agrAddress', fullAddr);
+          }
+          
+          overlay.remove();
+          const detailInput = document.getElementById('agrAddressDetail');
+          if (detailInput) detailInput.focus();
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(target);
+    } catch (err) {
+      console.error('embed 실패:', err);
       overlay.remove();
-      const detailInput = document.getElementById('agrAddressDetail');
-      if (detailInput) detailInput.focus();
-    },
-    width: '100%',
-    height: '100%'
-  }).embed(target);
+    }
+  });
 };
 
 // ============================================
