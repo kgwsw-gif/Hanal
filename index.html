@@ -10194,6 +10194,32 @@ async function executePendingBulkUpload() {
 }
 
 // ============ 예비입사자 관리 패널 (개선 버전) ============
+// 예비 입사자 검색 - IME 안전 핸들러
+window._pendingSearchHandler = function(input) {
+    if (window._pendingSearchTimer) clearTimeout(window._pendingSearchTimer);
+    
+    window._pendingSearchTimer = setTimeout(function() {
+        var el = document.getElementById('pendingSearchInput');
+        if (!el) return;
+        var v = el.value;
+        var cursorPos = el.selectionStart;
+        
+        window._pendingFilter.search = v;
+        window._pendingCursorPos = cursorPos;
+        showPendingManagePanel();
+        
+        // 재렌더링 후 커서 복원
+        setTimeout(function() {
+            var newEl = document.getElementById('pendingSearchInput');
+            if (newEl && document.activeElement !== newEl) {
+                newEl.focus();
+                var pos = window._pendingCursorPos != null ? window._pendingCursorPos : newEl.value.length;
+                try { newEl.setSelectionRange(pos, pos); } catch(e) {}
+            }
+        }, 30);
+    }, 500);
+};
+
 function showPendingManagePanel() {
     // 필터/정렬 상태 초기화
     if (!window._pendingFilter) window._pendingFilter = { search: '', dept: '', sort: 'expDate', groupByDept: false };
@@ -10338,7 +10364,7 @@ function showPendingManagePanel() {
     // 검색창
     h += '<div class="flex items-center bg-white rounded-xl px-3 py-2 mb-2 border border-surface-200">';
     h += '<i class="fas fa-search text-gray-400 mr-2"></i>';
-    h += '<input type="text" id="pendingSearchInput" value="' + escapeHtml(window._pendingFilter.search) + '" placeholder="이름, 호실, 학과 검색..." class="flex-1 bg-transparent border-none outline-none text-sm" style="font-size:16px" oninput="clearTimeout(window._pendingSearchTimer);var v=this.value;window._pendingSearchTimer=setTimeout(function(){window._pendingFilter.search=v;showPendingManagePanel();setTimeout(function(){var el=document.getElementById(\'pendingSearchInput\');if(el){el.focus();el.setSelectionRange(v.length,v.length)}},50)},300)">';
+    h += '<input type="text" id="pendingSearchInput" value="' + escapeHtml(window._pendingFilter.search) + '" placeholder="이름, 호실, 학과 검색..." class="flex-1 bg-transparent border-none outline-none text-sm" style="font-size:16px" oninput="window._pendingSearchHandler(this)">';
     if (window._pendingFilter.search) {
         h += '<button onclick="window._pendingFilter.search=\'\';showPendingManagePanel()" class="text-danger-400 hover:text-danger-600 ml-2"><i class="fas fa-times-circle"></i></button>';
     }
