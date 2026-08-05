@@ -10194,30 +10194,140 @@ async function executePendingBulkUpload() {
 }
 
 // ============ 예비입사자 관리 패널 (개선 버전) ============
-// 예비 입사자 검색 - IME 안전 핸들러
+// 예비 입사자 검색 - IME 안전 핸들러 (부분 갱신)
 window._pendingSearchHandler = function(input) {
     if (window._pendingSearchTimer) clearTimeout(window._pendingSearchTimer);
     
     window._pendingSearchTimer = setTimeout(function() {
         var el = document.getElementById('pendingSearchInput');
         if (!el) return;
-        var v = el.value;
-        var cursorPos = el.selectionStart;
-        
-        window._pendingFilter.search = v;
-        window._pendingCursorPos = cursorPos;
-        showPendingManagePanel();
-        
-        // 재렌더링 후 커서 복원
-        setTimeout(function() {
-            var newEl = document.getElementById('pendingSearchInput');
-            if (newEl && document.activeElement !== newEl) {
-                newEl.focus();
-                var pos = window._pendingCursorPos != null ? window._pendingCursorPos : newEl.value.length;
-                try { newEl.setSelectionRange(pos, pos); } catch(e) {}
+        window._pendingFilter.search = el.value;
+        // 전체 재렌더링 대신 결과 영역만 갱신 (input 유지 → IME 조합 유지)
+        if (window._renderPendingResults) {
+            window._renderPendingResults();
+        } else {
+            showPendingManagePanel();
+        }
+    }, 250);
+};
+// 예비 입사자 검색 결과만 부분 재렌더링 (IME 조합 유지용)
+window._renderPendingResults = function() {
+    if (!window._pendingFilter) window._pendingFilter = { search: '', dept: '', sort: 'expDate', groupByDept: false };
+    
+    // 목록 수집 (showPendingManagePanel과 동일 로직)
+    var pendingList = [];
+    var _allStuP = window._secureData.getAllStudents();
+    var _seenNames = {};
+    Object.keys(_allStuP).forEach(function(dept) {
+        if (dept === '_guest') return;
+        (_allStuP[dept] || []).forEach(function(name) {
+            if (_seenNames[name]) return;
+            _seenNames[name] = true;
+            if (window._secureData.isPending(name)) {
+                pendingList.push({
+                    dept: dept, name: name,
+                    room: window._secureData.getRoomNumber(name) || '',
+                    expectedDate: window._secureData.getExpectedDate(name) || ''
+                });
             }
-        }, 30);
-    }, 500);
+        });
+    });
+    if (typeof departments !== 'undefined' && typeof students !== 'undefined') {
+        departments.forEach(function(dept) {
+            (students[dept] || []).forEach(function(name) {
+                if (_seenNames[name]) return;
+                _seenNames[name] = true;
+                if (window._secureData.isPending(name)) {
+                    pendingList.push({
+                        dept: dept, name: name,
+                        room: window._secureData.getRoomNumber(name) || '',
+                        expectedDate: window._secureData.getExpectedDate(name) || ''
+                    });
+                }
+            });
+        });
+    }
+    
+    var today = getCurrentDate();
+    var dueList = pendingList.filter(function(p) { return p.expectedDate && p.expectedDate <= today; });
+    var futureList = pendingList.filter(function(p) { return !p.expectedDate || p.expectedDate > today; });
+    
+    // 정렬
+    var sortList = function(arr) {
+        var sort = window._pendingFilter.sort;
+        return arr.slice().sort(function(a, b) {
+            if (sort === 'name') return a.name.localeCompare(b.name);
+            if (sort === 'room') return (parseInt(a.room || '999') - parseInt(b.room || '999'));
+            return (a.expectedDate || 'z').localeCompare(b.expectedDate || 'z');
+        });
+    };
+    dueList = sortList(dueList);
+    futureList = sortList(futureList);
+    
+    // 필터링 (검색 + 초성)
+    var f = window._pendingFilter;
+    var kw = f.search.trim().toLowerCase();
+    var _getChosung = function(str) {
+        var CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+        var out = '';
+        for (var i = 0; i < str.length; i++) {
+            var code = str.charCodeAt(i) - 0xAC00;
+            if (code >= 0 && code <= 11171) { out += CHO[Math.floor(code / 588)]; }
+            else { out += str.charAt(i); }
+        }
+        return out;
+    };
+    var _isChosungOnly = kw && /^[ㄱ-ㅎ]+$/.test(kw);
+    var applyFilter = function(arr) {
+        return arr.filter(function(p) {
+            if (f.dept && p.dept !== f.dept) return false;
+            if (kw) {
+                var name = p.name || '', room = p.room || '', dept = p.dept || '';
+                var match = (name.toLowerCase().indexOf(kw) !== -1) ||
+                            (room.indexOf(kw) !== -1) ||
+                            (dept.toLowerCase().indexOf(kw) !== -1);
+                if (!match && _isChosungOnly) {
+                    match = (_getChosung(name).indexOf(kw) !== -1) ||
+                            (_getChosung(dept).indexOf(kw) !== -1);
+                }
+                if (!match) return false;
+            }
+            return true;
+        });
+    };
+    var filteredDue = applyFilter(dueList);
+    var filteredFuture = applyFilter(futureList);
+    
+    // HTML 생성
+    var h = '';
+    if (filteredDue.length > 0) {
+        h += '<div class="mb-4">';
+        h += '<div class="flex items-center gap-2 mb-2">';
+        h += '<div class="w-2 h-2 rounded-full bg-orange-500"></div>';
+        h += '<div class="font-bold text-base text-orange-700">🔴 오늘 입사 예정 (' + filteredDue.length + '명)</div>';
+        h += '</div>';
+        h += renderPendingCards(filteredDue, true);
+        h += '</div>';
+    }
+    if (filteredFuture.length > 0) {
+        h += '<div class="mb-2">';
+        h += '<div class="flex items-center gap-2 mb-2">';
+        h += '<div class="w-2 h-2 rounded-full bg-yellow-500"></div>';
+        h += '<div class="font-bold text-base text-yellow-700">📅 향후 예비 입사자 (' + filteredFuture.length + '명)</div>';
+        h += '</div>';
+        h += renderPendingCards(filteredFuture, false);
+        h += '</div>';
+    }
+    if (filteredDue.length === 0 && filteredFuture.length === 0) {
+        h += '<div class="text-center py-12 text-gray-400 bg-surface-50 rounded-2xl border border-surface-200">';
+        h += '<i class="fas fa-search text-3xl mb-2"></i>';
+        h += '<div class="text-sm">검색 조건에 맞는 예비 입사자가 없습니다</div>';
+        h += '<button onclick="window._pendingFilter={search:\'\',dept:\'\',sort:\'expDate\',groupByDept:false};showPendingManagePanel()" class="mt-3 px-4 py-2 bg-primary-500 text-white rounded-lg text-sm">필터 초기화</button>';
+        h += '</div>';
+    }
+    
+    var el = document.getElementById('pendingResultArea');
+    if (el) el.innerHTML = h;
 };
 
 function showPendingManagePanel() {
@@ -10388,7 +10498,7 @@ function showPendingManagePanel() {
     h += '</div>';
     
     // ===== 스크롤 영역 시작 =====
-    h += '<div style="flex:1;overflow-y:auto;min-height:200px">';
+    h += '<div id="pendingResultArea" style="flex:1;overflow-y:auto;min-height:200px">';
     
     // ===== 오늘 입사 예정자 (강조) =====
     if (filteredDue.length > 0) {
