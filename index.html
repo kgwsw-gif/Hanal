@@ -14417,19 +14417,20 @@ function renderAdminChatEdit(threadId) {
 
     // ============ 입력 저장 (전역 함수) ============
     window._agreementInput = function(id, value) {
-        var map = {
-            'agrAddress': 'address',
-            'agrHomeTel': 'homeTel',
-            'agrMobile': 'mobile',
-            'agrHealthDetail': 'healthDetail',
-            'agrVehicle': 'vehicleNumber',
-            'agrGuardianName': 'guardianName',
-            'agrGuardianRel': 'guardianRel',
-            'agrGuardianTel': 'guardianTel'
-        };
-        var key = map[id];
-        if (key) _agreementState.data[key] = value;
+    var map = {
+        'agrAddress': 'address',
+        'agrAddressDetail': 'addressDetail',   // 신규 추가
+        'agrHomeTel': 'homeTel',
+        'agrMobile': 'mobile',
+        'agrHealthDetail': 'healthNotes',      // healthDetail → healthNotes (관리자 필드명 일치)
+        'agrVehicle': 'vehicleNumber',
+        'agrGuardianName': 'guardianName',
+        'agrGuardianRel': 'guardianRelation',  // guardianRel → guardianRelation
+        'agrGuardianTel': 'guardianPhone'      // guardianTel → guardianPhone
     };
+    var key = map[id];
+    if (key) _agreementState.data[key] = value;
+};
     
     window._agreementSetSubClass = function(val) {
         _agreementState.data.subClass = val;
@@ -15026,7 +15027,8 @@ window.viewAgreementDetail = function(docId) {
     +   row('출생년도', val(data.birthYear))
     +   row('휴대전화', val(data.mobile))
     +   row('주소', val(data.address))
-    +   row('차량번호', val(data.vehicleNumber))
+   +   row('상세주소', val(data.addressDetail))
+   +   row('차량번호', val(data.vehicleNumber))
     + '</div>'
     
     // 보호자 정보
@@ -15264,7 +15266,8 @@ window.downloadAgreementPdf = async function(docId) {
       + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">출생년도</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.birthYear) + '</td>'
       + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">휴대전화</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.mobile) + '</td></tr>'
       + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">주소</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.address) + '</td></tr>'
-      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">차량번호</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.vehicleNumber) + '</td></tr>'
++ '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">상세주소</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.addressDetail) + '</td></tr>'
++ '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">차량번호</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.vehicleNumber) + '</td></tr>'
       + '</table>'
       
       + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
