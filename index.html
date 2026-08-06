@@ -14328,13 +14328,12 @@ function renderAdminChatEdit(threadId) {
         h += '<button onclick="window._agreementSetFingerprint(false)" style="width:100%;padding:18px;border:2px solid ' + (fpDisagreed ? '#ef4444' : '#e5e7eb') + ';background:' + (fpDisagreed ? '#fef2f2' : 'white') + ';border-radius:12px;font-size:16px;font-weight:800;color:' + (fpDisagreed ? '#991b1b' : '#374151') + ';cursor:pointer;transition:all 0.2s">' + (fpDisagreed ? '✗ ' : '') + '동의하지 않음</button>';
         
         if (fpDisagreed) {
-            h += '<div style="margin-top:16px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px">';
-            h += '<div style="font-size:15px;font-weight:900;color:#991b1b;margin-bottom:8px">⚠️ 미동의 시 안내</div>';
-            h += '<div style="font-size:14px;color:#7f1d1d;line-height:1.7">동의하지 않으실 경우, 여학생 기숙사 출입이 제한될 수 있습니다.<br><br>별도 비치된 수기 대장을 이용하시거나 사감실에 문의해 주세요.</div>';
-            h += '</div>';
-        }
-        h += '</div>';
-    }
+    h += '<div style="margin-top:16px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px">';
+    h += '<div style="font-size:15px;font-weight:900;color:#991b1b;margin-bottom:8px">⚠️ 미동의 시 안내</div>';
+    h += '<div style="font-size:14px;color:#7f1d1d;line-height:1.7">동의하지 않으실 경우, 여학생 기숙사 출입이 제한될 수 있습니다.</div>';
+    h += '</div>';
+}
+
     // ============ 지문등록 동의서 끝 ============
     
     return h;
@@ -14444,14 +14443,49 @@ function renderAdminChatEdit(threadId) {
     };
     
     window._agreementSetPrivacy = function(agreed) {
-        _agreementState.data.privacyAgreed = agreed;
-        renderAgreementStep();
-    };
+    // 스크롤 위치 저장
+    var overlay = document.getElementById('agreementOverlay');
+    var popup = overlay ? overlay.querySelector('div') : null;
+    var scrollTop = popup ? popup.scrollTop : 0;
+    // 내부 스크롤 요소도 확인
+    var innerScroll = overlay ? overlay.querySelector('[style*="overflow-y:auto"]') : null;
+    var innerTop = innerScroll ? innerScroll.scrollTop : 0;
+    
+    _agreementState.data.privacyAgreed = agreed;
+    renderAgreementStep();
+    
+    // 재렌더링 후 스크롤 복원
+    requestAnimationFrame(function() {
+        var newOverlay = document.getElementById('agreementOverlay');
+        if (!newOverlay) return;
+        var newPopup = newOverlay.querySelector('div');
+        if (newPopup) newPopup.scrollTop = scrollTop;
+        var newInner = newOverlay.querySelector('[style*="overflow-y:auto"]');
+        if (newInner) newInner.scrollTop = innerTop;
+    });
+};
 
-   window._agreementSetFingerprint = function(v) {
+  window._agreementSetFingerprint = function(v) {
+    // 스크롤 위치 저장
+    var overlay = document.getElementById('agreementOverlay');
+    var popup = overlay ? overlay.querySelector('div') : null;
+    var scrollTop = popup ? popup.scrollTop : 0;
+    var innerScroll = overlay ? overlay.querySelector('[style*="overflow-y:auto"]') : null;
+    var innerTop = innerScroll ? innerScroll.scrollTop : 0;
+    
     _agreementState.data.fingerprintAgreed = v;
     renderAgreementStep();
-   };
+    
+    // 재렌더링 후 스크롤 복원
+    requestAnimationFrame(function() {
+        var newOverlay = document.getElementById('agreementOverlay');
+        if (!newOverlay) return;
+        var newPopup = newOverlay.querySelector('div');
+        if (newPopup) newPopup.scrollTop = scrollTop;
+        var newInner = newOverlay.querySelector('[style*="overflow-y:auto"]');
+        if (newInner) newInner.scrollTop = innerTop;
+    });
+};
     
     // ============ 이전/다음 버튼 ============
     window._agreementPrev = function() {
