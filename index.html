@@ -14443,49 +14443,76 @@ function renderAdminChatEdit(threadId) {
     };
     
     window._agreementSetPrivacy = function(agreed) {
-    // 스크롤 위치 저장
+    // 모든 스크롤 가능 요소의 위치 저장
     var overlay = document.getElementById('agreementOverlay');
-    var popup = overlay ? overlay.querySelector('div') : null;
-    var scrollTop = popup ? popup.scrollTop : 0;
-    // 내부 스크롤 요소도 확인
-    var innerScroll = overlay ? overlay.querySelector('[style*="overflow-y:auto"]') : null;
-    var innerTop = innerScroll ? innerScroll.scrollTop : 0;
+    var scrollMap = [];
+    if (overlay) {
+        overlay.querySelectorAll('*').forEach(function(el) {
+            if (el.scrollTop > 0) {
+                scrollMap.push({ el: el, top: el.scrollTop });
+            }
+        });
+    }
     
     _agreementState.data.privacyAgreed = agreed;
     renderAgreementStep();
     
-    // 재렌더링 후 스크롤 복원
-    requestAnimationFrame(function() {
+    // 재렌더링 후 스크롤 복원 (여러 시점에 시도)
+    var restore = function() {
         var newOverlay = document.getElementById('agreementOverlay');
         if (!newOverlay) return;
-        var newPopup = newOverlay.querySelector('div');
-        if (newPopup) newPopup.scrollTop = scrollTop;
-        var newInner = newOverlay.querySelector('[style*="overflow-y:auto"]');
-        if (newInner) newInner.scrollTop = innerTop;
+        // 새로 만들어진 요소에서 같은 위치를 유지하기 위해,
+        // 스크롤이 가장 컸던 값을 가진 요소를 찾아 그 위치로 이동
+        var maxTop = 0;
+        scrollMap.forEach(function(s) { if (s.top > maxTop) maxTop = s.top; });
+        if (maxTop === 0) return;
+        // 재렌더링 후 스크롤 컨테이너 찾아서 적용
+        newOverlay.querySelectorAll('*').forEach(function(el) {
+            if (el.scrollHeight > el.clientHeight && el.clientHeight > 100) {
+                el.scrollTop = maxTop;
+            }
+        });
+    };
+    requestAnimationFrame(function() {
+        restore();
+        setTimeout(restore, 30);
+        setTimeout(restore, 100);
     });
 };
 
-  window._agreementSetFingerprint = function(v) {
-    // 스크롤 위치 저장
+window._agreementSetFingerprint = function(v) {
     var overlay = document.getElementById('agreementOverlay');
-    var popup = overlay ? overlay.querySelector('div') : null;
-    var scrollTop = popup ? popup.scrollTop : 0;
-    var innerScroll = overlay ? overlay.querySelector('[style*="overflow-y:auto"]') : null;
-    var innerTop = innerScroll ? innerScroll.scrollTop : 0;
+    var scrollMap = [];
+    if (overlay) {
+        overlay.querySelectorAll('*').forEach(function(el) {
+            if (el.scrollTop > 0) {
+                scrollMap.push({ el: el, top: el.scrollTop });
+            }
+        });
+    }
     
     _agreementState.data.fingerprintAgreed = v;
     renderAgreementStep();
     
-    // 재렌더링 후 스크롤 복원
-    requestAnimationFrame(function() {
+    var restore = function() {
         var newOverlay = document.getElementById('agreementOverlay');
         if (!newOverlay) return;
-        var newPopup = newOverlay.querySelector('div');
-        if (newPopup) newPopup.scrollTop = scrollTop;
-        var newInner = newOverlay.querySelector('[style*="overflow-y:auto"]');
-        if (newInner) newInner.scrollTop = innerTop;
+        var maxTop = 0;
+        scrollMap.forEach(function(s) { if (s.top > maxTop) maxTop = s.top; });
+        if (maxTop === 0) return;
+        newOverlay.querySelectorAll('*').forEach(function(el) {
+            if (el.scrollHeight > el.clientHeight && el.clientHeight > 100) {
+                el.scrollTop = maxTop;
+            }
+        });
+    };
+    requestAnimationFrame(function() {
+        restore();
+        setTimeout(restore, 30);
+        setTimeout(restore, 100);
     });
 };
+
     
     // ============ 이전/다음 버튼 ============
     window._agreementPrev = function() {
