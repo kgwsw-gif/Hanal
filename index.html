@@ -14290,7 +14290,7 @@ function renderAdminChatEdit(threadId) {
     }
     h += '</div>';
 
-        // ============ 지문등록 동의서 (여학생만) ============
+            // ============ 지문등록 동의서 (여학생만) ============
     if (d.name && d.name.indexOf('(여)') !== -1) {
         var fp = d.fingerprintAgreed;
         var fpAgreed = fp === true;
@@ -14303,7 +14303,6 @@ function renderAdminChatEdit(threadId) {
         h += '<div style="font-size:14px;color:#78350f;line-height:1.7">한국폴리텍대학 화성캠퍼스는 여학생 기숙사 출입통제시스템 지문등록을 위한 개인정보를 수집·이용하고자 하오니 내용을 자세히 읽으신 후 동의여부를 결정하여 주시기 바랍니다.</div>';
         h += '</div>';
         
-        // 수집 항목 표
         h += '<div style="background:white;border:2px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">';
         h += '<div style="font-size:16px;font-weight:900;color:#111827;margin-bottom:14px">📋 개인정보 수집·이용 내역</div>';
         h += '<table style="width:100%;font-size:14px;border-collapse:collapse">';
@@ -14320,7 +14319,6 @@ function renderAdminChatEdit(threadId) {
         h += '<div style="font-size:13px;color:#6b7280;margin-top:12px;line-height:1.7">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으며, 동의하지 않을 경우 별도 비치된 수기 대장을 이용하여야 합니다.</div>';
         h += '</div>';
         
-        // 동의 선택
         h += '<div style="background:white;border:2px solid #fecaca;border-radius:12px;padding:18px;margin-bottom:16px">';
         h += '<div style="font-size:16px;font-weight:900;color:#991b1b;margin-bottom:14px">✍️ 위와 같이 개인정보의 수집·이용에 동의하십니까?</div>';
         
@@ -14328,13 +14326,15 @@ function renderAdminChatEdit(threadId) {
         h += '<button onclick="window._agreementSetFingerprint(false)" style="width:100%;padding:18px;border:2px solid ' + (fpDisagreed ? '#ef4444' : '#e5e7eb') + ';background:' + (fpDisagreed ? '#fef2f2' : 'white') + ';border-radius:12px;font-size:16px;font-weight:800;color:' + (fpDisagreed ? '#991b1b' : '#374151') + ';cursor:pointer;transition:all 0.2s">' + (fpDisagreed ? '✗ ' : '') + '동의하지 않음</button>';
         
         if (fpDisagreed) {
-    h += '<div style="margin-top:16px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px">';
-    h += '<div style="font-size:15px;font-weight:900;color:#991b1b;margin-bottom:8px">⚠️ 미동의 시 안내</div>';
-    h += '<div style="font-size:14px;color:#7f1d1d;line-height:1.7">동의하지 않으실 경우, 여학생 기숙사 출입이 제한될 수 있습니다.</div>';
-    h += '</div>';
-}
-
+            h += '<div style="margin-top:16px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px">';
+            h += '<div style="font-size:15px;font-weight:900;color:#991b1b;margin-bottom:8px">⚠️ 미동의 시 안내</div>';
+            h += '<div style="font-size:14px;color:#7f1d1d;line-height:1.7">동의하지 않으실 경우, 여학생 기숙사 출입이 제한될 수 있습니다.</div>';
+            h += '</div>';
+        }
+        h += '</div>';
+    }
     // ============ 지문등록 동의서 끝 ============
+
     
     return h;
 }
