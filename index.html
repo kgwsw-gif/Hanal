@@ -14289,12 +14289,58 @@ function renderAdminChatEdit(threadId) {
         h += '</div>';
     }
     h += '</div>';
+
+        // ============ 지문등록 동의서 (여학생만) ============
+    if (d.name && d.name.indexOf('(여)') !== -1) {
+        var fp = d.fingerprintAgreed;
+        var fpAgreed = fp === true;
+        var fpDisagreed = fp === false;
+        
+        h += '<h2 style="font-size:20px;font-weight:900;color:#111827;margin-bottom:16px">🔒 기숙사 출입통제시스템 지문등록 동의서</h2>';
+        
+        h += '<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:16px;margin-bottom:18px">';
+        h += '<div style="font-size:15px;color:#92400e;font-weight:800;margin-bottom:8px">⚠️ 여학생 기숙사 출입통제를 위한 동의서입니다</div>';
+        h += '<div style="font-size:14px;color:#78350f;line-height:1.7">한국폴리텍대학 화성캠퍼스는 여학생 기숙사 출입통제시스템 지문등록을 위한 개인정보를 수집·이용하고자 하오니 내용을 자세히 읽으신 후 동의여부를 결정하여 주시기 바랍니다.</div>';
+        h += '</div>';
+        
+        // 수집 항목 표
+        h += '<div style="background:white;border:2px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:16px">';
+        h += '<div style="font-size:16px;font-weight:900;color:#111827;margin-bottom:14px">📋 개인정보 수집·이용 내역</div>';
+        h += '<table style="width:100%;font-size:14px;border-collapse:collapse">';
+        h += '<thead><tr style="background:#f3f4f6">';
+        h += '<th style="padding:10px;border:1px solid #e5e7eb;font-weight:800;font-size:14px">수집 항목</th>';
+        h += '<th style="padding:10px;border:1px solid #e5e7eb;font-weight:800;font-size:14px">수집 이용 목적</th>';
+        h += '<th style="padding:10px;border:1px solid #e5e7eb;font-weight:800;font-size:14px">보유기간</th>';
+        h += '</tr></thead>';
+        h += '<tbody><tr>';
+        h += '<td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;text-align:center;line-height:1.6">지문<br><span style="font-size:11px;color:#6b7280">(시스템에 등록되는 개인정보 기재)</span></td>';
+        h += '<td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;text-align:center;line-height:1.6">기숙사 출입통제시스템 지문등록</td>';
+        h += '<td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;text-align:center;line-height:1.6;color:#b91c1c;font-weight:bold">기숙사 퇴사 시 삭제</td>';
+        h += '</tr></tbody></table>';
+        h += '<div style="font-size:13px;color:#6b7280;margin-top:12px;line-height:1.7">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으며, 동의하지 않을 경우 별도 비치된 수기 대장을 이용하여야 합니다.</div>';
+        h += '</div>';
+        
+        // 동의 선택
+        h += '<div style="background:white;border:2px solid #fecaca;border-radius:12px;padding:18px;margin-bottom:16px">';
+        h += '<div style="font-size:16px;font-weight:900;color:#991b1b;margin-bottom:14px">✍️ 위와 같이 개인정보의 수집·이용에 동의하십니까?</div>';
+        
+        h += '<button onclick="window._agreementSetFingerprint(true)" style="width:100%;padding:18px;border:2px solid ' + (fpAgreed ? '#10b981' : '#e5e7eb') + ';background:' + (fpAgreed ? '#ecfdf5' : 'white') + ';border-radius:12px;font-size:16px;font-weight:800;color:' + (fpAgreed ? '#065f46' : '#374151') + ';cursor:pointer;margin-bottom:10px;transition:all 0.2s">' + (fpAgreed ? '✓ ' : '') + '동의함</button>';
+        h += '<button onclick="window._agreementSetFingerprint(false)" style="width:100%;padding:18px;border:2px solid ' + (fpDisagreed ? '#ef4444' : '#e5e7eb') + ';background:' + (fpDisagreed ? '#fef2f2' : 'white') + ';border-radius:12px;font-size:16px;font-weight:800;color:' + (fpDisagreed ? '#991b1b' : '#374151') + ';cursor:pointer;transition:all 0.2s">' + (fpDisagreed ? '✗ ' : '') + '동의하지 않음</button>';
+        
+        if (fpDisagreed) {
+            h += '<div style="margin-top:16px;padding:16px;background:#fef2f2;border:2px solid #fecaca;border-radius:12px">';
+            h += '<div style="font-size:15px;font-weight:900;color:#991b1b;margin-bottom:8px">⚠️ 미동의 시 안내</div>';
+            h += '<div style="font-size:14px;color:#7f1d1d;line-height:1.7">동의하지 않으실 경우, 여학생 기숙사 출입이 제한될 수 있습니다.<br><br>별도 비치된 수기 대장을 이용하시거나 사감실에 문의해 주세요.</div>';
+            h += '</div>';
+        }
+        h += '</div>';
+    }
+    // ============ 지문등록 동의서 끝 ============
     
     return h;
 }
-
-    
-        // ============ Step 3: 서명 및 제출 (Phase 2) ============
+  
+   // ============ Step 3: 서명 및 제출 (Phase 2) ============
     function renderStep3Placeholder() {
         var d = _agreementState.data;
         var isSubmitting = _agreementState.isSubmitting === true;
@@ -14401,6 +14447,11 @@ function renderAdminChatEdit(threadId) {
         _agreementState.data.privacyAgreed = agreed;
         renderAgreementStep();
     };
+
+   window._agreementSetFingerprint = function(v) {
+    _agreementState.data.fingerprintAgreed = v;
+    renderAgreementStep();
+   };
     
     // ============ 이전/다음 버튼 ============
     window._agreementPrev = function() {
@@ -14564,6 +14615,7 @@ function renderAdminChatEdit(threadId) {
         if (!d.guardianRel) missing.push('가족 관계');
         if (!d.guardianTel) missing.push('보호자 연락처');
         if (d.privacyAgreed !== true) missing.push('개인정보 수집·이용 동의');
+        if (d.name && d.name.indexOf('(여)') !== -1 && d.fingerprintAgreed === undefined) missing.push('지문등록 동의서 동의 여부');
         
         if (missing.length > 0) {
             alert('⚠️ 다음 항목이 누락되었습니다:\n\n• ' + missing.join('\n• ') + '\n\n이전 단계로 돌아가 입력해 주세요.');
@@ -14610,6 +14662,7 @@ function renderAdminChatEdit(threadId) {
                 guardianTel: d.guardianTel || '',
                 
                 privacyAgreed: true,
+                fingerprintAgreed: (_agreementState.data.fingerprintAgreed !== undefined ? _agreementState.data.fingerprintAgreed : null),
                 signature: signatureDataUrl,
                 signatureStrokes: _signatureStrokes,
                 
