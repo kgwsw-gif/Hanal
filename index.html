@@ -14533,29 +14533,29 @@ window._agreementSetFingerprint = function(v) {
     
     // ============ 현재 스텝 유효성 검증 ============
     function validateCurrentStep() {
-        var d = _agreementState.data;
-        var step = _agreementState.currentStep;
-        
-        if (step === 1) {
-            if (d.department === '스마트전기과' && !d.subClass) {
-                alert('전기반 또는 소방반을 선택해 주세요.');
-                return false;
-            }
-            if (!d.address || !d.address.trim()) { alert('주소를 입력해 주세요.'); return false; }
-            if (!d.mobile || !d.mobile.trim()) { alert('휴대폰 번호를 입력해 주세요.'); return false; }
-            if (!d.health) { alert('건강 여부를 선택해 주세요.'); return false; }
-            if (d.health === '지병' && (!d.healthDetail || !d.healthDetail.trim())) { alert('지병명을 입력해 주세요.'); return false; }
-            if (!d.guardianName || !d.guardianName.trim()) { alert('보호자 성명을 입력해 주세요.'); return false; }
-            if (!d.guardianRel || !d.guardianRel.trim()) { alert('가족 관계를 입력해 주세요.'); return false; }
-            if (!d.guardianTel || !d.guardianTel.trim()) { alert('보호자 연락처를 입력해 주세요.'); return false; }
+    var d = _agreementState.data;
+    var step = _agreementState.currentStep;
+    
+    if (step === 1) {
+        if (d.department === '스마트전기과' && !d.subClass) {
+            alert('전기반 또는 소방반을 선택해 주세요.');
+            return false;
         }
-        else if (step === 2) {
-            if (d.privacyAgreed === undefined) { alert('개인정보 수집·이용 동의 여부를 선택해 주세요.'); return false; }
-            if (d.privacyAgreed === false) { alert('개인정보 수집·이용에 동의하지 않으실 경우 앱 사용이 제한됩니다.\n\n사감실(031-350-3133)로 문의해 주세요.'); return false; }
-        }
-        
-        return true;
+        if (!d.address || !d.address.trim()) { alert('주소를 입력해 주세요.'); return false; }
+        if (!d.mobile || !d.mobile.trim()) { alert('휴대폰 번호를 입력해 주세요.'); return false; }
+        if (!d.health) { alert('건강 여부를 선택해 주세요.'); return false; }
+        if (d.health === '지병' && (!d.healthNotes || !d.healthNotes.trim())) { alert('지병명을 입력해 주세요.'); return false; }
+        if (!d.guardianName || !d.guardianName.trim()) { alert('보호자 성명을 입력해 주세요.'); return false; }
+        if (!d.guardianRelation || !d.guardianRelation.trim()) { alert('가족 관계를 입력해 주세요.'); return false; }
+        if (!d.guardianPhone || !d.guardianPhone.trim()) { alert('보호자 연락처를 입력해 주세요.'); return false; }
     }
+    else if (step === 2) {
+        if (d.privacyAgreed === undefined) { alert('개인정보 수집·이용 동의 여부를 선택해 주세요.'); return false; }
+        if (d.privacyAgreed === false) { alert('개인정보 수집·이용에 동의하지 않으실 경우 앱 사용이 제한됩니다.\n\n사감실(031-350-3133)로 문의해 주세요.'); return false; }
+    }
+    
+    return true;
+}
     
     // ============ Phase 2: 서명 캔버스 ============
     var _signatureCtx = null;
