@@ -14659,103 +14659,104 @@ window._agreementSetFingerprint = function(v) {
     
     // ============ Phase 2: 최종 제출 ============
     window._agreementSubmit = async function() {
-        if (!_signatureHasContent || _signatureStrokes < 3) {
-            alert('⚠️ 서명이 부족합니다.\n\n최소 3개 이상의 획으로 본인의 이름을 서명해 주세요.');
-            return;
-        }
+    if (!_signatureHasContent || _signatureStrokes < 3) {
+        alert('⚠️ 서명이 부족합니다.\n\n최소 3개 이상의 획으로 본인의 이름을 서명해 주세요.');
+        return;
+    }
+    
+    var d = _agreementState.data;
+    var missing = [];
+    if (!d.name) missing.push('성명');
+    if (!d.department) missing.push('학과');
+    if (d.department === '스마트전기과' && !d.subClass) missing.push('반 선택');
+    if (!d.address) missing.push('주소');
+    if (!d.mobile) missing.push('휴대폰');
+    if (!d.health) missing.push('건강 여부');
+    if (d.health === '지병' && !d.healthNotes) missing.push('지병명');
+    if (!d.guardianName) missing.push('보호자 성명');
+    if (!d.guardianRelation) missing.push('가족 관계');
+    if (!d.guardianPhone) missing.push('보호자 연락처');
+    if (d.privacyAgreed !== true) missing.push('개인정보 수집·이용 동의');
+    if (d.name && d.name.indexOf('(여)') !== -1 && d.fingerprintAgreed === undefined) missing.push('지문등록 동의서 동의 여부');
+    
+    if (missing.length > 0) {
+        alert('⚠️ 다음 항목이 누락되었습니다:\n\n• ' + missing.join('\n• ') + '\n\n이전 단계로 돌아가 입력해 주세요.');
+        return;
+    }
+    
+    if (!confirm('서약서를 최종 제출합니다.\n\n제출 후에는 수정하거나 다시 볼 수 없습니다.\n계속 진행하시겠습니까?')) {
+        return;
+    }
+    
+    var canvas = document.getElementById('agreementSignatureCanvas');
+    if (!canvas) {
+        alert('❌ 서명 캔버스를 찾을 수 없습니다. 페이지를 새로고침해 주세요.');
+        return;
+    }
+    var signatureDataUrl = canvas.toDataURL('image/png');
+    
+    _agreementState.isSubmitting = true;
+    renderAgreementStep();
+    
+    try {
+        var now = new Date();
+        var todayStr = now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일';
+        var todayISO = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         
-        var d = _agreementState.data;
-        var missing = [];
-        if (!d.name) missing.push('성명');
-        if (!d.department) missing.push('학과');
-        if (d.department === '스마트전기과' && !d.subClass) missing.push('반 선택');
-        if (!d.address) missing.push('주소');
-        if (!d.mobile) missing.push('휴대폰');
-        if (!d.health) missing.push('건강 여부');
-        if (d.health === '지병' && !d.healthDetail) missing.push('지병명');
-        if (!d.guardianName) missing.push('보호자 성명');
-        if (!d.guardianRel) missing.push('가족 관계');
-        if (!d.guardianTel) missing.push('보호자 연락처');
-        if (d.privacyAgreed !== true) missing.push('개인정보 수집·이용 동의');
-        if (d.name && d.name.indexOf('(여)') !== -1 && d.fingerprintAgreed === undefined) missing.push('지문등록 동의서 동의 여부');
+        var payload = {
+            studentId: d.studentId || (d.name + '_' + d.department),
+            name: d.name || '',
+            department: d.department || '',
+            subClass: d.subClass || '',
+            room: d.room || '',
+            birthYear: d.birthYear || '',
+            
+            address: d.address || '',
+            addressDetail: d.addressDetail || '',
+            homeTel: d.homeTel || '',
+            mobile: d.mobile || '',
+            vehicleNumber: d.vehicleNumber || '',
+            
+            health: d.health || '',
+            healthNotes: d.healthNotes || '',
+            
+            guardianName: d.guardianName || '',
+            guardianRelation: d.guardianRelation || '',
+            guardianPhone: d.guardianPhone || '',
+            
+            privacyAgreed: true,
+            fingerprintAgreed: (_agreementState.data.fingerprintAgreed !== undefined ? _agreementState.data.fingerprintAgreed : null),
+            signature: signatureDataUrl,
+            signatureStrokes: _signatureStrokes,
+            
+            submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            submittedDate: todayStr,
+            submittedDateISO: todayISO,
+            
+            status: 'submitted',
+            appVersion: 'phase2',
+            userAgent: (navigator.userAgent || '').substring(0, 200)
+        };
         
-        if (missing.length > 0) {
-            alert('⚠️ 다음 항목이 누락되었습니다:\n\n• ' + missing.join('\n• ') + '\n\n이전 단계로 돌아가 입력해 주세요.');
-            return;
-        }
+        var docId = payload.studentId.replace(/[\/\.\#\$\[\]]/g, '_');
+        await db.collection('dormitoryAgreements').doc(docId).set(payload);
         
-        if (!confirm('서약서를 최종 제출합니다.\n\n제출 후에는 수정하거나 다시 볼 수 없습니다.\n계속 진행하시겠습니까?')) {
-            return;
-        }
+        console.log('✅ 서약서 제출 완료:', docId);
         
-        var canvas = document.getElementById('agreementSignatureCanvas');
-        if (!canvas) {
-            alert('❌ 서명 캔버스를 찾을 수 없습니다. 페이지를 새로고침해 주세요.');
-            return;
-        }
-        var signatureDataUrl = canvas.toDataURL('image/png');
+        _agreementState.isSubmitting = false;
+        _closeAgreementPopup();
         
-        _agreementState.isSubmitting = true;
+        setTimeout(function() {
+            alert('✅ 서약서 제출이 완료되었습니다.\n\n이제 앱을 정상적으로 이용하실 수 있습니다.');
+        }, 200);
+        
+    } catch (err) {
+        console.error('❌ 서약서 제출 실패:', err);
+        _agreementState.isSubmitting = false;
         renderAgreementStep();
-        
-        try {
-            var now = new Date();
-            var todayStr = now.getFullYear() + '년 ' + (now.getMonth() + 1) + '월 ' + now.getDate() + '일';
-            var todayISO = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-            
-            var payload = {
-                studentId: d.studentId || (d.name + '_' + d.department),
-                name: d.name || '',
-                department: d.department || '',
-                subClass: d.subClass || '',
-                room: d.room || '',
-                birthYear: d.birthYear || '',
-                
-                address: d.address || '',
-                homeTel: d.homeTel || '',
-                mobile: d.mobile || '',
-                vehicleNumber: d.vehicleNumber || '',
-                
-                health: d.health || '',
-                healthDetail: d.healthDetail || '',
-                
-                guardianName: d.guardianName || '',
-                guardianRel: d.guardianRel || '',
-                guardianTel: d.guardianTel || '',
-                
-                privacyAgreed: true,
-                fingerprintAgreed: (_agreementState.data.fingerprintAgreed !== undefined ? _agreementState.data.fingerprintAgreed : null),
-                signature: signatureDataUrl,
-                signatureStrokes: _signatureStrokes,
-                
-                submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                submittedDate: todayStr,
-                submittedDateISO: todayISO,
-                
-                status: 'submitted',
-                appVersion: 'phase2',
-                userAgent: (navigator.userAgent || '').substring(0, 200)
-            };
-            
-            var docId = payload.studentId.replace(/[\/\.\#\$\[\]]/g, '_');
-            await db.collection('dormitoryAgreements').doc(docId).set(payload);
-            
-            console.log('✅ 서약서 제출 완료:', docId);
-            
-            _agreementState.isSubmitting = false;
-            _closeAgreementPopup();
-            
-            setTimeout(function() {
-                alert('✅ 서약서 제출이 완료되었습니다.\n\n이제 앱을 정상적으로 이용하실 수 있습니다.');
-            }, 200);
-            
-        } catch (err) {
-            console.error('❌ 서약서 제출 실패:', err);
-            _agreementState.isSubmitting = false;
-            renderAgreementStep();
-            alert('❌ 제출 중 오류가 발생했습니다.\n\n' + (err.message || err) + '\n\n네트워크를 확인하시고 다시 시도해 주세요.');
-        }
-    };
+        alert('❌ 제출 중 오류가 발생했습니다.\n\n' + (err.message || err) + '\n\n네트워크를 확인하시고 다시 시도해 주세요.');
+    }
+};
     
     function _closeAgreementPopup() {
         var overlay = document.getElementById('agreementOverlay');
