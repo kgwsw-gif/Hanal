@@ -15817,10 +15817,10 @@ window._setupAddressField = function() {
   detailInput.addEventListener('input', function() {
     window._addressBackup = window._addressBackup || {};
     window._addressBackup.addressDetail = this.value;
-    if (!window._agreementState) window._agreementState = {};
-    if (!window._agreementState.data) window._agreementState.data = {};
-    window._agreementState.data.addressDetail = this.value;
-  });
+    if (window._agreementInput) {
+        window._agreementInput('agrAddressDetail', this.value);
+    }
+});
   detailWrap.appendChild(detailInput);
   searchBtn.parentNode.insertBefore(detailWrap, searchBtn.nextSibling);
   
