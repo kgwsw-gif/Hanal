@@ -3899,14 +3899,12 @@ if(alerts.length > 1) msg += ' 외 ' + (alerts.length - 1) + '건';
   console.log('✅ 토스트 표시:', msg);
 }
 
-
-// 상세 보기 (3차에서 자동 리포트로 확장 예정, 일단 임시)
+// 상세 보기
 function showCourseReport(courseId){
   var c = courses.find(function(x){ return x.id === courseId; });
   if(!c) return;
-  alert(c.name + '\n시작일: ' + c.startDate + '\n수료일: ' + c.endDate + '\n\n(자동 리포트는 3차에서 구현됩니다)');
+  alert(c.name + '\n시작일: ' + c.startDate + '\n수료일: ' + c.endDate);
 }
-
 
 async function loadCourses(){
   try {
