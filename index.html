@@ -10309,6 +10309,19 @@ window._renderPendingResults = function() {
         h += renderPendingCards(filteredDue, true);
         h += '</div>';
     }
+
+     // ===== 관리자 메모 (Firestore 공용 저장) =====
+    h += '<div id="adminMemoWrap" style="display:block;width:100%;margin:0 0 12px 0;background:linear-gradient(135deg,#fef9c3,#fef3c7);border:2px solid #fbbf24;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(251,191,36,0.15);box-sizing:border-box;">';
+    h += '<div id="adminMemoHeader" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none;background:rgba(251,191,36,0.15);">';
+    h += '<div style="display:flex;align-items:center;gap:8px;font-weight:bold;color:#78350f;font-size:14px;"><span style="font-size:16px;">📝</span><span>관리자 메모</span><span id="adminMemoStatus" style="font-size:12px;font-weight:normal;color:#a16207;margin-left:6px;"></span></div>';
+    h += '<span id="adminMemoToggle" style="font-size:13px;color:#78350f;font-weight:bold;">▼ 펼치기</span>';
+    h += '</div>';
+    h += '<div id="adminMemoBody" style="display:none;padding:12px 14px 14px;">';
+    h += '<textarea id="adminMemoText" placeholder="관리자 메모를 입력하세요..." style="width:100%;min-height:100px;padding:10px;border:1px solid #fbbf24;border-radius:8px;background:#fffbeb;font-size:14px;line-height:1.5;color:#451a03;resize:vertical;outline:none;font-family:inherit;box-sizing:border-box;"></textarea>';
+    h += '<div style="margin-top:8px;font-size:12px;color:#78350f;font-weight:500;">💡 내용을 입력 후 1초 뒤 자동저장됩니다.</div>';
+    h += '</div>';
+    h += '</div>';
+    
     if (filteredFuture.length > 0) {
         h += '<div class="mb-2">';
         h += '<div class="flex items-center gap-2 mb-2">';
@@ -10326,8 +10339,80 @@ window._renderPendingResults = function() {
         h += '</div>';
     }
     
-    var el = document.getElementById('pendingResultArea');
+     var el = document.getElementById('pendingResultArea');
     if (el) el.innerHTML = h;
+    
+    // 관리자 메모 초기화
+    setTimeout(function() {
+        if (window._initAdminMemo) window._initAdminMemo();
+    }, 100);
+}
+
+// ===== 관리자 메모 (Firestore 공용 저장) =====
+window._initAdminMemo = function() {
+    var textarea = document.getElementById('adminMemoText');
+    if (!textarea || textarea.dataset.inited) return;
+    textarea.dataset.inited = '1';
+    
+    var statusEl = document.getElementById('adminMemoStatus');
+    var header = document.getElementById('adminMemoHeader');
+    var body = document.getElementById('adminMemoBody');
+    var toggle = document.getElementById('adminMemoToggle');
+    if (!statusEl || !header || !body || !toggle) return;
+    
+    var memoDoc = firebase.firestore().collection('settings').doc('pendingMemo');
+    
+    statusEl.textContent = '불러오는 중...';
+    memoDoc.get().then(function(doc) {
+        var savedMemo = '';
+        if (doc.exists) savedMemo = doc.data().content || '';
+        textarea.value = savedMemo;
+        if (savedMemo) {
+            body.style.display = 'block';
+            toggle.textContent = '▲ 접기';
+        }
+        statusEl.textContent = savedMemo ? '✓ 불러옴' : '';
+        setTimeout(function() { statusEl.textContent = ''; }, 2000);
+    }).catch(function(e) {
+        statusEl.textContent = '⚠ 로드 실패';
+        statusEl.style.color = '#dc2626';
+        console.log('[관리자 메모] 로드 실패:', e);
+    });
+    
+    header.addEventListener('click', function() {
+        if (body.style.display === 'none') {
+            body.style.display = 'block';
+            toggle.textContent = '▲ 접기';
+        } else {
+            body.style.display = 'none';
+            toggle.textContent = '▼ 펼치기';
+        }
+    });
+    
+    var saveTimer = null;
+    textarea.addEventListener('input', function() {
+        statusEl.textContent = '입력 중...';
+        statusEl.style.color = '#a16207';
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(function() {
+            statusEl.textContent = '저장 중...';
+            memoDoc.set({
+                content: textarea.value,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: (firebase.auth().currentUser && firebase.auth().currentUser.email) || 'unknown'
+            }).then(function() {
+                statusEl.textContent = '✓ 저장됨 (' + new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'}) + ')';
+                statusEl.style.color = '#16a34a';
+                setTimeout(function() { statusEl.style.color = '#94a3b8'; }, 3000);
+            }).catch(function(e) {
+                statusEl.textContent = '⚠ 저장 실패';
+                statusEl.style.color = '#dc2626';
+                console.log('[관리자 메모] 저장 실패:', e);
+            });
+        }, 1000);
+    });
+    
+    textarea.addEventListener('click', function(e) { e.stopPropagation(); });
 };
 
 function showPendingManagePanel() {
@@ -10511,6 +10596,18 @@ function showPendingManagePanel() {
         h += '</div>';
     }
     
+    // ===== 관리자 메모 (Firestore 공용 저장) =====
+    h += '<div id="adminMemoWrap" style="display:block;width:100%;margin:0 0 12px 0;background:linear-gradient(135deg,#fef9c3,#fef3c7);border:2px solid #fbbf24;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(251,191,36,0.15);box-sizing:border-box;">';
+    h += '<div id="adminMemoHeader" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none;background:rgba(251,191,36,0.15);">';
+    h += '<div style="display:flex;align-items:center;gap:8px;font-weight:bold;color:#78350f;font-size:14px;"><span style="font-size:16px;">📝</span><span>관리자 메모</span><span id="adminMemoStatus" style="font-size:12px;font-weight:normal;color:#a16207;margin-left:6px;"></span></div>';
+    h += '<span id="adminMemoToggle" style="font-size:13px;color:#78350f;font-weight:bold;">▼ 펼치기</span>';
+    h += '</div>';
+    h += '<div id="adminMemoBody" style="display:none;padding:12px 14px 14px;">';
+    h += '<textarea id="adminMemoText" placeholder="관리자 메모를 입력하세요..." style="width:100%;min-height:100px;padding:10px;border:1px solid #fbbf24;border-radius:8px;background:#fffbeb;font-size:14px;line-height:1.5;color:#451a03;resize:vertical;outline:none;font-family:inherit;box-sizing:border-box;"></textarea>';
+    h += '<div style="margin-top:8px;font-size:12px;color:#78350f;font-weight:500;">💡 내용을 입력 후 1초 뒤 자동저장됩니다.</div>';
+    h += '</div>';
+    h += '</div>';
+    
     // ===== 향후 예비 입사자 =====
     if (filteredFuture.length > 0) {
         h += '<div class="mb-2">';
@@ -10534,7 +10631,12 @@ function showPendingManagePanel() {
     h += '</div>'; // 스크롤 영역 끝
     h += '</div>'; // 최외곽 끝
     
-    openModal(h);
+     openModal(h);
+    
+    // 관리자 메모 초기화
+    setTimeout(function() {
+        if (window._initAdminMemo) window._initAdminMemo();
+    }, 100);
     
     // 검색창 자동 포커스 (모달 열림 후)
     setTimeout(function() {
