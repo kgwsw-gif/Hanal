@@ -10722,7 +10722,7 @@ function renderPendingCard(p, isDue, seq) {
     return h;
 }
 
-// ============ 예비입사자 본인 로그인 차단 ============
+// ============ 예비입사자 본인 로그인 차단 (학생 + 학과대표) ============
 (function(){
     var _origShowStudentLogin = window.showStudentLogin;
     if (!_origShowStudentLogin) return;
@@ -10730,12 +10730,28 @@ function renderPendingCard(p, isDue, seq) {
     // 로그인 시 예비입사자 체크는 _secureData가 처리하지만,
     // 로그인 직후 강제 차단을 위한 추가 검사
     var _checkInterval = setInterval(function() {
+        // ① 학생 모드 검사 (기존)
         if (currentMode === 'student' && currentStudent && window._secureData.isPending(currentStudent)) {
             var expDate = window._secureData.getExpectedDate(currentStudent);
             showToast('아직 입사 전입니다. 입사 예정일: ' + (expDate || '미정'), 'warning');
             currentMode = null;
             currentStudent = null;
             render();
+            return;
+        }
+        
+        // ② 학과대표 모드 검사 (신규 추가)
+        if (currentMode === 'leader' && isLeaderLoggedIn && leaderDepartment) {
+            var leaderInfo = DEPARTMENT_LEADERS[leaderDepartment];
+            var leaderName = leaderInfo && leaderInfo.name;
+            if (leaderName && window._secureData.isPending(leaderName)) {
+                var expDate = window._secureData.getExpectedDate(leaderName);
+                showToast('아직 입사 전입니다. 입사 예정일: ' + (expDate || '미정'), 'warning');
+                isLeaderLoggedIn = false;
+                leaderDepartment = null;
+                currentMode = null;
+                render();
+            }
         }
     }, 500);
 })();
