@@ -10756,6 +10756,53 @@ function renderPendingCard(p, isDue, seq) {
     }, 500);
 })();
 
+// ============ 학과대표 로그인 훅 (예비입사자 즉시 차단) ============
+(function() {
+    if (window._leaderRenderHookInstalled) return;
+    
+    var installHook = function() {
+        if (typeof window.render !== 'function') {
+            setTimeout(installHook, 100);
+            return;
+        }
+        if (window._leaderRenderHookInstalled) return;
+        
+        var origRender = window.render;
+        window.render = function() {
+            // render 실행 전 학과대표 예비입사자 검사
+            if (currentMode === 'leader' && isLeaderLoggedIn && leaderDepartment) {
+                var leaderInfo = DEPARTMENT_LEADERS[leaderDepartment];
+                var leaderName = leaderInfo && leaderInfo.name;
+                
+                if (leaderName && window._secureData && 
+                    typeof window._secureData.isPending === 'function' &&
+                    window._secureData.isPending(leaderName)) {
+                    
+                    var expDate = window._secureData.getExpectedDate(leaderName);
+                    
+                    // 로그인 상태 즉시 해제
+                    isLeaderLoggedIn = false;
+                    leaderDepartment = null;
+                    currentMode = null;
+                    
+                    // 메시지 표시 (약간 지연시켜 render 완료 후 표시)
+                    setTimeout(function() {
+                        showToast('아직 입사 전입니다. 입사 예정일: ' + (expDate || '미정'), 'warning');
+                    }, 100);
+                }
+            }
+            
+            // 원본 render 실행
+            return origRender.apply(this, arguments);
+        };
+        
+        window._leaderRenderHookInstalled = true;
+        console.log('✅ 학과대표 render 훅 설치 완료');
+    };
+    
+    installHook();
+})();
+
 // ============ 관리자 화면에 "예비 입사자" 플로팅 버튼 추가 ============
 (function(){
     function addPendingFloatBtn() {
