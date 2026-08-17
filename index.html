@@ -14199,8 +14199,19 @@ function renderAdminChatEdit(threadId) {
     async function hasSubmittedAgreement(studentName) {
         if (!db) return false;
         try {
-            var doc = await db.collection(AGREEMENT_CONFIG.collection).doc(studentName).get();
-            return doc.exists && doc.data().status === 'submitted';
+            // name 필드로 조회 (docId가 "이름_학과" 형식이라 doc(이름)으로는 조회 불가)
+            var snap = await db.collection(AGREEMENT_CONFIG.collection)
+                .where('name', '==', studentName)
+                .limit(1)
+                .get();
+            if (snap.empty) {
+                console.log('[서약서] hasSubmittedAgreement: 미제출 -', studentName);
+                return false;
+            }
+            var data = snap.docs[0].data();
+            var isSubmitted = data.status === 'submitted';
+            console.log('[서약서] hasSubmittedAgreement: 제출됨 -', studentName, ', status:', data.status);
+            return isSubmitted;
         } catch (e) {
             console.log('[서약서] 제출 확인 실패:', e.message);
             return false;
@@ -15643,7 +15654,32 @@ window.downloadAgreementExcel = async function() {
 };
 
 // ==================== 자동 서약서 체크 (학생 로그인 시) ====================
+
+// 오버레이 표시 함수 (앱 조작 잠금)
+window._showAgreementCheckOverlay = function() {
+  if (document.getElementById('agreementCheckOverlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'agreementCheckOverlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(255,255,255,0.95);z-index:99998;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;';
+  overlay.innerHTML = 
+    '<div style="text-align:center;">' +
+      '<div style="width:50px;height:50px;border:4px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:agrSpin 1s linear infinite;margin:0 auto 20px;"></div>' +
+      '<div style="font-size:16px;font-weight:600;color:#374151;">서약서 확인 중...</div>' +
+      '<div style="font-size:13px;color:#6b7280;margin-top:8px;">잠시만 기다려 주세요</div>' +
+    '</div>' +
+    '<style>@keyframes agrSpin{to{transform:rotate(360deg)}}</style>';
+  document.body.appendChild(overlay);
+};
+
+window._hideAgreementCheckOverlay = function() {
+  const overlay = document.getElementById('agreementCheckOverlay');
+  if (overlay) overlay.remove();
+};
+
 window._checkAgreementForStudent = async function() {
+  // 오버레이 표시 여부 플래그
+  let overlayShown = false;
+  
   try {
     // 학생 모드가 아니면 종료
     if (typeof currentMode === 'undefined' || currentMode !== 'student') return;
@@ -15655,7 +15691,7 @@ window._checkAgreementForStudent = async function() {
     // 게스트 계정 제외
     if (studentName === '게스트' || studentName.includes('guest')) return;
     
-    // 이미 팝업이 열려있으면 재실행 방지
+    // 이미 서약서 팝업이 열려있으면 재실행 방지
     if (document.getElementById('agreementOverlay')) return;
     
     // 최근 체크 시각 확인 (5초 내 재실행 방지)
@@ -15663,17 +15699,23 @@ window._checkAgreementForStudent = async function() {
     if (window._lastAgreementCheck && (now - window._lastAgreementCheck) < 5000) return;
     window._lastAgreementCheck = now;
     
+    // ★ 학생 로그인 시 즉시 오버레이 표시 (앱 조작 잠금)
+    window._showAgreementCheckOverlay();
+    overlayShown = true;
+    
     console.log('[서약서 자동 체크] 학생:', studentName);
     
     // 1) 서약서 시스템 설정 확인
     const settingDoc = await db.collection('settings').doc('agreementSystem').get();
     if (!settingDoc.exists) {
       console.log('[서약서] 시스템 설정 없음');
+      window._hideAgreementCheckOverlay();
       return;
     }
     const settings = settingDoc.data();
     if (!settings.enabled) {
       console.log('[서약서] 시스템 비활성화');
+      window._hideAgreementCheckOverlay();
       return;
     }
     
@@ -15684,6 +15726,7 @@ window._checkAgreementForStudent = async function() {
       .get();
     if (!submitSnap.empty) {
       console.log('[서약서] 이미 제출 완료');
+      window._hideAgreementCheckOverlay();
       return;
     }
     
@@ -15691,6 +15734,7 @@ window._checkAgreementForStudent = async function() {
     const studentDoc = await db.collection('roomNumbers').doc(studentName).get();
     if (!studentDoc.exists) {
       console.log('[서약서] 학생 상세 정보 없음:', studentName);
+      window._hideAgreementCheckOverlay();
       return;
     }
     const studentData = studentDoc.data();
@@ -15698,6 +15742,7 @@ window._checkAgreementForStudent = async function() {
     // 4) 상태 확인 (active 학생만)
     if (studentData.status && studentData.status !== 'active') {
       console.log('[서약서] 비활성 학생:', studentData.status);
+      window._hideAgreementCheckOverlay();
       return;
     }
     
@@ -15705,6 +15750,7 @@ window._checkAgreementForStudent = async function() {
     if (settings.applyFromDate && studentData.registeredDate) {
       if (studentData.registeredDate < settings.applyFromDate) {
         console.log('[서약서] 대상 기간 이전 입사자');
+        window._hideAgreementCheckOverlay();
         return;
       }
     }
@@ -15714,11 +15760,12 @@ window._checkAgreementForStudent = async function() {
       const targets = settings.targetStudents || [];
       if (targets.length > 0 && !targets.includes(studentName)) {
         console.log('[서약서] 대상 학생 아님');
+        window._hideAgreementCheckOverlay();
         return;
       }
     }
     
-    // 7) 모든 조건 통과 → 팝업 열기
+    // 7) 모든 조건 통과 → 서약서 팝업 열기 (오버레이는 유지, 서약서 팝업이 위에 뜸)
     console.log('[서약서] ✅ 조건 통과, 팝업 표시');
     window._agreementForceOpen({
       studentId: studentName,
@@ -15727,9 +15774,13 @@ window._checkAgreementForStudent = async function() {
       room: studentData.room || '',
       birthYear: studentData.age ? String(new Date().getFullYear() - studentData.age) : ''
     });
+    // 서약서 팝업이 뜨면 확인용 오버레이 제거 (서약서 팝업 자체가 앱을 잠금)
+    window._hideAgreementCheckOverlay();
     
   } catch (err) {
     console.error('[서약서] 자동 체크 오류:', err);
+    // 오류 시 반드시 오버레이 제거 (앱이 영구 잠금되지 않도록)
+    if (overlayShown) window._hideAgreementCheckOverlay();
   }
 };
 
@@ -15753,6 +15804,7 @@ window._checkAgreementForStudent = async function() {
 
 // 초기 로드 시에도 한 번 체크
 setTimeout(() => window._checkAgreementForStudent(), 1000);
+
 // ==================== 퇴사 시 서약서 자동 삭제 훅 ====================
 window._deleteAgreementByStudent = async function(studentName) {
   if (!studentName || typeof studentName !== 'string') return { deleted: 0 };
