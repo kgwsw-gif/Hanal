@@ -2759,10 +2759,11 @@ try{
         
         updateProgress(100,'✅ 완전 파기 완료!');
         
-        setTimeout(function(){
+          setTimeout(function(){
             overlay.remove();
+            try{render()}catch(e){console.log('render 실패(무시):',e.message)};
             var totalDeleted=deletedCount.submissions+deletedCount.outings+deletedCount.penalties+deletedCount.messages+deletedCount.access+deletedCount.facility+deletedCount.hvac+deletedCount.lottery+deletedCount.passLogs+deletedCount.resigns;
-            
+       
             openModal(
                 '<div class="p-6 text-center">' +
                 '<div style="width:80px;height:80px;margin:0 auto 16px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center">' +
@@ -4226,8 +4227,9 @@ async function executeStudentDelete(dept,name){
         
         updateProgress(100,'✅ 완전 파기 완료!');
         
-        setTimeout(function(){
+          setTimeout(function(){
             overlay.remove();
+            try{render()}catch(e){console.log('render 실패(무시):',e.message)};
             var totalDeleted=deletedCount.submissions+deletedCount.outings+deletedCount.penalties+deletedCount.messages+deletedCount.access+deletedCount.facility+deletedCount.hvac+deletedCount.lottery+deletedCount.passLogs+deletedCount.resigns;
             
             openModal(
