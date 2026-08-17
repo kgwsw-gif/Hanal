@@ -9040,6 +9040,22 @@ h+='</div></div>';
 return h;
 }
 
+function renderAgreementSubmitAdmin(){
+var h='';
+h+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up">';
+h+='<div class="flex items-center justify-between cursor-pointer select-none" onclick="window._agreementSubmitOpen=!window._agreementSubmitOpen;render()">';
+h+='<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-file-signature text-indigo-500"></i> 서약서 제출 관리</h2>';
+h+='<i class="fas '+(window._agreementSubmitOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i>';
+h+='</div>';
+if(!window._agreementSubmitOpen){h+='</div>';return h;}
+h+='<div class="mt-4">';
+h+='<div class="text-sm text-gray-600 mb-4">교육생이 제출한 디지털 입사 서약서를 조회하고 다운로드할 수 있습니다.</div>';
+h+='<button onclick="showAgreementManagePanel()" class="w-full py-3.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-clipboard-list mr-1"></i> 제출 목록 조회</button>';
+h+='<button onclick="window._agreementSubmitOpen=false;render()" class="w-full mt-4 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1"></i>닫기</button>';
+h+='</div></div>';
+return h;
+}
+
 function renderSubmitRankList(data,mode){
 var h='';
 if(!data||data.length===0){
