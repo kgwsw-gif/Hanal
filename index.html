@@ -14765,11 +14765,15 @@ window._agreementSetFingerprint = function(v) {
         if (!d.mobile || !d.mobile.trim()) { alert('휴대폰 번호를 입력해 주세요.'); return false; }
         if (!d.health) { alert('건강 여부를 선택해 주세요.'); return false; }
         if (d.health === '지병' && (!d.healthNotes || !d.healthNotes.trim())) { alert('지병명을 입력해 주세요.'); return false; }
-        if (!d.allergyYN) { alert('알레르기 여부를 선택해 주세요.'); return false; }
-        if (d.allergyYN === '있음' && (!d.allergies || !d.allergies.trim())) { alert('알레르기 상세 내용을 입력해 주세요.'); return false; }
-        if (!d.medicationYN) { alert('복용약물 여부를 선택해 주세요.'); return false; }
-        if (d.medicationYN === '있음' && (!d.medications || !d.medications.trim())) { alert('복용약물 상세 내용을 입력해 주세요.'); return false; }
+        // 지병 선택 시에만 알레르기·복용약물 검증 (UI 표시 조건과 일치)
+        if (d.health === '지병') {
+            if (!d.allergyYN) { alert('알레르기 여부를 선택해 주세요.'); return false; }
+            if (d.allergyYN === '있음' && (!d.allergies || !d.allergies.trim())) { alert('알레르기 상세 내용을 입력해 주세요.'); return false; }
+            if (!d.medicationYN) { alert('복용약물 여부를 선택해 주세요.'); return false; }
+            if (d.medicationYN === '있음' && (!d.medications || !d.medications.trim())) { alert('복용약물 상세 내용을 입력해 주세요.'); return false; }
+        }
         if (!d.guardianName || !d.guardianName.trim()) { alert('보호자 성명을 입력해 주세요.'); return false; }
+
         if (!d.guardianRelation || !d.guardianRelation.trim()) { alert('가족 관계를 입력해 주세요.'); return false; }
         if (!d.guardianPhone || !d.guardianPhone.trim()) { alert('보호자 연락처를 입력해 주세요.'); return false; }
     }
