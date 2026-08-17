@@ -2695,23 +2695,27 @@ async function executeResignDelete(reqId){
         // 서약서 데이터 및 서명 이미지 삭제 (개인정보처리방침 준수)
         updateProgress(88,'서약서 데이터 삭제 중...');
         try {
-            var agreeDoc = await db.collection('dormitoryAgreements').doc(name).get();
-            if (agreeDoc.exists) {
-                var agreeData = agreeDoc.data();
-                // 서명 이미지 Storage에서 삭제 (Phase 2 이후)
-                if (agreeData.signatureStoragePath) {
-                    try {
-                        await storage.ref(agreeData.signatureStoragePath).delete();
-                        updateProgress(89, '서명 이미지 삭제 ✓');
-                    } catch(sigErr) { console.log('서명 이미지 삭제 실패(무시):', sigErr.message); }
+            var agreeSnap = await db.collection('dormitoryAgreements').where('name', '==', name).get();
+            if (!agreeSnap.empty) {
+                for (var ai = 0; ai < agreeSnap.docs.length; ai++) {
+                    var agreeDocRef = agreeSnap.docs[ai];
+                    var agreeData = agreeDocRef.data();
+                    // 서명 이미지 Storage에서 삭제 (Phase 2 이후)
+                    if (agreeData.signatureStoragePath) {
+                        try {
+                            await storage.ref(agreeData.signatureStoragePath).delete();
+                            updateProgress(89, '서명 이미지 삭제 ✓');
+                        } catch(sigErr) { console.log('서명 이미지 삭제 실패(무시):', sigErr.message); }
+                    }
+                    // Firestore 문서 삭제
+                    await agreeDocRef.ref.delete();
                 }
-                // Firestore 문서 삭제
-                await db.collection('dormitoryAgreements').doc(name).delete();
-                updateProgress(89, '서약서 삭제 완료 ✓');
+                updateProgress(89, '서약서 삭제 완료 ✓ (' + agreeSnap.docs.length + '건)');
             }
         } catch(agreeErr) {
             console.log('서약서 삭제 실패:', agreeErr.message);
         }
+
         
         updateProgress(90,'메시지 삭제 중...');
         try{
