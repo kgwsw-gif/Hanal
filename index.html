@@ -1686,106 +1686,21 @@ function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(i
 function showAdminDeptSelect(){var depts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'});openModal('<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4">학과 선택</h3><div class="space-y-2 max-h-[60vh] overflow-y-auto">'+depts.map(function(d){return'<button onclick="selectAdminDept(\''+safeAttr(d)+'\')" class="w-full text-left p-4 bg-surface-50 hover:bg-primary-50 rounded-2xl transition-all btn-press border border-surface-200"><div class="font-bold text-gray-800 text-base">'+escapeHtml(d)+'</div><div class="text-sm text-gray-500 mt-0.5">대표: '+escapeHtml(DEPARTMENT_LEADERS[d]?DEPARTMENT_LEADERS[d].name:'미설정')+' · '+(students[d]||[]).length+'명</div></button>'}).join('')+'</div><button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button></div>')}
 function selectAdminDept(dept){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(dept+' 학과대표 모드','success')}
 
-function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}
-
-// ===== 데이터 로딩 확인 + 자동 재시도 로직 =====
-function _checkDataReady() {
-  var totalStudents = 0;
-  for (var k in students) {
-    if (Array.isArray(students[k])) totalStudents += students[k].length;
-  }
-  var hasDepartments = departments && departments.length > 0;
-  var hasStudents = totalStudents > 0;
-  return hasDepartments && hasStudents;
+function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(!pw&&!name.includes('(여)')){name+='(여)';pw=window._secureData.getPassword(name)}if(!pw){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return}if(pw!==bd){showToast('비밀번호 불일치','error');return}if(remember){localStorage.setItem('saved_student_name',name);localStorage.setItem('saved_student_pw',bd)}else{localStorage.removeItem('saved_student_name');localStorage.removeItem('saved_student_pw')}var found=false;var isGuest=false;
+// 데이터 로드 상태 확인
+var totalStudents=0;for(var k in students){if(Array.isArray(students[k]))totalStudents+=students[k].length;}
+if(totalStudents===0){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return;}
+if(!departments||departments.length===0){showToast('데이터 로딩 중입니다. 잠시 후 다시 시도해주세요.','warning');return;}
+for(var i=0;i<departments.length;i++){if((students[departments[i]]||[]).includes(name)){found=true;break}}
+if(!found&&students['_guest']&&students['_guest'].includes(name)){found=true;isGuest=true}
+if(!found){
+  // 퇴사 이력 확인
+  var isResigned=resignRequests&&resignRequests.some(function(r){return r.status==='approved'&&r.name===name;});
+  if(isResigned){showToast('퇴사한 교육생입니다','error');}
+  else{showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error');}
+  return;
 }
-
-function _attemptLogin(retryCount) {
-  retryCount = retryCount || 0;
-  var MAX_RETRY = 8;         // 최대 8회
-  var RETRY_INTERVAL = 2000; // 2초 간격 (총 16초)
-  
-  // 데이터 로딩 확인
-  if (!_checkDataReady()) {
-    if (retryCount >= MAX_RETRY) {
-      showToast('데이터 로딩이 지연됩니다. 잠시 후 다시 시도해주세요.', 'error');
-      return;
-    }
-    // 진행 상황 안내
-    if (retryCount === 0) {
-      showToast('데이터 준비 중입니다... 잠시만요 ⏳', 'info');
-    } else if (retryCount === 3) {
-      showToast('거의 다 됐어요... (' + (retryCount * 2) + '초)', 'info');
-    }
-    setTimeout(function() { _attemptLogin(retryCount + 1); }, RETRY_INTERVAL);
-    return;
-  }
-  
-  // 비밀번호 조회
-  var pw = window._secureData.getPassword(name);
-  if (!pw && !name.includes('(여)')) {
-    name += '(여)';
-    pw = window._secureData.getPassword(name);
-  }
-  if (!pw) {
-    // 비밀번호 없음 = 미등록 학생
-    var isResigned = resignRequests && resignRequests.some(function(r){return r.status==='approved'&&r.name===name;});
-    if (isResigned) { showToast('퇴사한 교육생입니다','error'); }
-    else { showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error'); }
-    return;
-  }
-  if (pw !== bd) { showToast('비밀번호 불일치','error'); return; }
-  
-  // 기억하기
-  if (remember) {
-    localStorage.setItem('saved_student_name', name);
-    localStorage.setItem('saved_student_pw', bd);
-  } else {
-    localStorage.removeItem('saved_student_name');
-    localStorage.removeItem('saved_student_pw');
-  }
-  
-  // 학생 소속 확인
-  var found = false, isGuest = false;
-  for (var i = 0; i < departments.length; i++) {
-    if ((students[departments[i]] || []).includes(name)) { found = true; break; }
-  }
-  if (!found && students['_guest'] && students['_guest'].includes(name)) {
-    found = true; isGuest = true;
-  }
-  
-  // 로그인 성공 처리
-  _finishLogin(found, isGuest);
-}
-
-function _finishLogin(found, isGuest) {
-  if (!found) {
-    var isResigned = resignRequests && resignRequests.some(function(r){return r.status==='approved'&&r.name===name;});
-    if (isResigned) { showToast('퇴사한 교육생입니다','error'); }
-    else { showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error'); }
-    return;
-  }
-  isGuestLoggedIn = isGuest;
-  currentStudent = name;
-  if (isGuest) {
-    currentMode = 'admin';
-    isAdminLoggedIn = true;
-  } else {
-    currentMode = 'student';
-    try { if (typeof initPushNotification === 'function') initPushNotification(); }
-    catch(e) { console.error('푸시 호출 실패:', e); }
-  }
-  closeModal();
-  render();
-  showToast(isGuest ? name + ' 게스트 로그인 (조회전용)' : name + '님 환영합니다', 'success');
-  if (!isGuest) {
-    setTimeout(function() {
-      if (typeof checkVacationNotice === 'function') checkVacationNotice(false);
-    }, 1500);
-}
-
-// 로그인 시도 시작 (자동 재시도 포함)
-_attemptLogin(0);
-})
+isGuestLoggedIn=isGuest;currentStudent=name;if(isGuest){currentMode='admin';isAdminLoggedIn=true;}else{currentMode='student';try{if(typeof initPushNotification==='function')initPushNotification();}catch(e){console.error('푸시 호출 실패:',e);}}closeModal();render();showToast(isGuest?name+' 게스트 로그인 (조회전용)':name+'님 환영합니다','success');if(!isGuest){setTimeout(function(){if(typeof checkVacationNotice==='function')checkVacationNotice(false);},1500);}})
 }
 async function logout(){
   // ✅ 로그아웃 전 모든 리스너 정리 (permission-denied 방지)
