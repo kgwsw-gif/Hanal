@@ -10581,18 +10581,7 @@ function showPendingManagePanel() {
     
     // ===== 스크롤 영역 시작 =====
     h += '<div id="pendingResultArea" style="flex:1;overflow-y:auto;min-height:200px">';
-    
-    // ===== 오늘 입사 예정자 (강조) =====
-    if (filteredDue.length > 0) {
-        h += '<div class="mb-4">';
-        h += '<div class="flex items-center gap-2 mb-2 sticky top-0 bg-white py-2 z-10">';
-        h += '<div class="w-2 h-6 bg-orange-500 rounded"></div>';
-        h += '<div class="font-bold text-base text-orange-700">🔴 오늘 입사 예정 (' + filteredDue.length + '명)</div>';
-        h += '</div>';
-        h += renderPendingCards(filteredDue, true);
-        h += '</div>';
-    }
-    
+  
     // ===== 관리자 메모 (Firestore 공용 저장) =====
     h += '<div id="adminMemoWrap" style="display:block;width:100%;margin:0 0 12px 0;background:linear-gradient(135deg,#fef9c3,#fef3c7);border:2px solid #fbbf24;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(251,191,36,0.15);box-sizing:border-box;">';
     h += '<div id="adminMemoHeader" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none;background:rgba(251,191,36,0.15);">';
@@ -10604,6 +10593,17 @@ function showPendingManagePanel() {
     h += '<div style="margin-top:8px;font-size:12px;color:#78350f;font-weight:500;">💡 내용을 입력 후 1초 뒤 자동저장됩니다.</div>';
     h += '</div>';
     h += '</div>';
+
+    // ===== 오늘 입사 예정자 (강조) =====
+    if (filteredDue.length > 0) {
+        h += '<div class="mb-4">';
+        h += '<div class="flex items-center gap-2 mb-2 sticky top-0 bg-white py-2 z-10">';
+        h += '<div class="w-2 h-6 bg-orange-500 rounded"></div>';
+        h += '<div class="font-bold text-base text-orange-700">🔴 오늘 입사 예정 (' + filteredDue.length + '명)</div>';
+        h += '</div>';
+        h += renderPendingCards(filteredDue, true);
+        h += '</div>';
+    }
     
     // ===== 향후 예비 입사자 =====
     if (filteredFuture.length > 0) {
