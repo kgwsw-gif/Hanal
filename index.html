@@ -10291,11 +10291,14 @@ window._renderPendingResults = function() {
     var kw = f.search.trim().toLowerCase();
     var _getChosung = function(str) {
         var CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+        var DOUBLE = {'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ'};
         var out = '';
         for (var i = 0; i < str.length; i++) {
+            var ch = str.charAt(i);
             var code = str.charCodeAt(i) - 0xAC00;
             if (code >= 0 && code <= 11171) { out += CHO[Math.floor(code / 588)]; }
-            else { out += str.charAt(i); }
+            else if (DOUBLE[ch]) { out += DOUBLE[ch]; }
+            else { out += ch; }
         }
         return out;
     };
