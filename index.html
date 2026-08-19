@@ -10319,10 +10319,11 @@ window._renderPendingResults = function() {
                             (room.indexOf(kw) !== -1) ||
                             (dept.toLowerCase().indexOf(kw) !== -1);
                 if (!match && _isChosungOnly) {
-                    match = (_getChosung(name, false).indexOf(kw) !== -1) ||
-                            (_getChosung(name, true).indexOf(kw) !== -1) ||
-                            (_getChosung(dept, false).indexOf(kw) !== -1) ||
-                            (_getChosung(dept, true).indexOf(kw) !== -1);
+                    var _kwDec = _getChosung(kw);
+                    match = (_getChosung(name, false).indexOf(_kwDec) !== -1) ||
+                            (_getChosung(name, true).indexOf(_kwDec) !== -1) ||
+                            (_getChosung(dept, false).indexOf(_kwDec) !== -1) ||
+                            (_getChosung(dept, true).indexOf(_kwDec) !== -1);
                 }
                 if (!match) return false;
             }
@@ -10543,10 +10544,11 @@ function showPendingManagePanel() {
                             (dept.toLowerCase().indexOf(kw) !== -1);
                 // 초성 검색 (검색어가 초성만일 때)
                 if (!match && _isChosungOnly) {
-                    match = (_getChosung(name, false).indexOf(kw) !== -1) ||
-                            (_getChosung(name, true).indexOf(kw) !== -1) ||
-                            (_getChosung(dept, false).indexOf(kw) !== -1) ||
-                            (_getChosung(dept, true).indexOf(kw) !== -1);
+                    var _kwDec = _getChosung(kw);
+                    match = (_getChosung(name, false).indexOf(_kwDec) !== -1) ||
+                            (_getChosung(name, true).indexOf(_kwDec) !== -1) ||
+                            (_getChosung(dept, false).indexOf(_kwDec) !== -1) ||
+                            (_getChosung(dept, true).indexOf(_kwDec) !== -1);
                 }
                 if (!match) return false;
             }
