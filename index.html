@@ -13131,13 +13131,15 @@ function _buildStatsHTML(stats, version) {
 // 우측 하단 플로팅 버튼 3개를 동일 크기로 정렬
 function alignFloatBtns() {
   var ids = ['pendingFloatBtn', 'vacationNoticeFloatBtn', 'adminChatFloatBtn', 'leaderChatFloatBtn'];
-  var bottoms = [16, 58, 100, 142];  // 시계, 방학, 관리자, 학과대표 (간격 42px)
+  var visibleIdx = 0;
 
-    var visibleIdx = 0;
   ids.forEach(function(id){
     var btn = document.getElementById(id);
     if (!btn) return;
-    btn.style.position = 'fixed';
+    // 숨김/미표시 버튼은 좌표 계산에서 제외
+    var cs = window.getComputedStyle(btn);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return;
+        btn.style.position = 'fixed';
     btn.style.right = '16px';
     btn.style.bottom = (16 + visibleIdx * 42) + 'px';
     visibleIdx++;
