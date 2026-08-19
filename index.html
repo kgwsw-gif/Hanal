@@ -13133,12 +13133,14 @@ function alignFloatBtns() {
   var ids = ['pendingFloatBtn', 'vacationNoticeFloatBtn', 'adminChatFloatBtn', 'leaderChatFloatBtn'];
   var bottoms = [16, 58, 100, 142];  // 시계, 방학, 관리자, 학과대표 (간격 42px)
 
-  ids.forEach(function(id, idx){
+    var visibleIdx = 0;
+  ids.forEach(function(id){
     var btn = document.getElementById(id);
     if (!btn) return;
     btn.style.position = 'fixed';
     btn.style.right = '16px';
-    btn.style.bottom = bottoms[idx] + 'px';
+    btn.style.bottom = (16 + visibleIdx * 42) + 'px';
+    visibleIdx++;
     btn.style.width = '140px';
     btn.style.height = '36px';
     btn.style.minWidth = '140px';
