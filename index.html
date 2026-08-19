@@ -13645,7 +13645,7 @@ async function addVacationNoticeFloatBtn() {
   var btn = document.createElement('button');
   btn.id = 'vacationNoticeFloatBtn';
   btn.onclick = function(){ reviewVacationNotice(); };
-  btn.style.cssText = 'position:fixed;bottom:58px;right:16px;width:140px;height:36px;padding:0;border-radius:9999px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
+    btn.style.cssText = 'position:fixed;bottom:58px;right:16px;width:140px;height:36px;padding:0;border-radius:9999px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:none;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
   btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>';
   btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
   btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
@@ -13678,10 +13678,12 @@ async function addVacationNoticeFloatBtn() {
     // 공지 개수 업데이트
     var count = applicableNotices.length;
     var currentBtn = document.getElementById('vacationNoticeFloatBtn');
-    if (currentBtn) {
+        if (currentBtn) {
       currentBtn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + 
         (count > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;">' + count + '</span>' : '');
       currentBtn.title = '방학 안내 다시 보기 (' + count + '개)';
+      currentBtn.style.display = 'inline-flex';
+      if (typeof alignFloatBtns === 'function') alignFloatBtns();
     }
   } catch(e) {
     console.warn('방학 공지 버튼 표시 실패:', e.message);
