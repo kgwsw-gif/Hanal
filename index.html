@@ -4988,9 +4988,35 @@ document.addEventListener('visibilitychange', async function(){
                 updateStudentsList();
                 render();
             }
-        }catch(e){}
+                }catch(e){}
     }
 });
+
+// 활성 상태 keepalive 폴링 (onSnapshot 유휴 disconnect 대비)
+(function(){
+    if (window._submissionsPollTimer) clearInterval(window._submissionsPollTimer);
+    var POLL_INTERVAL_MS = 60000;
+    window._submissionsPollTimer = setInterval(async function(){
+        if (!(window.isAdminLoggedIn || window.isLeaderLoggedIn)) return;
+        if (document.visibilityState !== 'visible') return;
+        try {
+            var today = window.currentDate || new Date().toISOString().slice(0, 10);
+            var snap = await db.collection('submissions').where('date','==',today).get();
+            var newToday = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+            var oldToday = submissions.filter(function(s){ return s.date === today; });
+            var oldStr = JSON.stringify(oldToday.map(function(s){ return {id:s.id, status:s.status, timestamp:s.timestamp}; }).sort(function(a,b){ return a.id.localeCompare(b.id); }));
+            var newStr = JSON.stringify(newToday.map(function(s){ return {id:s.id, status:s.status, timestamp:s.timestamp}; }).sort(function(a,b){ return a.id.localeCompare(b.id); }));
+            if (oldStr !== newStr) {
+                console.log('[keepalive] submissions 동기화');
+                var otherDays = submissions.filter(function(s){ return s.date !== today; });
+                submissions = otherDays.concat(newToday);
+                if (typeof updateStudentsList === 'function') updateStudentsList();
+                if (typeof render === 'function') render();
+            }
+        } catch(e) { /* 무시 */ }
+    }, POLL_INTERVAL_MS);
+})();
+
 function render(){
     initIntervals();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
     var stats=getStats(),todaySubs,todayOuts;if(isWeekendOrHoliday(currentDate)){var _autoData=getAutoOutSubmissions(currentDate);todaySubs=_autoData.submissions;todayOuts=_autoData.outings}else{todaySubs=submissions.filter(function(s){return s.date===currentDate&&s.status!=='cancelled'});todayOuts=outings.filter(function(o){return o.date===currentDate&&(!o.status||o.status!=='cancelled')})}
