@@ -6291,6 +6291,25 @@ function renderRoomStatus(){
   if(window._roomStatusOpen) preloadAllPhotos();
   if(!window._roomStatusOpen)window._roomStatusOpen=false;
   if(!window._roomFloorOpen)window._roomFloorOpen={};
+  var _getChosung = function(str, withJong) {
+    var CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+    var JONG = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+    var DOUBLE = {'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ'};
+    var out = '';
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charAt(i);
+      var code = str.charCodeAt(i) - 0xAC00;
+      if (code >= 0 && code <= 11171) {
+        out += CHO[Math.floor(code / 588)];
+        if (withJong) { var jong = JONG[code % 28]; if (jong) { out += DOUBLE[jong] || jong; } }
+      }
+      else if (DOUBLE[ch]) { out += DOUBLE[ch]; }
+      else { out += ch; }
+    }
+    return out;
+  };
+  var _kwIsChosung = roomSearchKeyword && /^[ㄱ-ㅎ]+$/.test(roomSearchKeyword);
+  var _kwDec = _kwIsChosung ? _getChosung(roomSearchKeyword) : '';
   var rs=getRoomStatus();
   var _allRooms=rs.totalRooms;
   var _studentRooms=rs.totalRooms;
@@ -6514,7 +6533,7 @@ if(roomFilterDept){
           else if(_kw==='메모'){if(roomMemos[r.room])_found=true;}
           else if(roomMemos[r.room]&&roomMemos[r.room].memo&&roomMemos[r.room].memo.toLowerCase().indexOf(_kw)!==-1){_found=true;}
           else{
-            for(var si2=0;si2<r.members.length;si2++){if(r.members[si2].name.toLowerCase().indexOf(_kw)!==-1){_found=true;break;}}
+            for(var si2=0;si2<r.members.length;si2++){var _nm=r.members[si2].name;if(_nm.toLowerCase().indexOf(_kw)!==-1){_found=true;break;}if(_kwIsChosung&&(_getChosung(_nm,false).indexOf(_kwDec)!==-1||_getChosung(_nm,true).indexOf(_kwDec)!==-1)){_found=true;break;}}
             if(r.room.indexOf(roomSearchKeyword)!==-1)_found=true;
           }
           if(!_found)_shouldShow=false;
@@ -6739,7 +6758,7 @@ function renderFloorPlan(){
         else if(_kw==='2인실'||_kw==='2인'){if(members.length>=2)_found=true}
         else if(_kw==='메모'){if(roomMemos[rStr])_found=true}
         else{
-          for(var j=0;j<members.length;j++){if(members[j].name.toLowerCase().indexOf(_kw)!==-1){_found=true;break}}
+          for(var j=0;j<members.length;j++){var _nm=members[j].name;if(_nm.toLowerCase().indexOf(_kw)!==-1){_found=true;break}if(_kwIsChosung&&(_getChosung(_nm,false).indexOf(_kwDec)!==-1||_getChosung(_nm,true).indexOf(_kwDec)!==-1)){_found=true;break}}
           if(rStr.indexOf(roomSearchKeyword)!==-1)_found=true;
         }
         if(!_found)isMatch=false;
