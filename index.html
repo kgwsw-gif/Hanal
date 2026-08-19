@@ -15244,10 +15244,26 @@ window.loadAgreementList = async function() {
 window.renderAgreementList = function() {
   const listArea = document.getElementById('agrMgmtListArea');
   const countArea = document.getElementById('agrMgmtCountArea');
-  const deptFilter = document.getElementById('agrMgmtDeptFilter')?.value || '';
+  const deptFilterEl = document.getElementById('agrMgmtDeptFilter');
+  const deptFilter = deptFilterEl?.value || '';
   const nameSearch = (document.getElementById('agrMgmtNameSearch')?.value || '').trim().toLowerCase();
   
   if (!listArea || !window._agreementListCache) return;
+  
+  // 학과 필터 옵션 동적 갱신 (하드코딩 + 실 데이터 합집합)
+  if (deptFilterEl) {
+    const _baseDepts = ['자동차도장과','산업설비과','주얼리목공예과','스마트자동차과','스마트전기과','스마트기계과','스마트표면처리과','중장년(설비)과정'];
+    const _dataDepts = new Set();
+    window._agreementListCache.forEach(a => { if (a.department) _dataDepts.add(a.department); });
+    _baseDepts.forEach(d => _dataDepts.add(d));
+    const _sortedDepts = Array.from(_dataDepts).sort((a,b) => a.localeCompare(b, 'ko'));
+    const _currentVal = deptFilterEl.value;
+    const _newHtml = '<option value="">전체 학과</option>' + _sortedDepts.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+    if (deptFilterEl.innerHTML !== _newHtml) {
+      deptFilterEl.innerHTML = _newHtml;
+      deptFilterEl.value = _currentVal;
+    }
+  }
   
   let filtered = window._agreementListCache;
   if (deptFilter) filtered = filtered.filter(a => a.department === deptFilter);
