@@ -16536,6 +16536,32 @@ window._openAddressSearch = async function() {
   padding:2px 5px;
   max-width:100%;
 }
+/* ========== 평면도 좁은 카드 이름/학과 폰트 축소 ========== */
+/* 평면도 모드에서만 적용: 세로형 카드(폭이 좁은 카드) 감지 */
+/* 학생 이름 - 원래 14px → 12px로 축소, 한 줄 유지 */
+.rsf-card [style*="font-weight:800"][style*="text-overflow:ellipsis"]{
+  font-size:12px !important;
+  letter-spacing:-0.5px !important;
+}
+/* 학생 이름 안의 나이 숫자 - 원래 13px → 11px로 축소 */
+.rsf-card [style*="font-weight:800"][style*="text-overflow:ellipsis"] span[style*="color:#7c3aed"],
+.rsf-card [style*="font-weight:800"][style*="text-overflow:ellipsis"] span[style*="color:#9333ea"]{
+  font-size:11px !important;
+}
+/* 나이 옆 괄호 숫자 (03) - 더 작게 */
+.rsf-card [style*="font-weight:800"][style*="text-overflow:ellipsis"] span[style*="color:#9333ea"]{
+  font-size:9px !important;
+}
+/* 학과 태그 - 원래 12px → 10.5px로 축소, 한 줄 유지 */
+.rsf-card div[style*="inline-block"][style*="border-radius:4px"]{
+  font-size:10.5px !important;
+  padding:1px 5px !important;
+  white-space:nowrap !important;
+  letter-spacing:-0.4px !important;
+  max-width:100% !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+}
 /* 평면도 좁은 카드에서도 뱃지가 세로로 부서지지 않도록 */
 .rsf-badge > *{white-space:nowrap;flex-shrink:0}
 /* 뱃지를 감싸는 flex 컨테이너가 있으면 wrap 허용 */
