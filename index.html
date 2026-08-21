@@ -16535,11 +16535,15 @@ window._openAddressSearch = async function() {
   font-size:10.5px;
   padding:2px 5px;
   max-width:100%;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  box-sizing:border-box;
 }
 /* 평면도 좁은 카드에서도 뱃지가 세로로 부서지지 않도록 */
 .rsf-badge > *{white-space:nowrap;flex-shrink:0}
 /* 뱃지를 감싸는 flex 컨테이너가 있으면 wrap 허용 */
-.rsf-card{overflow:visible}
+.rsf-card{overflow:hidden;min-width:0}
 .rsf-badge.stay{
   background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(16,185,129,0.15));
   color:#047857;border-color:rgba(16,185,129,0.5);
