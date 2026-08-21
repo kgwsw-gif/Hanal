@@ -16528,6 +16528,15 @@ window._openAddressSearch = async function() {
   width:100%;
   margin-top:3px;
   flex-basis:100%;
+  text-align:center;    /* ← 뱃지를 카드 중앙에 배치 */
+  min-width:0;          /* ← flex 자식이 부모보다 커지지 않도록 */
+  overflow:hidden;      /* ← 부모 폭 초과 시 잘림 */
+}
+/* 평면도 좁은 카드에서 뱃지 폭 강제 축소 */
+.rsf-badge-wrap .rsf-badge{
+  font-size:10.5px;
+  padding:2px 5px;
+  max-width:calc(100% - 2px);
 }
 /* 평면도 좁은 카드에서도 뱃지가 세로로 부서지지 않도록 */
 .rsf-badge > *{white-space:nowrap;flex-shrink:0}
@@ -16684,12 +16693,14 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
     }catch(e){}
     
     if(isFloorPlan){
-      // 평면도: 짧은 축약 뱃지 (좁은 카드에서도 한 줄 유지)
+      // 평면도: 초컴팩트 뱃지 (좁은 카드에도 딱 맞음)
       if(status==='stay') return '<div class="rsf-badge stay">🟢잔류</div>';
       if(status==='out')  return '<div class="rsf-badge out">🌙외박</div>';
-      if(status==='out-auto') return '<div class="rsf-badge out out-auto" title="외박(자동)">🌙외박<i>자</i></div>';
+      // 외박(자동): 달 아이콘을 별표로 바꿔서 "자동"임을 표현 (폭 절약)
+      if(status==='out-auto') return '<div class="rsf-badge out" title="외박(자동)">🌙외박⭑</div>';
       return '<div class="rsf-badge none">⚪미보고</div>';
     } else {
+
       // 카드뷰: 원래 뱃지
       if(status==='stay') return '<div class="rsf-badge stay">🟢 잔류</div>';
       if(status==='out')  return '<div class="rsf-badge out">🌙 외박</div>';
