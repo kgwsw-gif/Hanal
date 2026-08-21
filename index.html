@@ -16940,7 +16940,7 @@ function fixDepartmentCounts(){
       patchCountInElement(btn, deptName, pendingByDept[deptName], 'rsfBtn_');
     });
 
-    // (3) 드롭다운 학과 목록 아이템 처리
+        // (3) 드롭다운 학과 목록 아이템 처리
     // 특징: font-weight:700 스타일의 학과명 div와 "N명" span이 형제로 존재
     Object.keys(pendingByDept).forEach(function(deptName){
       // 학과명이 정확히 일치하는 div 찾기
@@ -16957,6 +16957,43 @@ function fixDepartmentCounts(){
         patchCountInElement(parent, deptName, pendingByDept[deptName], 'rsfDrop_');
       });
     });
+
+    // (4) "전체 학과" 아이템의 총 인원 처리
+    var totalPending = 0;
+    Object.keys(pendingByDept).forEach(function(d){ totalPending += pendingByDept[d]; });
+    
+    if(totalPending > 0){
+      document.querySelectorAll('div').forEach(function(nameDiv){
+        if(nameDiv.children.length !== 0) return;
+        if(nameDiv.textContent.trim() !== '전체 학과') return;
+        var style = nameDiv.getAttribute('style') || '';
+        if(style.indexOf('font-weight:700') === -1 && style.indexOf('font-weight: 700') === -1) return;
+        
+        var parent = nameDiv.parentElement;
+        if(!parent) return;
+        
+        // "N개 학과 · M명" 형태의 텍스트를 가진 형제 요소 찾기
+        var descendants = parent.querySelectorAll('*');
+        descendants.forEach(function(el){
+          if(el.children.length !== 0) return;
+          var m = el.textContent.match(/^(.*?)(\d+)(명\s*)$/);
+          if(!m) return;
+          // "N개 학과 · " 부분이 있어야 전체 학과 아이템으로 판단
+          if(m[1].indexOf('학과') === -1) return;
+          
+          var key = 'rsfTotalOrig';
+          if(!el.dataset[key]){
+            el.dataset[key] = parseInt(m[2], 10);
+          }
+          var baseCount = parseInt(el.dataset[key], 10);
+          var newCount = baseCount - totalPending;
+          var newText = m[1] + newCount + m[3];
+          if(el.textContent !== newText){
+            el.textContent = newText;
+          }
+        });
+      });
+    }
   } catch(e) {
     console.warn('[RSF] fixDepartmentCounts error:', e);
   }
