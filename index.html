@@ -16870,44 +16870,43 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
 // 학과선택 드롭다운에서 예비입사자 인원 제외
 function fixDepartmentCounts(){
   try {
+    var sd = window._secureData;
+    if(!sd || typeof sd.getAllStudents !== 'function') return;
+    if(typeof sd.getStudentsByDept !== 'function') return;
+    if(typeof sd.isPending !== 'function') return;
+    
+    var deptsMap = sd.getAllStudents();
+    if(!deptsMap || typeof deptsMap !== 'object') return;
+    
     // 학과별 예비입사자 수 계산
     var pendingByDept = {};
-    var studentsRaw = null;
-    
-    if(window._secureData && typeof window._secureData.getAllStudents === 'function'){
-      studentsRaw = window._secureData.getAllStudents();
-    }
-    if(!studentsRaw) return;
-    
-    // 배열/객체 모두 대응
-    var studentList = [];
-    if(Array.isArray(studentsRaw)){
-      studentList = studentsRaw;
-    } else if(typeof studentsRaw === 'object'){
-      // 객체 형태({학번:학생} 또는 {학과:[학생들]})면 값을 순회
-      Object.keys(studentsRaw).forEach(function(k){
-        var v = studentsRaw[k];
-        if(Array.isArray(v)){
-          v.forEach(function(s){ studentList.push(s); });
-        } else if(v && typeof v === 'object'){
-          studentList.push(v);
-        }
+    Object.keys(deptsMap).forEach(function(deptName){
+      if(deptName.charAt(0) === '_') return; // _guest 제외
+      
+      var students = null;
+      try { students = sd.getStudentsByDept(deptName); } catch(e){}
+      if(!Array.isArray(students)) return;
+      
+      var count = 0;
+      students.forEach(function(name){
+        if(typeof name !== 'string') return;
+        try {
+          // 원본 이름 그대로 체크
+          if(sd.isPending(name)){ count++; return; }
+          // 성별 접미사 제거 버전도 체크 ("정주희(여)" → "정주희")
+          var stripped = name.replace(/\([^)]*\)\s*$/, '').trim();
+          if(stripped !== name && sd.isPending(stripped)){ count++; }
+        } catch(e){}
       });
-    }
-    
-    studentList.forEach(function(s){
-      if(!s || typeof s !== 'object') return;
-      var isPending = false;
-      if(window._secureData && typeof window._secureData.isPending === 'function'){
-        try { isPending = window._secureData.isPending(s); } catch(e){}
-      }
-      if(!isPending && (s.status === '예비' || s.isPending === true || s.pending === true)){
-        isPending = true;
-      }
-      if(isPending && s.department){
-        pendingByDept[s.department] = (pendingByDept[s.department] || 0) + 1;
-      }
+      
+      if(count > 0) pendingByDept[deptName] = count;
     });
+    
+    // 디버그: 한 번만 로그
+    if(!window.__rsfDeptLogged){
+      window.__rsfDeptLogged = true;
+      console.log('[RSF] 학과별 예비입사자:', pendingByDept);
+    }
 
     // (1) select 옵션 처리
     document.querySelectorAll('select option').forEach(function(opt){
