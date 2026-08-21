@@ -16522,23 +16522,25 @@ window._openAddressSearch = async function() {
   max-width:100%;
   flex-shrink:0;
 }
-/* 뱃지 래퍼 - 인라인으로 자연스럽게 흐름에 배치 */
+/* 뱃지 래퍼 - 카드 콘텐츠 폭을 넘지 않도록 강제 */
 .rsf-badge-wrap{
-  display:inline-block;
-  margin-top:2px;
-  vertical-align:middle;
-  max-width:100%;
-  overflow:hidden;
-}
-/* 평면도 좁은 카드에서 뱃지 폭 조정 */
-.rsf-badge-wrap .rsf-badge{
-  font-size:10.5px;
-  padding:2px 5px;
-  max-width:100%;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  display:block !important;
+  margin-top:3px;
+  max-width:100% !important;
+  width:auto !important;
+  overflow:hidden !important;
   box-sizing:border-box;
+}
+/* 뱃지 자체도 폭 제한 */
+.rsf-badge-wrap .rsf-badge{
+  font-size:10.5px !important;
+  padding:2px 5px !important;
+  max-width:100% !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  box-sizing:border-box !important;
+  display:inline-block !important;
 }
 /* 평면도 좁은 카드에서도 뱃지가 세로로 부서지지 않도록 */
 .rsf-badge > *{white-space:nowrap;flex-shrink:0}
