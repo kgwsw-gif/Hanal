@@ -16841,21 +16841,30 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
         if(oldWrap) oldWrap.remove();
         else old.remove();
       }
-      // 학과 태그 바로 옆(형제)에 뱃지 삽입 - DOM 구조 변경 없음
+
+      // 학과 태그를 찾고, 그 부모 컨테이너 밖(카드 자식)으로 뱃지를 새 라인 삽입
       var deptTag = card.querySelector('div[style*="inline-block"][style*="border-radius:4px"]');
-      var wrapper = document.createElement('span');
+      var wrapper = document.createElement('div');
       wrapper.className = 'rsf-badge-wrap';
       wrapper.innerHTML = makeBadgeHtml(status);
-      if(deptTag){
-        // 학과 태그 바로 뒤에 형제로 삽입
-        if(deptTag.nextSibling){
-          deptTag.parentNode.insertBefore(wrapper, deptTag.nextSibling);
+      
+      // 학과 태그가 있는 라인의 부모(이름/학과가 담긴 컨테이너)를 찾음
+      var deptLine = deptTag;
+      while(deptLine && deptLine.parentElement !== card){
+        deptLine = deptLine.parentElement;
+      }
+      
+      if(deptLine && deptLine.parentElement === card){
+        // 이름/학과 라인 바로 다음(카드의 형제 요소로) 삽입
+        if(deptLine.nextSibling){
+          card.insertBefore(wrapper, deptLine.nextSibling);
         } else {
-          deptTag.parentNode.appendChild(wrapper);
+          card.appendChild(wrapper);
         }
       } else {
         card.appendChild(wrapper);
       }
+
 
       counts.all++;
       if(normalized==='stay') counts.stay++;
