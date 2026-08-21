@@ -16864,7 +16864,64 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
 
     ensureToolbar();
     updateToolbarCounts();
+    fixDepartmentCounts();
   }
+
+// 학과선택 드롭다운에서 예비입사자 인원 제외
+function fixDepartmentCounts(){
+  try {
+    // 학과 선택 select 요소 찾기 (호실현황 화면)
+    var selects = document.querySelectorAll('select');
+    selects.forEach(function(sel){
+      // 학과 옵션이 있는 select만 대상
+      var hasDept = Array.from(sel.options).some(function(o){
+        return /과|과정/.test(o.textContent) && /\(\d+명?\)/.test(o.textContent);
+      });
+      if(!hasDept) return;
+
+      // 전체 학생 데이터에서 학과별 예비입사자 수 계산
+      var pendingByDept = {};
+      var allStudents = (window._secureData && window._secureData.getAll) 
+        ? window._secureData.getAll() : [];
+      
+      allStudents.forEach(function(s){
+        var isPending = false;
+        if(window._secureData && typeof window._secureData.isPending === 'function'){
+          isPending = window._secureData.isPending(s);
+        }
+        // 백업: 필드 직접 확인
+        if(!isPending && (s.status === '예비' || s.isPending === true || s.pending === true)){
+          isPending = true;
+        }
+        if(isPending && s.department){
+          pendingByDept[s.department] = (pendingByDept[s.department] || 0) + 1;
+        }
+      });
+
+      // 각 옵션의 인원수 재계산
+      Array.from(sel.options).forEach(function(opt){
+        var m = opt.textContent.match(/^(.+?)\s*\((\d+)명?\)\s*$/);
+        if(!m) return;
+        var deptName = m[1].trim();
+        var origCount = parseInt(m[2], 10);
+        var pendingCount = pendingByDept[deptName] || 0;
+        
+        // 원본 카운트 저장(중복 차감 방지)
+        if(!opt.dataset.rsfOrigCount){
+          opt.dataset.rsfOrigCount = origCount;
+        }
+        var baseCount = parseInt(opt.dataset.rsfOrigCount, 10);
+        var newCount = baseCount - pendingCount;
+        
+        if(newCount !== origCount){
+          opt.textContent = deptName + ' (' + newCount + '명)';
+        }
+      });
+    });
+  } catch(e) {
+    console.warn('[RSF] fixDepartmentCounts error:', e);
+  }
+}
 
   // ★★★ 개선된 필터 적용 함수 (data-rsf-status 사용) ★★★
   function applyFilterVisibility(){
