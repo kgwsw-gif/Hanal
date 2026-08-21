@@ -16522,21 +16522,19 @@ window._openAddressSearch = async function() {
   max-width:100%;
   flex-shrink:0;
 }
-/* 뱃지를 감싸는 래퍼 - 항상 새 줄에서 시작 */
+/* 뱃지 래퍼 - 인라인으로 자연스럽게 흐름에 배치 */
 .rsf-badge-wrap{
-  display:block;
-  width:100%;
-  margin-top:3px;
-  flex-basis:100%;
-  text-align:center;    /* ← 뱃지를 카드 중앙에 배치 */
-  min-width:0;          /* ← flex 자식이 부모보다 커지지 않도록 */
-  overflow:hidden;      /* ← 부모 폭 초과 시 잘림 */
+  display:inline-block;
+  margin-top:2px;
+  vertical-align:middle;
+  max-width:100%;
+  overflow:hidden;
 }
-/* 평면도 좁은 카드에서 뱃지 폭 강제 축소 */
+/* 평면도 좁은 카드에서 뱃지 폭 조정 */
 .rsf-badge-wrap .rsf-badge{
   font-size:10.5px;
   padding:2px 5px;
-  max-width:calc(100% - 2px);
+  max-width:100%;
 }
 /* 평면도 좁은 카드에서도 뱃지가 세로로 부서지지 않도록 */
 .rsf-badge > *{white-space:nowrap;flex-shrink:0}
@@ -16837,14 +16835,18 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
         if(oldWrap) oldWrap.remove();
         else old.remove();
       }
+      // 학과 태그 바로 옆(형제)에 뱃지 삽입 - DOM 구조 변경 없음
       var deptTag = card.querySelector('div[style*="inline-block"][style*="border-radius:4px"]');
-      var wrapper = document.createElement('div');
+      var wrapper = document.createElement('span');
       wrapper.className = 'rsf-badge-wrap';
       wrapper.innerHTML = makeBadgeHtml(status);
-      if(deptTag && deptTag.parentElement){
-        var parentOfDept = deptTag.parentElement;
-        var containerCard = parentOfDept.parentElement || parentOfDept;
-        containerCard.appendChild(wrapper);
+      if(deptTag){
+        // 학과 태그 바로 뒤에 형제로 삽입
+        if(deptTag.nextSibling){
+          deptTag.parentNode.insertBefore(wrapper, deptTag.nextSibling);
+        } else {
+          deptTag.parentNode.appendChild(wrapper);
+        }
       } else {
         card.appendChild(wrapper);
       }
