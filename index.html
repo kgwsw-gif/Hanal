@@ -16872,13 +16872,31 @@ function fixDepartmentCounts(){
   try {
     // 학과별 예비입사자 수 계산
     var pendingByDept = {};
-    var allStudents = [];
+    var studentsRaw = null;
     
     if(window._secureData && typeof window._secureData.getAllStudents === 'function'){
-      allStudents = window._secureData.getAllStudents() || [];
+      studentsRaw = window._secureData.getAllStudents();
+    }
+    if(!studentsRaw) return;
+    
+    // 배열/객체 모두 대응
+    var studentList = [];
+    if(Array.isArray(studentsRaw)){
+      studentList = studentsRaw;
+    } else if(typeof studentsRaw === 'object'){
+      // 객체 형태({학번:학생} 또는 {학과:[학생들]})면 값을 순회
+      Object.keys(studentsRaw).forEach(function(k){
+        var v = studentsRaw[k];
+        if(Array.isArray(v)){
+          v.forEach(function(s){ studentList.push(s); });
+        } else if(v && typeof v === 'object'){
+          studentList.push(v);
+        }
+      });
     }
     
-    allStudents.forEach(function(s){
+    studentList.forEach(function(s){
+      if(!s || typeof s !== 'object') return;
       var isPending = false;
       if(window._secureData && typeof window._secureData.isPending === 'function'){
         try { isPending = window._secureData.isPending(s); } catch(e){}
@@ -16907,7 +16925,6 @@ function fixDepartmentCounts(){
     // (2) 학과 선택 버튼(showDeptFilterModal) 처리
     var deptBtns = document.querySelectorAll('button[onclick*="showDeptFilterModal"]');
     deptBtns.forEach(function(btn){
-      // 버튼 내 학과명 찾기
       var deptName = null;
       var spans = btn.querySelectorAll('span');
       spans.forEach(function(sp){
@@ -16917,11 +16934,10 @@ function fixDepartmentCounts(){
       if(!deptName) return;
       var pendingCount = pendingByDept[deptName];
       
-      // "9명" 텍스트 노드 찾아서 수정
       spans.forEach(function(sp){
         for(var i=0; i<sp.childNodes.length; i++){
           var node = sp.childNodes[i];
-          if(node.nodeType !== 3) continue; // TEXT_NODE만
+          if(node.nodeType !== 3) continue;
           var m = node.nodeValue.match(/^(\s*)(\d+)(명\s*)$/);
           if(!m) continue;
           
