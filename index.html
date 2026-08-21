@@ -16881,31 +16881,39 @@ function fixDepartmentCounts(){
     // 학과별 예비입사자 수 계산
     var pendingByDept = {};
     Object.keys(deptsMap).forEach(function(deptName){
-      if(deptName.charAt(0) === '_') return; // _guest 제외
-      
-      var students = null;
-      try { students = sd.getStudentsByDept(deptName); } catch(e){}
+      if(deptName.charAt(0) === '_') return;
+      var students = sd.getStudentsByDept(deptName);
       if(!Array.isArray(students)) return;
-      
-      var count = 0;
-      students.forEach(function(name){
-        if(typeof name !== 'string') return;
-        try {
-          // 원본 이름 그대로 체크
-          if(sd.isPending(name)){ count++; return; }
-          // 성별 접미사 제거 버전도 체크 ("정주희(여)" → "정주희")
-          var stripped = name.replace(/\([^)]*\)\s*$/, '').trim();
-          if(stripped !== name && sd.isPending(stripped)){ count++; }
-        } catch(e){}
-      });
-      
+      var count = students.filter(function(n){ 
+        return typeof n === 'string' && sd.isPending(n); 
+      }).length;
       if(count > 0) pendingByDept[deptName] = count;
     });
     
-    // 디버그: 한 번만 로그
-    if(!window.__rsfDeptLogged){
-      window.__rsfDeptLogged = true;
-      console.log('[RSF] 학과별 예비입사자:', pendingByDept);
+    if(Object.keys(pendingByDept).length === 0) return;
+
+    // 공통 유틸: 특정 요소 안에서 "N명" 텍스트 노드 찾아 수정
+    function patchCountInElement(container, deptName, pendingCount, storageKey){
+      var spans = container.querySelectorAll('span');
+      spans.forEach(function(sp){
+        for(var i=0; i<sp.childNodes.length; i++){
+          var node = sp.childNodes[i];
+          if(node.nodeType !== 3) continue; // TEXT_NODE만
+          var m = node.nodeValue.match(/^(\s*)(\d+)(명\s*)$/);
+          if(!m) continue;
+          
+          var key = storageKey + deptName.replace(/[^\w가-힣]/g,'');
+          if(!sp.dataset[key]){
+            sp.dataset[key] = parseInt(m[2], 10);
+          }
+          var baseCount = parseInt(sp.dataset[key], 10);
+          var newCount = baseCount - pendingCount;
+          var newText = m[1] + newCount + m[3];
+          if(node.nodeValue !== newText){
+            node.nodeValue = newText;
+          }
+        }
+      });
     }
 
     // (1) select 옵션 처리
@@ -16921,36 +16929,32 @@ function fixDepartmentCounts(){
       opt.textContent = deptName + ' (' + newCount + '명' + (m[3]||'') + ')';
     });
 
-    // (2) 학과 선택 버튼(showDeptFilterModal) 처리
-    var deptBtns = document.querySelectorAll('button[onclick*="showDeptFilterModal"]');
-    deptBtns.forEach(function(btn){
+    // (2) 상단 학과 선택 버튼(showDeptFilterModal)
+    document.querySelectorAll('button[onclick*="showDeptFilterModal"]').forEach(function(btn){
       var deptName = null;
-      var spans = btn.querySelectorAll('span');
-      spans.forEach(function(sp){
+      btn.querySelectorAll('span').forEach(function(sp){
         var txt = sp.textContent.trim();
         if(txt in pendingByDept) deptName = txt;
       });
       if(!deptName) return;
-      var pendingCount = pendingByDept[deptName];
-      
-      spans.forEach(function(sp){
-        for(var i=0; i<sp.childNodes.length; i++){
-          var node = sp.childNodes[i];
-          if(node.nodeType !== 3) continue;
-          var m = node.nodeValue.match(/^(\s*)(\d+)(명\s*)$/);
-          if(!m) continue;
-          
-          var key = 'rsfOrig' + deptName.replace(/[^\w가-힣]/g,'');
-          if(!sp.dataset[key]){
-            sp.dataset[key] = parseInt(m[2], 10);
-          }
-          var baseCount = parseInt(sp.dataset[key], 10);
-          var newCount = baseCount - pendingCount;
-          var newText = m[1] + newCount + m[3];
-          if(node.nodeValue !== newText){
-            node.nodeValue = newText;
-          }
-        }
+      patchCountInElement(btn, deptName, pendingByDept[deptName], 'rsfBtn_');
+    });
+
+    // (3) 드롭다운 학과 목록 아이템 처리
+    // 특징: font-weight:700 스타일의 학과명 div와 "N명" span이 형제로 존재
+    Object.keys(pendingByDept).forEach(function(deptName){
+      // 학과명이 정확히 일치하는 div 찾기
+      document.querySelectorAll('div').forEach(function(nameDiv){
+        if(nameDiv.children.length !== 0) return;
+        if(nameDiv.textContent.trim() !== deptName) return;
+        // font-weight 700 이상인 요소만 (학과 아이템의 이름 div 특징)
+        var style = nameDiv.getAttribute('style') || '';
+        if(style.indexOf('font-weight:700') === -1 && style.indexOf('font-weight: 700') === -1) return;
+        
+        // 같은 부모 컨테이너 안에서 "N명" span 찾기
+        var parent = nameDiv.parentElement;
+        if(!parent) return;
+        patchCountInElement(parent, deptName, pendingByDept[deptName], 'rsfDrop_');
       });
     });
   } catch(e) {
