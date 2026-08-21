@@ -16522,14 +16522,17 @@ window._openAddressSearch = async function() {
   max-width:100%;
   flex-shrink:0;
 }
-/* 뱃지 래퍼 - 카드 콘텐츠 폭을 넘지 않도록 강제 */
+/* 뱃지 래퍼 - 카드 내부에 확실히 들어가도록 우측 여백 확보 */
 .rsf-badge-wrap{
-  display:block !important;
+  display:inline-flex !important;
+  align-items:center;
   margin-top:3px;
-  max-width:100% !important;
-  width:auto !important;
+  margin-right:8px !important;
+  max-width:calc(100% - 12px) !important;
   overflow:hidden !important;
   box-sizing:border-box;
+  flex-shrink:1 !important;
+  min-width:0 !important;
 }
 /* 뱃지 자체도 폭 제한 */
 .rsf-badge-wrap .rsf-badge{
