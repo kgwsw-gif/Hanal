@@ -16870,15 +16870,18 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
 // 학과선택 드롭다운에서 예비입사자 인원 제외
 function fixDepartmentCounts(){
   try {
-    // 전체 학생 데이터에서 학과별 예비입사자 수 계산
+    // 학과별 예비입사자 수 계산
     var pendingByDept = {};
-    var allStudents = (window._secureData && window._secureData.getAll) 
-      ? window._secureData.getAll() : [];
+    var allStudents = [];
+    
+    if(window._secureData && typeof window._secureData.getAllStudents === 'function'){
+      allStudents = window._secureData.getAllStudents() || [];
+    }
     
     allStudents.forEach(function(s){
       var isPending = false;
       if(window._secureData && typeof window._secureData.isPending === 'function'){
-        isPending = window._secureData.isPending(s);
+        try { isPending = window._secureData.isPending(s); } catch(e){}
       }
       if(!isPending && (s.status === '예비' || s.isPending === true || s.pending === true)){
         isPending = true;
@@ -16904,7 +16907,7 @@ function fixDepartmentCounts(){
     // (2) 학과 선택 버튼(showDeptFilterModal) 처리
     var deptBtns = document.querySelectorAll('button[onclick*="showDeptFilterModal"]');
     deptBtns.forEach(function(btn){
-      // 버튼 내에서 학과명 찾기
+      // 버튼 내 학과명 찾기
       var deptName = null;
       var spans = btn.querySelectorAll('span');
       spans.forEach(function(sp){
@@ -16914,16 +16917,14 @@ function fixDepartmentCounts(){
       if(!deptName) return;
       var pendingCount = pendingByDept[deptName];
       
-      // "9명"이 담긴 span 찾기 (텍스트 노드 처리)
+      // "9명" 텍스트 노드 찾아서 수정
       spans.forEach(function(sp){
-        // 이 span의 자식 텍스트 노드들을 순회
         for(var i=0; i<sp.childNodes.length; i++){
           var node = sp.childNodes[i];
           if(node.nodeType !== 3) continue; // TEXT_NODE만
           var m = node.nodeValue.match(/^(\s*)(\d+)(명\s*)$/);
           if(!m) continue;
           
-          // 원본 카운트 저장
           var key = 'rsfOrig' + deptName.replace(/[^\w가-힣]/g,'');
           if(!sp.dataset[key]){
             sp.dataset[key] = parseInt(m[2], 10);
@@ -16937,14 +16938,6 @@ function fixDepartmentCounts(){
         }
       });
     });
-
-    // (3) 학과별 총원 현황 등 다른 곳의 "학과명 ... N명" 표시 처리
-    Object.keys(pendingByDept).forEach(function(deptName){
-      var pendingCount = pendingByDept[deptName];
-      // "인원16/2" 같은 패턴을 가진 요소가 있다면 그것도 처리 가능하지만,
-      // 우선 학과 선택 버튼만 대응
-    });
-    
   } catch(e) {
     console.warn('[RSF] fixDepartmentCounts error:', e);
   }
