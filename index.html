@@ -888,6 +888,275 @@ function buildRoomOccupancyMap(targetDate,includePending){
     });
     return roomMap;
 }
+// ============ 층별 호실 현황 (공실 및 관계자실 포함) ============
+function showRoomStatusByFloor(){
+  var FLOOR_RANGES = {
+    1: {start: 101, end: 111},
+    2: {start: 201, end: 229},
+    3: {start: 301, end: 329},
+    4: {start: 401, end: 429}
+  };
+  var STAFF_ROOMS = {
+    322: true,
+    401: true, 402: true, 403: true, 404: true, 405: true, 406: true, 407: true,
+    408: true, 409: true, 410: true, 411: true, 412: true, 413: true
+  };
+  
+  var roomMap = buildRoomOccupancyMap(currentDate, false);
+  
+  var totalRooms = 0, usedRooms = 0, emptyRooms = 0, staffRooms = 0, totalPeople = 0;
+  Object.keys(FLOOR_RANGES).forEach(function(f){
+    var range = FLOOR_RANGES[f];
+    for(var r = range.start; r <= range.end; r++){
+      if(STAFF_ROOMS[r]){ staffRooms++; continue; }
+      totalRooms++;
+      var members = roomMap[String(r)] || [];
+      if(members.length > 0){ usedRooms++; totalPeople += members.length; }
+      else { emptyRooms++; }
+    }
+  });
+  
+  var h = '<div class="p-5" style="max-width:600px">';
+  h += '<div class="flex items-center justify-between mb-3">';
+  h += '<h3 class="text-xl font-black text-gray-900"><i class="fas fa-building mr-2 text-primary-500"></i>호실별 입사 현황</h3>';
+  h += '<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  h += '</div>';
+  
+  h += '<div class="grid grid-cols-4 gap-2 mb-2">';
+  h += '<div class="text-center p-2 bg-primary-50 rounded-xl"><div class="text-lg font-black text-primary-600">'+totalRooms+'</div><div class="text-xs text-gray-500">교육생실</div></div>';
+  h += '<div class="text-center p-2 bg-success-50 rounded-xl"><div class="text-lg font-black text-success-600">'+usedRooms+'</div><div class="text-xs text-gray-500">사용</div></div>';
+  h += '<div class="text-center p-2 bg-warning-50 rounded-xl"><div class="text-lg font-black text-warning-600">'+emptyRooms+'</div><div class="text-xs text-gray-500">공실</div></div>';
+  h += '<div class="text-center p-2 bg-info-50 rounded-xl"><div class="text-lg font-black text-info-600">'+totalPeople+'</div><div class="text-xs text-gray-500">인원</div></div>';
+  h += '</div>';
+  h += '<div class="text-xs text-gray-500 mb-3 flex items-center justify-between">';
+  h += '<span><i class="fas fa-user-shield mr-1 text-purple-500"></i>관계자실 '+staffRooms+'개 별도</span>';
+  h += '<span>'+currentDate+' 기준</span>';
+  h += '</div>';
+  
+  h += '<div class="max-h-[65vh] overflow-y-auto pr-1">';
+  
+  Object.keys(FLOOR_RANGES).forEach(function(floor){
+    var range = FLOOR_RANGES[floor];
+    var floorRooms = [];
+    var floorPeople = 0, floorUsed = 0, floorEmpty = 0, floorStaff = 0;
+    
+    for(var r = range.start; r <= range.end; r++){
+      var isStaff = !!STAFF_ROOMS[r];
+      var members = roomMap[String(r)] || [];
+      floorRooms.push({room: r, members: members, isStaff: isStaff});
+      if(isStaff){ floorStaff++; }
+      else if(members.length > 0){ floorUsed++; floorPeople += members.length; }
+      else { floorEmpty++; }
+    }
+    
+    h += '<div class="mt-4 mb-2 pb-2" style="border-bottom:3px solid #6366f1">';
+    h += '<div class="flex items-center justify-between">';
+    h += '<div class="text-lg font-black text-primary-700"><i class="fas fa-layer-group mr-2"></i>'+floor+'층 ('+range.start+'~'+range.end+'호)</div>';
+    h += '<div class="text-xs font-bold text-gray-600">';
+    h += '사용 '+floorUsed+' · 공실 '+floorEmpty;
+    if(floorStaff > 0) h += ' · <span class="text-purple-600">관계자 '+floorStaff+'</span>';
+    h += ' · <span class="text-primary-600">'+floorPeople+'명</span>';
+    h += '</div></div></div>';
+    
+    h += '<div class="space-y-1.5">';
+    floorRooms.forEach(function(item){
+      var r = item.room;
+      var members = item.members;
+      
+      if(item.isStaff){
+        h += '<div class="flex items-center gap-3 px-3 py-2 bg-purple-50 rounded-lg border border-purple-200">';
+        h += '<div class="text-sm font-black text-purple-600 w-14 flex-shrink-0">'+r+'호</div>';
+        h += '<div class="flex-1 text-xs text-purple-600 font-bold"><i class="fas fa-user-shield mr-1"></i>관계자 사용</div>';
+        h += '</div>';
+      } else if(members.length === 0){
+        h += '<div class="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-dashed border-gray-300">';
+        h += '<div class="text-sm font-bold text-gray-400 w-14 flex-shrink-0">'+r+'호</div>';
+        h += '<div class="flex-1 text-xs text-gray-400 italic"><i class="fas fa-door-open mr-1"></i>공실</div>';
+        h += '</div>';
+      } else {
+        members.sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
+        h += '<div class="flex items-start gap-3 px-3 py-2 bg-surface-50 rounded-lg border border-surface-200">';
+        h += '<div class="text-sm font-black text-primary-600 w-14 flex-shrink-0 pt-0.5">'+r+'호</div>';
+        h += '<div class="flex-1">';
+        members.forEach(function(m){
+          var badge = m.status==='pending' ? '<span class="ml-1 text-xs px-1.5 py-0.5 bg-warning-100 text-warning-700 rounded font-bold">예비</span>' : '';
+          h += '<div class="text-sm text-gray-800 py-0.5">';
+          h += '<span class="font-bold">'+escapeHtml(m.name)+'</span>';
+          h += '<span class="text-xs text-gray-500 ml-2">['+escapeHtml(m.dept)+']</span>';
+          h += badge;
+          h += '</div>';
+        });
+        h += '</div>';
+        h += '<div class="text-xs text-gray-500 font-bold flex-shrink-0 pt-0.5">'+members.length+'명</div>';
+        h += '</div>';
+      }
+    });
+    h += '</div>';
+  });
+  
+  h += '</div></div>';
+  openModal(h);
+}
+// ============ 층별 호실 현황 인쇄 (A4 가로, 표 형식) ============
+function printRoomStatusByFloor(){
+  var FLOOR_RANGES = {
+    1: {start: 101, end: 111},
+    2: {start: 201, end: 229},
+    3: {start: 301, end: 329},
+    4: {start: 401, end: 429}
+  };
+  var STAFF_ROOMS = {
+    322: true,
+    401: true, 402: true, 403: true, 404: true, 405: true, 406: true, 407: true,
+    408: true, 409: true, 410: true, 411: true, 412: true, 413: true
+  };
+  
+  var roomMap = buildRoomOccupancyMap(currentDate, false);
+  var entries = window._secureData.getAllRoomEntries();
+  
+  var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
+  
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>호실별 입사 현황 - '+currentDate+'</title>';
+  html += '<style>';
+  // 하단 여백만 늘려서 잘림 방지 (원래 10mm → 하단만 15mm)
+  html += '@page { size: A4 landscape; margin: 10mm 10mm 15mm 10mm; }';
+  html += '* { box-sizing: border-box; }';
+  html += 'html, body { margin: 0; padding: 0; }';
+  html += 'body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; color: #000; }';
+  html += '.page { page-break-after: always; padding: 5mm; }';
+  html += '.page:last-child { page-break-after: auto; }';
+  html += '.header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #000; padding-bottom: 6px; margin-bottom: 10px; }';
+  html += '.header h1 { font-size: 22px; font-weight: 900; margin: 0; }';
+  html += '.header .meta { font-size: 12px; color: #333; }';
+  html += '.summary { display: flex; gap: 12px; font-size: 12px; margin-bottom: 8px; padding: 6px 10px; background: #f3f4f6; border-radius: 4px; }';
+  html += '.summary b { font-size: 14px; }';
+  html += 'table { width: 100%; border-collapse: collapse; font-size: 13px; }';
+  html += 'th, td { border: 1px solid #333; padding: 5px 8px; text-align: center; vertical-align: middle; }';
+  html += 'th { background: #374151; color: #fff; font-weight: 700; font-size: 12px; }';
+  // ★★ 하단 잘림 방지를 위한 핵심 3줄 ★★
+  html += 'tbody { border-bottom: 2px solid #000; }';
+  html += 'tbody tr:last-child td { border-bottom: 2px solid #000 !important; }';
+  html += 'tr { page-break-inside: avoid; }';
+  html += 'td.name { text-align: left; font-weight: 700; }';
+  html += 'td.dept { text-align: left; }';
+  html += 'tr.empty td { color: #999; background: #fafafa; font-style: italic; }';
+  html += 'tr.staff td { color: #6b21a8; background: #f5f3ff; font-weight: 700; }';
+  html += 'tr.pending td { background: #fef3c7; }';
+  html += '.badge { display: inline-block; padding: 1px 6px; margin-left: 4px; font-size: 11px; font-weight: 700; border-radius: 3px; }';
+  html += '.badge-pending { background: #f59e0b; color: #fff; }';
+  html += '.room-col { width: 60px; font-weight: 900; font-size: 14px; }';
+  html += '.date-col { width: 110px; }';
+  html += '.note-col { width: 100px; }';
+  html += '.name-col { width: 130px; }';
+  // ★ 푸터에 여유 공간 확보 (하단 여백 확대)
+  html += '.footer { margin-top: 10px; margin-bottom: 5px; font-size: 10px; color: #666; text-align: right; }';
+  html += '@media print { .no-print { display: none !important; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }';
+  html += '.no-print { position: fixed; top: 10px; right: 10px; z-index: 999; background: rgba(255,255,255,0.95); padding: 6px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }';
+  html += '.no-print button { padding: 8px 16px; font-size: 14px; font-weight: 700; background: #6366f1; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin-left: 6px; }';
+  html += '.no-print button.close { background: #6b7280; }';
+  html += '.no-print .tip { font-size: 11px; color: #333; margin-bottom: 4px; }';
+  html += '</style></head><body>';
+  
+  html += '<div class="no-print">';
+  html += '<div class="tip" style="max-width:280px; line-height:1.5;">💡 <b>인쇄 대화상자 필수 설정</b><br>① <b>머리글/바닥글: 해제</b> ✔<br>② 배경 그래픽: 체크 ✔<br>③ 여백: 기본</div>';
+  html += '<button onclick="window.print()">🖨️ 인쇄</button>';
+  html += '<button class="close" onclick="window.close()">닫기</button>';
+  html += '</div>';
+  
+  // 층별 페이지 생성
+  Object.keys(FLOOR_RANGES).forEach(function(floor){
+    var range = FLOOR_RANGES[floor];
+    var rows = [];
+    var floorPeople = 0, floorUsed = 0, floorEmpty = 0, floorStaff = 0;
+    
+    for(var r = range.start; r <= range.end; r++){
+      var isStaff = !!STAFF_ROOMS[r];
+      var members = roomMap[String(r)] || [];
+      
+      if(isStaff){
+        floorStaff++;
+        rows.push({room: r, type: 'staff'});
+      } else if(members.length === 0){
+        floorEmpty++;
+        rows.push({room: r, type: 'empty'});
+      } else {
+        floorUsed++;
+        floorPeople += members.length;
+        members.sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
+        members.forEach(function(m, idx){
+          var e = entries[m.name] || {};
+          rows.push({
+            room: r,
+            type: 'occupied',
+            name: m.name,
+            dept: m.dept,
+            status: m.status,
+            regDate: e.registeredDate || '',
+            isFirst: idx === 0,
+            memberCount: members.length
+          });
+        });
+      }
+    }
+    
+    html += '<div class="page">';
+    html += '<div class="header">';
+    html += '<h1>화성캠 행복관 - '+floor+'층 호실 현황</h1>';
+    html += '<div class="meta">기준일: <b>'+currentDate+'</b> | 호실범위: '+range.start+'~'+range.end+'호</div>';
+    html += '</div>';
+    
+    html += '<div class="summary">';
+    html += '<span>사용 <b>'+floorUsed+'</b></span>';
+    html += '<span>공실 <b>'+floorEmpty+'</b></span>';
+    if(floorStaff > 0) html += '<span>관계자실 <b>'+floorStaff+'</b></span>';
+    html += '<span>입사인원 <b>'+floorPeople+'명</b></span>';
+    html += '</div>';
+    
+    html += '<table>';
+    html += '<thead><tr>';
+    html += '<th class="room-col">호실</th>';
+    html += '<th class="name-col">이름</th>';
+    html += '<th>학과</th>';
+    html += '<th class="date-col">입사일</th>';
+    html += '<th class="note-col">비고</th>';
+    html += '</tr></thead><tbody>';
+    
+    rows.forEach(function(row){
+      if(row.type === 'staff'){
+        html += '<tr class="staff">';
+        html += '<td class="room-col">'+row.room+'</td>';
+        html += '<td colspan="4">🛡️ 관계자 사용실</td>';
+        html += '</tr>';
+      } else if(row.type === 'empty'){
+        html += '<tr class="empty">';
+        html += '<td class="room-col">'+row.room+'</td>';
+        html += '<td colspan="4">- 공실 -</td>';
+        html += '</tr>';
+      } else {
+        var isPending = row.status === 'pending';
+        html += '<tr'+(isPending?' class="pending"':'')+'>';
+        if(row.isFirst){
+          html += '<td class="room-col" rowspan="'+row.memberCount+'">'+row.room+'</td>';
+        }
+        html += '<td class="name">'+esc(row.name)+'</td>';
+        html += '<td class="dept">'+esc(row.dept)+'</td>';
+        html += '<td>'+esc(row.regDate||'-')+'</td>';
+        html += '<td>'+(isPending?'<span class="badge badge-pending">예비</span>':'')+'</td>';
+        html += '</tr>';
+      }
+    });
+    
+    html += '</tbody></table>';
+    html += '<div class="footer">화성캠 행복관 관리시스템 · 출력일시: '+new Date().toLocaleString('ko-KR')+'</div>';
+    html += '</div>';
+  });
+  
+  html += '</body></html>';
+  
+  var win = window.open('', '_blank', 'width=1200,height=800');
+  win.document.write(html);
+  win.document.close();
+}
 // 진단용 전역 도구
 window.diagRoom=function(roomNum){
     try{
@@ -932,6 +1201,7 @@ function getAvailableDates(){
     if(today.getDay()===5){for(var off=1;off<=2;off++){var d2=new Date(today);d2.setDate(d2.getDate()+off);var str2=d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0')+'-'+String(d2.getDate()).padStart(2,'0');if(!added.has(str2)){result.push({date:str2,label:getDateLabel(str2)});added.add(str2)}}}
     return result;
 }
+
 // ============ 나이 유틸 ============
 function calcAgeFromBirth(birthStr){
     if(!birthStr)return null;
@@ -6447,6 +6717,7 @@ h+='<div class="pb-5 mt-4">';
   h+='<button onclick="window._roomViewMode=\'card\';render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._roomViewMode==='card'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-th-large mr-1.5"></i>카드뷰</button>';
   h+='<button onclick="window._roomViewMode=\'floor\';render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._roomViewMode==='floor'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-map mr-1.5"></i>평면도</button>';
 h+='<button onclick="window._showEmptyRooms=!window._showEmptyRooms;render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._showEmptyRooms?'bg-warning-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-door-open mr-1.5"></i>'+(window._showEmptyRooms?'공실 ON':'공실 OFF')+'</button>';
+  h+='<button onclick="printRoomStatusByFloor()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all bg-primary-500 text-white shadow-button" title="사감실 게시용 층별 호실 현황 인쇄"><i class="fas fa-print mr-1.5"></i>인쇄</button>';
   h+='<div class="flex-1"></div>';
   h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};render()" class="px-5 py-1.5 bg-surface-100 text-gray-600 rounded-lg text-sm font-bold btn-press"><i class="fas fa-expand-alt mr-1.5"></i>펼치기</button>';
   h+='<button onclick="window._roomFloorOpen={};window._floorPlanOpen={};render()" class="px-5 py-1.5 bg-surface-100 text-gray-600 rounded-lg text-sm font-bold btn-press"><i class="fas fa-compress-alt mr-1.5"></i>접기</button>';
