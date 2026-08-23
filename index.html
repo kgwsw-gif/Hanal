@@ -997,8 +997,125 @@ function showRoomStatusByFloor(){
   h += '</div></div>';
   openModal(h);
 }
-// ============ 층별 호실 현황 인쇄 (A4 가로, 표 형식) ============
+// ============ 층별 호실 현황 인쇄 필터 팝업 ============
 function printRoomStatusByFloor(){
+  // 팝업 HTML 구성
+  var h = '<div class="p-5" style="max-width:500px">';
+  h += '<div class="flex items-center justify-between mb-4">';
+  h += '<h3 class="text-xl font-black text-gray-900"><i class="fas fa-print mr-2 text-primary-500"></i>호실 현황 인쇄</h3>';
+  h += '<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  h += '</div>';
+  
+  h += '<div class="text-xs text-gray-500 mb-4">원하는 조건을 선택하세요. 모든 조건은 <b>AND</b>로 결합됩니다.</div>';
+  
+  // 빠른 프리셋
+  h += '<div class="mb-4">';
+  h += '<div class="text-xs font-bold text-gray-500 mb-2">⚡ 빠른 프리셋</div>';
+  h += '<div class="flex flex-wrap gap-2">';
+  h += '<button onclick="applyPrintPreset(\'all\')" class="px-3 py-1.5 bg-primary-100 text-primary-700 rounded-lg text-xs font-bold btn-press">전체</button>';
+  h += '<button onclick="applyPrintPreset(\'empty\')" class="px-3 py-1.5 bg-warning-100 text-warning-700 rounded-lg text-xs font-bold btn-press">공실만</button>';
+  h += '<button onclick="applyPrintPreset(\'single\')" class="px-3 py-1.5 bg-info-100 text-info-700 rounded-lg text-xs font-bold btn-press">1인실만</button>';
+  h += '<button onclick="applyPrintPreset(\'occupied\')" class="px-3 py-1.5 bg-success-100 text-success-700 rounded-lg text-xs font-bold btn-press">사용중인 호실</button>';
+  h += '</div></div>';
+  
+  // 호실 상태 필터
+  h += '<div class="mb-3 p-3 bg-surface-50 rounded-lg">';
+  h += '<div class="text-sm font-bold text-gray-700 mb-2">🏠 호실 상태</div>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_used" checked class="w-4 h-4"> <span class="text-sm">사용호실</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_empty" checked class="w-4 h-4"> <span class="text-sm">공실</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_staff" checked class="w-4 h-4"> <span class="text-sm">관계자실</span></label>';
+  h += '</div>';
+  
+  // 호실 유형 필터
+  h += '<div class="mb-3 p-3 bg-surface-50 rounded-lg">';
+  h += '<div class="text-sm font-bold text-gray-700 mb-2">👥 호실 유형 <span class="text-xs text-gray-400 font-normal">(사용중인 방만 적용)</span></div>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_single" checked class="w-4 h-4"> <span class="text-sm">1인실 (현재 1명)</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_double" checked class="w-4 h-4"> <span class="text-sm">2인실 (현재 2명)</span></label>';
+  h += '</div>';
+  
+  // 층별 필터
+  h += '<div class="mb-3 p-3 bg-surface-50 rounded-lg">';
+  h += '<div class="text-sm font-bold text-gray-700 mb-2">🏢 층별</div>';
+  h += '<div class="grid grid-cols-2 gap-1">';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_f1" checked class="w-4 h-4"> <span class="text-sm">1층 (101~111)</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_f2" checked class="w-4 h-4"> <span class="text-sm">2층 (201~229)</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_f3" checked class="w-4 h-4"> <span class="text-sm">3층 (301~329)</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_f4" checked class="w-4 h-4"> <span class="text-sm">4층 (401~429)</span></label>';
+  h += '</div></div>';
+  
+  // 기타 옵션
+    h += '<div class="mb-4 p-3 bg-surface-50 rounded-lg">';
+  h += '<div class="text-sm font-bold text-gray-700 mb-2">⚙️ 기타 옵션</div>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_pending" class="w-4 h-4"> <span class="text-sm">예비입사자 포함</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_regdate" checked class="w-4 h-4"> <span class="text-sm">입사일 표시</span></label>';
+  h += '<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" id="pf_pagebreak" checked class="w-4 h-4"> <span class="text-sm">각 층을 별도 페이지로</span></label>';
+  h += '</div>';
+  
+  // 인쇄 실행 버튼
+  h += '<div class="flex gap-2 mt-4">';
+  h += '<button onclick="closeModal()" class="flex-1 px-4 py-3 bg-surface-100 text-gray-600 rounded-lg font-bold btn-press">취소</button>';
+  h += '<button onclick="executeRoomPrint()" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg font-bold btn-press shadow-button"><i class="fas fa-print mr-2"></i>인쇄</button>';
+  h += '</div>';
+  
+  h += '</div>';
+  
+  openModal(h);
+}
+
+// 프리셋 적용
+function applyPrintPreset(type){
+  var setCheck = function(id, val){ var el=document.getElementById(id); if(el) el.checked=val; };
+  
+  // 기본: 모두 체크
+  ['pf_used','pf_empty','pf_staff','pf_single','pf_double','pf_f1','pf_f2','pf_f3','pf_f4'].forEach(function(id){ setCheck(id, true); });
+  setCheck('pf_pending', false);
+  setCheck('pf_pagebreak', true);
+  
+  if(type === 'empty'){
+    setCheck('pf_used', false);
+    setCheck('pf_staff', false);
+  } else if(type === 'single'){
+    setCheck('pf_empty', false);
+    setCheck('pf_staff', false);
+    setCheck('pf_double', false);
+  } else if(type === 'occupied'){
+    setCheck('pf_empty', false);
+    setCheck('pf_staff', false);
+  }
+}
+
+// 실제 인쇄 실행 (필터 적용)
+function executeRoomPrint(){
+  var getCheck = function(id){ var el=document.getElementById(id); return el ? el.checked : false; };
+  
+    var filter = {
+    used: getCheck('pf_used'),
+    empty: getCheck('pf_empty'),
+    staff: getCheck('pf_staff'),
+    single: getCheck('pf_single'),
+    double: getCheck('pf_double'),
+    floors: {1: getCheck('pf_f1'), 2: getCheck('pf_f2'), 3: getCheck('pf_f3'), 4: getCheck('pf_f4')},
+    includePending: getCheck('pf_pending'),
+    showRegDate: getCheck('pf_regdate'),
+    pageBreak: getCheck('pf_pagebreak')
+  };
+  
+  // 최소 하나는 선택되어야 함
+  if(!filter.used && !filter.empty && !filter.staff){
+    alert('호실 상태를 하나 이상 선택하세요');
+    return;
+  }
+  if(!filter.floors[1] && !filter.floors[2] && !filter.floors[3] && !filter.floors[4]){
+    alert('층을 하나 이상 선택하세요');
+    return;
+  }
+  
+  closeModal();
+  doPrintRoomStatus(filter);
+}
+
+// 실제 인쇄 페이지 생성
+function doPrintRoomStatus(filter){
   var FLOOR_RANGES = {
     1: {start: 101, end: 111},
     2: {start: 201, end: 229},
@@ -1011,29 +1128,48 @@ function printRoomStatusByFloor(){
     408: true, 409: true, 410: true, 411: true, 412: true, 413: true
   };
   
-  var roomMap = buildRoomOccupancyMap(currentDate, false);
+  var roomMap = buildRoomOccupancyMap(currentDate, filter.includePending);
   var entries = window._secureData.getAllRoomEntries();
   
   var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
   
+  // 필터 요약 텍스트
+  var filterSummary = [];
+  var stateArr = [];
+  if(filter.used) stateArr.push('사용중');
+  if(filter.empty) stateArr.push('공실');
+  if(filter.staff) stateArr.push('관계자실');
+  filterSummary.push('상태: ' + stateArr.join('/'));
+  
+  if(filter.used){
+    var typeArr = [];
+    if(filter.single) typeArr.push('1인실');
+    if(filter.double) typeArr.push('2인실');
+    if(typeArr.length > 0 && typeArr.length < 2) filterSummary.push('유형: ' + typeArr.join('/'));
+  }
+  
+  var floorArr = [];
+  [1,2,3,4].forEach(function(f){ if(filter.floors[f]) floorArr.push(f+'층'); });
+  if(floorArr.length < 4) filterSummary.push('층: ' + floorArr.join('/'));
+  if(filter.includePending) filterSummary.push('예비입사자 포함');
+  
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>호실별 입사 현황 - '+currentDate+'</title>';
   html += '<style>';
-  // 하단 여백만 늘려서 잘림 방지 (원래 10mm → 하단만 15mm)
   html += '@page { size: A4 landscape; margin: 10mm 10mm 15mm 10mm; }';
   html += '* { box-sizing: border-box; }';
   html += 'html, body { margin: 0; padding: 0; }';
   html += 'body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; color: #000; }';
-  html += '.page { page-break-after: always; padding: 5mm; }';
+  html += '.page { ' + (filter.pageBreak ? 'page-break-after: always;' : '') + ' padding: 5mm; }';
   html += '.page:last-child { page-break-after: auto; }';
   html += '.header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #000; padding-bottom: 6px; margin-bottom: 10px; }';
   html += '.header h1 { font-size: 22px; font-weight: 900; margin: 0; }';
   html += '.header .meta { font-size: 12px; color: #333; }';
+  html += '.filter-info { font-size: 11px; color: #555; background: #fef3c7; padding: 4px 10px; border-radius: 4px; margin-bottom: 8px; }';
   html += '.summary { display: flex; gap: 12px; font-size: 12px; margin-bottom: 8px; padding: 6px 10px; background: #f3f4f6; border-radius: 4px; }';
   html += '.summary b { font-size: 14px; }';
   html += 'table { width: 100%; border-collapse: collapse; font-size: 13px; }';
   html += 'th, td { border: 1px solid #333; padding: 5px 8px; text-align: center; vertical-align: middle; }';
   html += 'th { background: #374151; color: #fff; font-weight: 700; font-size: 12px; }';
-  // ★★ 하단 잘림 방지를 위한 핵심 3줄 ★★
   html += 'tbody { border-bottom: 2px solid #000; }';
   html += 'tbody tr:last-child td { border-bottom: 2px solid #000 !important; }';
   html += 'tr { page-break-inside: avoid; }';
@@ -1044,44 +1180,67 @@ function printRoomStatusByFloor(){
   html += 'tr.pending td { background: #fef3c7; }';
   html += '.badge { display: inline-block; padding: 1px 6px; margin-left: 4px; font-size: 11px; font-weight: 700; border-radius: 3px; }';
   html += '.badge-pending { background: #f59e0b; color: #fff; }';
+  html += '.badge-single { background: #3b82f6; color: #fff; }';
   html += '.room-col { width: 60px; font-weight: 900; font-size: 14px; }';
   html += '.date-col { width: 110px; }';
-  html += '.note-col { width: 100px; }';
+  html += '.note-col { width: 120px; }';
   html += '.name-col { width: 130px; }';
-  // ★ 푸터에 여유 공간 확보 (하단 여백 확대)
   html += '.footer { margin-top: 10px; margin-bottom: 5px; font-size: 10px; color: #666; text-align: right; }';
+  html += '.no-result { text-align: center; padding: 40px; color: #999; font-size: 14px; }';
   html += '@media print { .no-print { display: none !important; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }';
-  html += '.no-print { position: fixed; top: 10px; right: 10px; z-index: 999; background: rgba(255,255,255,0.95); padding: 6px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }';
-  html += '.no-print button { padding: 8px 16px; font-size: 14px; font-weight: 700; background: #6366f1; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin-left: 6px; }';
-  html += '.no-print button.close { background: #6b7280; }';
-  html += '.no-print .tip { font-size: 11px; color: #333; margin-bottom: 4px; }';
+    html += '.no-print { position: fixed; top: 15px; right: 15px; z-index: 9999; background: #fff; padding: 12px 14px; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; min-width: 220px; }';
+  html += '.no-print .tip { font-size: 11px; color: #4b5563; margin-bottom: 10px; padding: 6px 8px; background: #fef3c7; border-radius: 6px; line-height: 1.4; }';
+  html += '.no-print .btn-row { display: flex; gap: 6px; }';
+  html += '.no-print button { flex: 1; padding: 9px 14px; font-size: 13px; font-weight: 700; background: #6366f1; color: #fff; border: none; border-radius: 6px; cursor: pointer; transition: opacity 0.2s; }';
+  html += '.no-print button:hover { opacity: 0.85; }';
+  html += '.no-print button.close { background: #9ca3af; }';
   html += '</style></head><body>';
   
-  html += '<div class="no-print">';
-  html += '<div class="tip" style="max-width:280px; line-height:1.5;">💡 <b>인쇄 대화상자 필수 설정</b><br>① <b>머리글/바닥글: 해제</b> ✔<br>② 배경 그래픽: 체크 ✔<br>③ 여백: 기본</div>';
+    html += '<div class="no-print">';
+  html += '<div class="tip">💡 <b>머리글/바닥글 해제</b><br>💡 <b>배경 그래픽 체크</b></div>';
+  html += '<div class="btn-row">';
   html += '<button onclick="window.print()">🖨️ 인쇄</button>';
   html += '<button class="close" onclick="window.close()">닫기</button>';
-  html += '</div>';
+  html += '</div></div>';
   
-  // 층별 페이지 생성
+  // 층별 데이터 수집 및 필터링
+  var totalRowsAll = 0;
+  var floorPages = [];
+  
   Object.keys(FLOOR_RANGES).forEach(function(floor){
+    if(!filter.floors[floor]) return;
+    
     var range = FLOOR_RANGES[floor];
     var rows = [];
-    var floorPeople = 0, floorUsed = 0, floorEmpty = 0, floorStaff = 0;
+    var floorPeople = 0, floorUsed = 0, floorEmpty = 0, floorStaff = 0, floorSingle = 0, floorDouble = 0;
     
     for(var r = range.start; r <= range.end; r++){
       var isStaff = !!STAFF_ROOMS[r];
       var members = roomMap[String(r)] || [];
       
       if(isStaff){
+        // 관계자실
+        if(!filter.staff) continue;
         floorStaff++;
         rows.push({room: r, type: 'staff'});
       } else if(members.length === 0){
+        // 공실
+        if(!filter.empty) continue;
         floorEmpty++;
         rows.push({room: r, type: 'empty'});
       } else {
+        // 사용중
+        if(!filter.used) continue;
+        var isSingle = members.length === 1;
+        var isDouble = members.length >= 2;
+        if(isSingle && !filter.single) continue;
+        if(isDouble && !filter.double) continue;
+        
         floorUsed++;
         floorPeople += members.length;
+        if(isSingle) floorSingle++;
+        else floorDouble++;
+        
         members.sort(function(a,b){ return a.name.localeCompare(b.name,'ko'); });
         members.forEach(function(m, idx){
           var e = entries[m.name] || {};
@@ -1093,63 +1252,88 @@ function printRoomStatusByFloor(){
             status: m.status,
             regDate: e.registeredDate || '',
             isFirst: idx === 0,
-            memberCount: members.length
+            memberCount: members.length,
+            isSingle: isSingle
           });
         });
       }
     }
     
-    html += '<div class="page">';
-    html += '<div class="header">';
-    html += '<h1>화성캠 행복관 - '+floor+'층 호실 현황</h1>';
-    html += '<div class="meta">기준일: <b>'+currentDate+'</b> | 호실범위: '+range.start+'~'+range.end+'호</div>';
-    html += '</div>';
+    if(rows.length === 0) return;
     
-    html += '<div class="summary">';
-    html += '<span>사용 <b>'+floorUsed+'</b></span>';
-    html += '<span>공실 <b>'+floorEmpty+'</b></span>';
-    if(floorStaff > 0) html += '<span>관계자실 <b>'+floorStaff+'</b></span>';
-    html += '<span>입사인원 <b>'+floorPeople+'명</b></span>';
-    html += '</div>';
-    
-    html += '<table>';
-    html += '<thead><tr>';
-    html += '<th class="room-col">호실</th>';
-    html += '<th class="name-col">이름</th>';
-    html += '<th>학과</th>';
-    html += '<th class="date-col">입사일</th>';
-    html += '<th class="note-col">비고</th>';
-    html += '</tr></thead><tbody>';
-    
-    rows.forEach(function(row){
-      if(row.type === 'staff'){
-        html += '<tr class="staff">';
-        html += '<td class="room-col">'+row.room+'</td>';
-        html += '<td colspan="4">🛡️ 관계자 사용실</td>';
-        html += '</tr>';
-      } else if(row.type === 'empty'){
-        html += '<tr class="empty">';
-        html += '<td class="room-col">'+row.room+'</td>';
-        html += '<td colspan="4">- 공실 -</td>';
-        html += '</tr>';
-      } else {
-        var isPending = row.status === 'pending';
-        html += '<tr'+(isPending?' class="pending"':'')+'>';
-        if(row.isFirst){
-          html += '<td class="room-col" rowspan="'+row.memberCount+'">'+row.room+'</td>';
-        }
-        html += '<td class="name">'+esc(row.name)+'</td>';
-        html += '<td class="dept">'+esc(row.dept)+'</td>';
-        html += '<td>'+esc(row.regDate||'-')+'</td>';
-        html += '<td>'+(isPending?'<span class="badge badge-pending">예비</span>':'')+'</td>';
-        html += '</tr>';
-      }
-    });
-    
-    html += '</tbody></table>';
-    html += '<div class="footer">화성캠 행복관 관리시스템 · 출력일시: '+new Date().toLocaleString('ko-KR')+'</div>';
-    html += '</div>';
+    totalRowsAll += rows.length;
+    floorPages.push({floor: floor, range: range, rows: rows, stats: {people: floorPeople, used: floorUsed, empty: floorEmpty, staff: floorStaff, single: floorSingle, double: floorDouble}});
   });
+  
+  if(floorPages.length === 0){
+    html += '<div class="page"><div class="no-result">📭 선택한 조건에 해당하는 호실이 없습니다</div></div>';
+  } else {
+    floorPages.forEach(function(page){
+      var floor = page.floor;
+      var range = page.range;
+      var rows = page.rows;
+      var s = page.stats;
+      
+      html += '<div class="page">';
+      html += '<div class="header">';
+      html += '<h1>화성캠 행복관 - '+floor+'층 호실 현황</h1>';
+      html += '<div class="meta">기준일: <b>'+currentDate+'</b> | 호실범위: '+range.start+'~'+range.end+'호</div>';
+      html += '</div>';
+      
+      if(filterSummary.length > 0){
+        html += '<div class="filter-info">🔍 필터: '+filterSummary.join(' · ')+'</div>';
+      }
+      
+      html += '<div class="summary">';
+      if(filter.used){ 
+        html += '<span>사용 <b>'+s.used+'</b></span>';
+        html += '<span>(1인 <b>'+s.single+'</b> · 2인 <b>'+s.double+'</b>)</span>';
+      }
+      if(filter.empty) html += '<span>공실 <b>'+s.empty+'</b></span>';
+      if(filter.staff && s.staff > 0) html += '<span>관계자실 <b>'+s.staff+'</b></span>';
+      html += '<span>입사인원 <b>'+s.people+'명</b></span>';
+      html += '</div>';
+      
+            html += '<table>';
+      html += '<thead><tr>';
+      html += '<th class="room-col">호실</th>';
+      html += '<th class="name-col">이름</th>';
+      html += '<th>학과</th>';
+      if(filter.showRegDate) html += '<th class="date-col">입사일</th>';
+      html += '<th class="note-col">비고</th>';
+      html += '</tr></thead><tbody>';
+      
+      rows.forEach(function(row){
+        var colspan = filter.showRegDate ? 4 : 3;
+        if(row.type === 'staff'){
+          html += '<tr class="staff">';
+          html += '<td class="room-col">'+row.room+'</td>';
+          html += '<td colspan="'+colspan+'">🛡️ 관계자 사용실</td>';
+          html += '</tr>';
+        } else if(row.type === 'empty'){
+          html += '<tr class="empty">';
+          html += '<td class="room-col">'+row.room+'</td>';
+          html += '<td colspan="'+colspan+'">- 공실 -</td>';
+          html += '</tr>';
+        } else {
+          var isPending = row.status === 'pending';
+          html += '<tr'+(isPending?' class="pending"':'')+'>';
+          if(row.isFirst){
+            html += '<td class="room-col" rowspan="'+row.memberCount+'">'+row.room+(row.isSingle?'<br><span class="badge badge-single" style="font-size:9px">1인</span>':'')+'</td>';
+          }
+          html += '<td class="name">'+esc(row.name)+'</td>';
+          html += '<td class="dept">'+esc(row.dept)+'</td>';
+          if(filter.showRegDate) html += '<td>'+esc(row.regDate||'-')+'</td>';
+          html += '<td>'+(isPending?'<span class="badge badge-pending">예비</span>':'')+'</td>';
+          html += '</tr>';
+        }
+      });
+      
+      html += '</tbody></table>';
+      html += '<div class="footer">화성캠 행복관 관리시스템 · 출력일시: '+new Date().toLocaleString('ko-KR')+'</div>';
+      html += '</div>';
+    });
+  }
   
   html += '</body></html>';
   
