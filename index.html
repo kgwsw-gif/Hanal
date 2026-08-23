@@ -5407,8 +5407,7 @@ function renderLeaderView(todaySubs,todayOuts){
     if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDate);todaySubs=autoData.submissions;todayOuts=autoData.outings}
     var ad=getAvailableDates(),av=ad.map(function(d){return d.date});
     if(av.indexOf(currentDate)===-1&&ad.length>0)currentDate=ad[0].date;
-    var rawDs=students[leaderDepartment]||[];
-    var ds=rawDs.filter(function(s){return !resignRequests.some(function(r){return r.status==='approved'&&r.department===leaderDepartment&&r.name===s})&&!window._secureData.isPending(s)});
+    var ds=getDeptStudentList(leaderDepartment,currentDate,false);
     var subN=todaySubs.filter(function(s){return s.department===leaderDepartment}).map(function(s){return s.name});
     var stay=todaySubs.filter(function(s){return s.status==='stay'&&s.department===leaderDepartment&&ds.indexOf(s.name)!==-1});
     var out=todaySubs.filter(function(s){return s.status==='out'&&s.department===leaderDepartment&&ds.indexOf(s.name)!==-1});
