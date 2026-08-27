@@ -44,9 +44,12 @@
     <meta name="yeti" content="noindex, nofollow">
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>화성캠 행복관 인원관리 v2.0</title>
+    <!-- XLSX 라이브러리 (엑셀 업로드/다운로드용) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
     if(localStorage.getItem('darkMode')==='true'){
         document.documentElement.classList.add('dark');
@@ -384,6 +387,7 @@ html.dark #modalContent .bg-white{background:rgba(40,40,65,0.6)!important}
 html.dark #modalContent .text-white{color:#ffffff!important}
 html.dark #modalContent .bg-danger-500{color:#ffffff!important}
 html.dark #modalContent .bg-primary-500{color:#ffffff!important}
+.hidden { display: none !important; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -435,8 +439,18 @@ html.dark #modalContent .bg-primary-500{color:#ffffff!important}
 <div id="modalSystem" class="fixed inset-0 z-50 hidden">
     <div class="modal-overlay absolute inset-0" onclick="closeModal()"></div>
     <div class="absolute inset-x-0 bottom-0 md:inset-auto md:top-1/2 md:left-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 md:max-w-md md:w-full">
-        <div id="modalContent" class="bg-white rounded-t-3xl md:rounded-3xl shadow-modal max-h-[85vh] overflow-y-auto safe-bottom animate-slide-up md:animate-scale-in"></div>
+    <div class="bg-white rounded-t-3xl md:rounded-3xl shadow-modal max-h-[85vh] overflow-y-auto safe-bottom animate-slide-up md:animate-scale-in">
+<div id="modalContent"></div>
+</div>
     </div>
+</div>
+<div id="assignResultModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50" onclick="closeAssignResultModal()"></div>
+  <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+    <div class="bg-white rounded-3xl shadow-modal w-full pointer-events-auto animate-scale-in" style="max-width:1400px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column;">
+      <div id="assignResultContent" style="overflow-y:auto; overflow-x:hidden; flex:1;"></div>
+    </div>
+  </div>
 </div>
 <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none"></div>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -1341,6 +1355,2283 @@ function doPrintRoomStatus(filter){
   win.document.write(html);
   win.document.close();
 }
+// ============ 자동 호실 배정 시스템 ============
+
+// 진입 팝업 (엑셀 다운로드 + 업로드)
+function showAutoAssignModal(){
+  var h = '<div class="p-5" style="max-width:600px">';
+  h += '<div class="flex items-center justify-between mb-4">';
+  h += '<h3 class="text-xl font-black text-gray-900"><i class="fas fa-magic mr-2 text-primary-500"></i>호실 자동 배정</h3>';
+  h += '<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  h += '</div>';
+  
+  // 안내
+  h += '<div class="mb-4 p-3 bg-primary-50 rounded-lg text-sm">';
+  h += '<div class="font-bold text-primary-700 mb-2">📋 사용 방법</div>';
+  h += '<ol class="text-xs text-gray-700 space-y-1 ml-4 list-decimal">';
+  h += '<li><b>엑셀 템플릿 다운로드</b> 후 학생 정보 입력</li>';
+  h += '<li>작성한 엑셀 파일을 <b>업로드</b>하면 자동으로 호실 배정</li>';
+  h += '<li>배정 결과를 확인하고 필요시 <b>수동 조정</b> 가능</li>';
+  h += '<li>최종 결과를 <b>인쇄 또는 엑셀로 저장</b></li>';
+  h += '</ol></div>';
+  
+  // 엑셀 규칙 안내
+  h += '<div class="mb-4 p-3 bg-warning-50 rounded-lg text-xs">';
+  h += '<div class="font-bold text-warning-700 mb-2">⚠️ 엑셀 작성 규칙</div>';
+  h += '<ul class="space-y-1 ml-4 list-disc text-gray-700">';
+  h += '<li><b>이름</b>: 여학생은 이름 뒤 "(여)" 표기 (예: 홍길순(여))</li>';
+  h += '<li><b>생년</b>: 연도만 입력 (예: 2001) · 생년월일도 가능 (예: 2001-03-15)</li>';
+  h += '<li><b>흡연여부</b>: 흡연 / 비흡연</li>';
+  h += '<li><b>특이사항</b>: 내용 있으면 <b>1인실 단독 배정</b></li>';
+  h += '</ul></div>';
+  
+  // 층 배정 규칙 안내
+  h += '<div class="mb-4 p-3 bg-info-50 rounded-lg text-xs">';
+  h += '<div class="font-bold text-info-700 mb-2">🏢 배정 규칙</div>';
+  h += '<ul class="space-y-1 ml-4 list-disc text-gray-700">';
+  h += '<li><b>여학생</b>: 1층 (101~111호, 최대 22명)</li>';
+  h += '<li><b>남학생</b>: 2층·3층·4층 (322호 제외, 401~413호 포함)</li>';
+  h += '<li>같은 학과끼리 같은 층에 배정 · 흡연/비흡연 분리</li>';
+  h += '</ul></div>';
+  
+  // 액션 버튼
+  h += '<div class="grid grid-cols-2 gap-3 mt-5">';
+  h += '<button onclick="downloadAssignTemplate()" class="px-4 py-4 bg-success-500 text-white rounded-lg font-bold btn-press shadow-button hover:bg-success-600">';
+  h += '<i class="fas fa-file-excel text-2xl block mb-1"></i>';
+  h += '<span>1. 템플릿 다운로드</span></button>';
+  
+  h += '<button onclick="document.getElementById(\'assignFileInput\').click()" class="px-4 py-4 bg-primary-500 text-white rounded-lg font-bold btn-press shadow-button hover:bg-primary-600">';
+  h += '<i class="fas fa-upload text-2xl block mb-1"></i>';
+  h += '<span>2. 엑셀 업로드</span></button>';
+  h += '</div>';
+  
+  h += '<input type="file" id="assignFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleAssignFileUpload(event)">';
+  
+  h += '</div>';
+  
+  openModal(h);
+}
+
+// 엑셀 템플릿 다운로드
+function downloadAssignTemplate(){
+  if(typeof XLSX === 'undefined'){
+    alert('엑셀 라이브러리가 로드되지 않았습니다. 페이지를 새로고침 후 다시 시도해주세요.');
+    return;
+  }
+  
+  // 헤더 + 예시 데이터 (룸메이트 컬럼 추가)
+  var data = [
+    ['학과', '이름', '생년', '흡연여부', '특이사항', '룸메이트'],
+    ['스마트전기과', '홍길동', '2001', '비흡연', '', '김철수'],
+    ['스마트전기과', '김철수', '2000', '흡연', '', '홍길동'],
+    ['자동차운영과', '홍길순(여)', '2002', '비흡연', '', ''],
+    ['자동차운영과', '이영희(여)', '2001', '비흡연', '알레르기로 1인실 요청', ''],
+    ['스마트기계과', '박민수', '1999', '흡연', '', ''],
+    ['스마트기계과', '최영수', '2000', '흡연', '', ''],
+    ['주얼리복공예과', '정지훈', '2001', '비흡연', '', '']
+  ];
+  
+  var ws = XLSX.utils.aoa_to_sheet(data);
+  
+  // 컬럼 너비 설정 (룸메이트 컬럼 추가)
+  ws['!cols'] = [
+    {wch: 18}, // 학과
+    {wch: 14}, // 이름
+    {wch: 14}, // 생년
+    {wch: 10}, // 흡연여부
+    {wch: 30}, // 특이사항
+    {wch: 14}  // 룸메이트
+  ];
+  
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '입사자명단');
+  
+  var today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, '호실배정_템플릿_'+today+'.xlsx');
+  
+  showToast && showToast('템플릿이 다운로드되었습니다', 'success');
+}
+
+// 엑셀 파일 업로드 처리
+function handleAssignFileUpload(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  
+  if(typeof XLSX === 'undefined'){
+    alert('엑셀 라이브러리가 로드되지 않았습니다.');
+    return;
+  }
+  
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, {type: 'array', cellDates: true});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header: 1, defval: ''});
+      
+      // 헤더 제외하고 데이터 파싱
+      var parsed = parseAssignData(rows);
+      
+      // 미리보기 표시
+      showAssignPreview(parsed);
+    } catch(err){
+      alert('엑셀 파일을 읽을 수 없습니다: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  
+  // 같은 파일 재업로드 가능하도록 초기화
+  event.target.value = '';
+}
+
+// 엑셀 데이터 파싱
+function parseAssignData(rows){
+  var students = [];
+  var errors = [];
+  var today = new Date();
+  
+  // 헤더 행 제외 (첫 행)
+  for(var i = 1; i < rows.length; i++){
+    var row = rows[i];
+    if(!row || row.length === 0) continue;
+    
+    var dept = String(row[0] || '').trim();
+    var rawName = String(row[1] || '').trim();
+    var birth = row[2];
+    var smoking = String(row[3] || '').trim();
+    var note = String(row[4] || '').trim();
+    var roommateRaw = String(row[5] || '').trim();
+    
+    if(!dept && !rawName) continue;
+    if(!dept){ errors.push('행 '+(i+1)+': 학과 누락'); continue; }
+    if(!rawName){ errors.push('행 '+(i+1)+': 이름 누락'); continue; }
+    
+    var isFemale = /\(여\)\s*$/.test(rawName);
+    var name = rawName.replace(/\(여\)\s*$/, '').trim();
+    var roommate = roommateRaw.replace(/\(여\)\s*$/, '').trim();
+    
+    // 생년월일 → 나이 계산
+    var birthDate = null, age = null, birthYear = null;
+    if(birth){
+      if(birth instanceof Date){
+        birthDate = birth;
+        birthYear = birth.getFullYear();
+      } else {
+        var bStr = String(birth).trim();
+        var m = bStr.match(/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})$/);
+        if(m){
+          birthDate = new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+          birthYear = parseInt(m[1]);
+        }
+        if(!birthDate){
+          var m2 = bStr.match(/^(\d{4})[-.\/](\d{1,2})$/);
+          if(m2){
+            birthDate = new Date(parseInt(m2[1]), parseInt(m2[2])-1, 1);
+            birthYear = parseInt(m2[1]);
+          }
+        }
+        if(!birthDate){
+          var m3 = bStr.match(/^(\d{4})$/);
+          if(m3){
+            var y = parseInt(m3[1]);
+            if(y >= 1950 && y <= today.getFullYear()){
+              birthDate = new Date(y, 0, 1);
+              birthYear = y;
+            }
+          }
+        }
+        if(!birthDate){
+          var m4 = bStr.match(/^(\d{2})$/);
+          if(m4){
+            var yy = parseInt(m4[1]);
+            var fullYear = yy <= 30 ? 2000 + yy : 1900 + yy;
+            birthDate = new Date(fullYear, 0, 1);
+            birthYear = fullYear;
+          }
+        }
+        if(!birthDate && !isNaN(bStr)){
+          var num = parseFloat(bStr);
+          if(num > 20000 && num < 60000){
+            var excelDate = new Date((num - 25569) * 86400 * 1000);
+            if(!isNaN(excelDate.getTime())){
+              birthDate = excelDate;
+              birthYear = excelDate.getFullYear();
+            }
+          }
+        }
+      }
+      
+      if(birthDate && !isNaN(birthDate.getTime())){
+        age = today.getFullYear() - birthDate.getFullYear();
+        var mo = today.getMonth() - birthDate.getMonth();
+        if(mo < 0 || (mo === 0 && today.getDate() < birthDate.getDate())) age--;
+      }
+    }
+    
+    var smokingStatus = null;
+    if(smoking === '흡연') smokingStatus = 'smoke';
+    else if(smoking === '비흡연') smokingStatus = 'nonsmoke';
+    else {
+      errors.push('행 '+(i+1)+' ('+name+'): 흡연여부는 "흡연" 또는 "비흡연"으로 입력 (현재: "'+smoking+'")');
+      continue;
+    }
+    
+    var needSingle = note.length > 0;
+    
+    students.push({
+      dept: dept,
+      name: name,
+      gender: isFemale ? 'F' : 'M',
+      birthDate: birthDate ? birthDate.toISOString().slice(0,10) : '',
+      age: age,
+      smoking: smokingStatus,
+      note: note,
+      needSingle: needSingle,
+      roommate: roommate
+    });
+  }
+  
+  var pairInfo = validateRoommates(students);
+  
+  return {
+    students: students,
+    errors: errors,
+    pairInfo: pairInfo
+  };
+}
+
+function validateRoommates(students){
+  var warnings = [];
+  var errors = [];
+  var pairs = [];
+  var nameMap = {};
+  
+  students.forEach(function(s){ nameMap[s.name] = s; });
+  
+  var checked = {};
+  students.forEach(function(s){
+    if(!s.roommate) return;
+    if(checked[s.name]) return;
+    
+    var partner = nameMap[s.roommate];
+    
+    if(!partner){
+      errors.push(s.name + '의 룸메이트 "' + s.roommate + '"를 명단에서 찾을 수 없습니다');
+      checked[s.name] = true;
+      return;
+    }
+    
+    if(partner.name === s.name){
+      errors.push(s.name + ': 자기 자신을 룸메이트로 지정할 수 없습니다');
+      checked[s.name] = true;
+      return;
+    }
+    
+    if(partner.roommate !== s.name){
+      errors.push(s.name + ' → ' + s.roommate + ' (짝사랑: ' + 
+                 partner.name + '의 룸메이트는 "' + (partner.roommate || '없음') + '")');
+      checked[s.name] = true;
+      checked[partner.name] = true;
+      return;
+    }
+    
+    if(s.gender !== partner.gender){
+      errors.push(s.name + '(' + (s.gender === 'F' ? '여' : '남') + ') ↔ ' + 
+                 partner.name + '(' + (partner.gender === 'F' ? '여' : '남') + '): 성별이 다릅니다');
+      checked[s.name] = true;
+      checked[partner.name] = true;
+      return;
+    }
+    
+    if(s.dept !== partner.dept){
+      warnings.push(s.name + '(' + s.dept + ') ↔ ' + 
+                   partner.name + '(' + partner.dept + '): 학과가 다릅니다');
+    }
+    
+    if(s.smoking !== partner.smoking){
+      warnings.push(s.name + '(' + (s.smoking === 'smoke' ? '흡연' : '비흡연') + 
+                   ') ↔ ' + partner.name + '(' + (partner.smoking === 'smoke' ? '흡연' : '비흡연') + 
+                   '): 흡연여부가 다릅니다');
+    }
+    
+    if(s.needSingle || partner.needSingle){
+      warnings.push(s.name + ' ↔ ' + partner.name + 
+                   ': 1인실 요청자가 포함되어 있어 페어링이 무시될 수 있습니다');
+    }
+    
+    pairs.push([s.name, partner.name]);
+    checked[s.name] = true;
+    checked[partner.name] = true;
+  });
+  
+  return {
+    warnings: warnings,
+    errors: errors,
+    pairs: pairs
+  };
+}
+
+// ============ 업로드 데이터 미리보기 ============
+function showAssignPreview(parsed){
+  var students = parsed.students;
+  var errors = parsed.errors;
+  var pairInfo = parsed.pairInfo || { warnings: [], errors: [], pairs: [] };
+  
+  var male = students.filter(function(s){ return s.gender === 'M'; }).length;
+  var female = students.filter(function(s){ return s.gender === 'F'; }).length;
+  var smokers = students.filter(function(s){ return s.smoking === 'smoke'; }).length;
+  var singles = students.filter(function(s){ return s.needSingle; }).length;
+  var pairCount = pairInfo.pairs ? pairInfo.pairs.length : 0;
+  
+  var deptCount = {};
+  students.forEach(function(s){
+    var key = s.dept + '(' + (s.gender === 'F' ? '여' : '남') + ')';
+    deptCount[key] = (deptCount[key] || 0) + 1;
+  });
+  
+  var h = '<div class="p-5" style="max-width:900px; max-height:85vh; overflow-y:auto">';
+  h += '<div class="flex items-center justify-between mb-4">';
+  h += '<h3 class="text-xl font-black text-gray-900"><i class="fas fa-users mr-2 text-primary-500"></i>업로드 데이터 확인 ('+students.length+'명)</h3>';
+  h += '<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  h += '</div>';
+  
+  if(errors.length > 0){
+    h += '<div class="mb-4 p-3 bg-danger-50 rounded-lg border border-danger-200">';
+    h += '<div class="font-bold text-danger-700 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i>파싱 오류 '+errors.length+'건</div>';
+    h += '<ul class="text-xs text-danger-600 space-y-1 ml-4 list-disc">';
+    errors.slice(0, 10).forEach(function(e){ h += '<li>'+escapeHtml(e)+'</li>'; });
+    if(errors.length > 10) h += '<li>... 외 '+(errors.length-10)+'건</li>';
+    h += '</ul></div>';
+  }
+  
+  if(pairInfo.errors && pairInfo.errors.length > 0){
+    h += '<div class="mb-4 p-3 bg-danger-50 rounded-lg border border-danger-200">';
+    h += '<div class="font-bold text-danger-700 mb-2"><i class="fas fa-user-times mr-1"></i>룸메이트 페어링 오류 '+pairInfo.errors.length+'건</div>';
+    h += '<ul class="text-xs text-danger-600 space-y-1 ml-4 list-disc">';
+    pairInfo.errors.forEach(function(e){ h += '<li>'+escapeHtml(e)+'</li>'; });
+    h += '</ul></div>';
+  }
+  
+  if(pairInfo.warnings && pairInfo.warnings.length > 0){
+    h += '<div class="mb-4 p-3 bg-warning-50 rounded-lg border border-warning-200">';
+    h += '<div class="font-bold text-warning-700 mb-2"><i class="fas fa-exclamation-circle mr-1"></i>룸메이트 페어링 경고 '+pairInfo.warnings.length+'건</div>';
+    h += '<ul class="text-xs text-warning-700 space-y-1 ml-4 list-disc">';
+    pairInfo.warnings.forEach(function(w){ h += '<li>'+escapeHtml(w)+'</li>'; });
+    h += '</ul>';
+    h += '<div class="text-xs text-warning-600 mt-2">※ 경고는 배정을 막지 않습니다. 관리자가 확인 후 진행하세요.</div>';
+    h += '</div>';
+  }
+    // 🆕 Step B: 여학생 전원 1인실 옵션
+  var femaleCheck = canAssignFemaleAllSingle(students);
+  if(femaleCheck.femaleCount > 0){
+    var checkboxState = femaleCheck.canAssign ? '' : 'disabled';
+    var bgColor = femaleCheck.canAssign ? 'bg-pink-50 border-pink-200' : 'bg-gray-100 border-gray-200';
+    var textColor = femaleCheck.canAssign ? 'text-pink-800' : 'text-gray-400';
+    var infoText = femaleCheck.canAssign
+      ? '여학생 ' + femaleCheck.femaleCount + '명 ≤ 1층 ' + femaleCheck.availableRooms + '실 (활성)'
+      : '여학생 ' + femaleCheck.femaleCount + '명 > 1층 ' + femaleCheck.availableRooms + '실 (방 부족으로 비활성)';
+    
+    var savedFemaleAllSingle = false;
+    try {
+      savedFemaleAllSingle = localStorage.getItem('dormFemaleAllSingle') === 'true';
+    } catch(e){}
+    var checkedAttr = (femaleCheck.canAssign && savedFemaleAllSingle) ? 'checked' : '';
+    window._femaleAllSingleOption = (femaleCheck.canAssign && savedFemaleAllSingle);
+    
+    h += '<div class="mb-4 p-3 rounded-lg border-2 ' + bgColor + '">';
+    h += '<label class="flex items-center gap-3 ' + (femaleCheck.canAssign ? 'cursor-pointer' : 'cursor-not-allowed') + '">';
+    h += '<input type="checkbox" id="femaleAllSingleCheckbox" ' + checkedAttr + ' ' + checkboxState + ' onchange="toggleFemaleAllSingle(this.checked)" class="w-5 h-5 accent-pink-500">';
+    h += '<div class="flex-1">';
+    h += '<div class="font-bold ' + textColor + '"><i class="fas fa-venus mr-1"></i>여학생 전원 1인실 배정</div>';
+    h += '<div class="text-xs ' + textColor + ' mt-1">' + infoText + '</div>';
+    h += '</div>';
+    h += '</label>';
+    h += '</div>';
+  }
+  
+  h += '<div class="grid grid-cols-5 gap-2 mb-4">';
+  h += '<div class="text-center p-3 bg-primary-50 rounded-xl"><div class="text-2xl font-black text-primary-600">'+students.length+'</div><div class="text-xs text-gray-500">전체</div></div>';
+  h += '<div class="text-center p-3 bg-info-50 rounded-xl"><div class="text-xl font-black text-info-600 whitespace-nowrap">'+male+' / '+female+'</div><div class="text-xs text-gray-500">남 / 여</div></div>';
+  h += '<div class="text-center p-3 bg-warning-50 rounded-xl"><div class="text-2xl font-black text-warning-600">'+smokers+'</div><div class="text-xs text-gray-500">흡연자</div></div>';
+  h += '<div class="text-center p-3 bg-danger-50 rounded-xl"><div class="text-2xl font-black text-danger-600">'+singles+'</div><div class="text-xs text-gray-500">1인실 요청</div></div>';
+  h += '<div class="text-center p-3 bg-success-50 rounded-xl"><div class="text-2xl font-black text-success-600">'+pairCount+'</div><div class="text-xs text-gray-500">👥 페어링</div></div>';
+  h += '</div>';
+  
+  h += '<div class="mb-4 p-3 bg-surface-50 rounded-lg">';
+  h += '<div class="text-sm font-bold text-gray-700 mb-2">📚 학과별 인원</div>';
+  h += '<div class="flex flex-wrap gap-2">';
+  Object.keys(deptCount).sort().forEach(function(k){
+    h += '<span class="px-3 py-1 bg-white rounded-full text-xs font-bold border">'+k+' <b class="text-primary-600">'+deptCount[k]+'명</b></span>';
+  });
+  h += '</div></div>';
+  
+  if(pairCount > 0){
+    h += '<div class="mb-4 p-3 bg-success-50 rounded-lg border border-success-200">';
+    h += '<div class="text-sm font-bold text-success-700 mb-2">👥 룸메이트 페어링 ('+pairCount+'쌍)</div>';
+    h += '<div class="flex flex-wrap gap-2">';
+    pairInfo.pairs.forEach(function(p){
+      h += '<span class="px-3 py-1 bg-white rounded-full text-xs font-bold border border-success-300">'+
+           escapeHtml(p[0])+' ↔ '+escapeHtml(p[1])+'</span>';
+    });
+    h += '</div></div>';
+  }
+  
+  h += '<div class="border rounded-lg overflow-hidden mb-4">';
+  h += '<div class="max-h-64 overflow-y-auto">';
+  h += '<table class="w-full text-xs">';
+  h += '<thead class="bg-gray-100 sticky top-0"><tr>';
+  h += '<th class="p-2 text-left">학과</th><th class="p-2">이름</th><th class="p-2">성별</th><th class="p-2">나이</th><th class="p-2">흡연</th><th class="p-2">👥룸메</th><th class="p-2 text-left">특이사항</th>';
+  h += '</tr></thead><tbody>';
+  students.forEach(function(s){
+    var bgClass = s.needSingle ? 'bg-danger-50' : (s.roommate ? 'bg-success-50' : '');
+    h += '<tr class="border-t '+bgClass+'">';
+    h += '<td class="p-2">'+escapeHtml(s.dept)+'</td>';
+    h += '<td class="p-2 font-bold">'+escapeHtml(s.name)+'</td>';
+    h += '<td class="p-2 text-center">'+(s.gender === 'F' ? '여' : '남')+'</td>';
+    h += '<td class="p-2 text-center">'+(s.age || '-')+'</td>';
+    h += '<td class="p-2 text-center">'+(s.smoking === 'smoke' ? '🚬' : '❌')+'</td>';
+    h += '<td class="p-2 text-center text-success-700 font-bold">'+escapeHtml(s.roommate || '')+'</td>';
+    h += '<td class="p-2 text-gray-600">'+escapeHtml(s.note)+'</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div></div>';
+  
+  h += '<div class="flex gap-2">';
+  h += '<button onclick="closeModal()" class="flex-1 px-4 py-3 bg-surface-100 text-gray-600 rounded-lg font-bold btn-press">취소</button>';
+  var hasFatalError = errors.length > 0 || (pairInfo.errors && pairInfo.errors.length > 0);
+  if(!hasFatalError && students.length > 0){
+    h += '<button onclick="showAssignSettings();" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg font-bold btn-press shadow-button"><i class="fas fa-cog mr-2"></i>배정 설정하기</button>';
+h += '<button onclick="closeModal(); setTimeout(runAutoAssignment, 100);" class="flex-1 px-4 py-3 bg-gray-500 text-white rounded-lg font-bold btn-press shadow-button" title="학과별 층 지정 없이 자동 배정"><i class="fas fa-magic mr-2"></i>자동 배정 (스킵)</button>';
+  }
+  h += '</div>';
+  
+  h += '</div>';
+  
+  window._assignData = students;
+  window._assignPairs = pairInfo.pairs || [];
+  
+  openModal(h);
+}
+// ============ 관리자 배정 설정 화면 (학과별 층/호실 지정) ============
+function showAssignSettings(){
+  if(!window._assignData || window._assignData.length === 0){
+    alert('업로드된 데이터가 없습니다.');
+    return;
+  }
+  
+  var students = window._assignData;
+  
+  // 학과별 통계 집계 (학생 수 많은 순)
+  var deptStats = {};
+  students.forEach(function(s){
+    if(!deptStats[s.dept]){
+      deptStats[s.dept] = { name: s.dept, total: 0, male: 0, female: 0, smoke: 0, needSingle: 0 };
+    }
+    deptStats[s.dept].total++;
+    if(s.gender === 'F') deptStats[s.dept].female++;
+    else deptStats[s.dept].male++;
+    if(s.smoke === 'smoke') deptStats[s.dept].smoke++;
+    if(s.needSingle) deptStats[s.dept].needSingle++;
+  });
+  
+  // 학생 수 많은 순 정렬
+  var deptList = Object.values(deptStats).sort(function(a, b){ return b.total - a.total; });
+  
+  // localStorage에서 저장된 설정 로드
+  var savedSettings = loadAssignSettings();
+  window._assignSettings = window._assignSettings || {};
+  
+  // 학과별 카드 HTML 생성
+  var cardsHtml = deptList.map(function(dept){
+    var saved = savedSettings[dept.name] || {};
+    var mode = saved.mode || 'floor'; // 'floor' or 'room'
+    var floor = saved.floor || (dept.female > 0 ? 1 : 2);
+    var rooms = saved.rooms || [];
+    
+    // 예상 필요 방 수 계산
+    var pairCount = Math.floor((dept.total - dept.needSingle) / 2);
+    var singleCount = dept.needSingle + ((dept.total - dept.needSingle) % 2);
+    var roomsNeededText = pairCount > 0 ? pairCount + '개 2인실' : '';
+    if(singleCount > 0) roomsNeededText += (roomsNeededText ? ' + ' : '') + singleCount + '개 1인실';
+    
+    // 초기 설정 저장
+    window._assignSettings[dept.name] = { mode: mode, floor: floor, rooms: rooms };
+    
+    var floorOptions = dept.female > 0 
+      ? '<option value="1">1층 (여학생)</option>'
+      : '<option value="2"' + (floor==2?' selected':'') + '>2층</option>' +
+        '<option value="3"' + (floor==3?' selected':'') + '>3층</option>' +
+        '<option value="4"' + (floor==4?' selected':'') + '>4층</option>';
+    
+    return (
+      '<div class="bg-white rounded-lg shadow p-4 mb-3 border-l-4 border-primary-500" data-dept="' + dept.name + '">' +
+        '<div class="flex justify-between items-center mb-3">' +
+          '<div>' +
+            '<h4 class="font-bold text-lg text-gray-800"><i class="fas fa-graduation-cap text-primary-500 mr-2"></i>' + dept.name + '</h4>' +
+            '<div class="text-sm text-gray-600 mt-1">' +
+              '<span class="mr-3">총 <strong>' + dept.total + '명</strong></span>' +
+              (dept.male > 0 ? '<span class="mr-3 text-blue-600">남 ' + dept.male + '</span>' : '') +
+              (dept.female > 0 ? '<span class="mr-3 text-pink-600">여 ' + dept.female + '</span>' : '') +
+              (dept.smoke > 0 ? '<span class="mr-3 text-orange-600">🚬 ' + dept.smoke + '</span>' : '') +
+              (dept.needSingle > 0 ? '<span class="text-red-600">⚠️ ' + dept.needSingle + '</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="text-right">' +
+            '<div class="text-xs text-gray-500">예상 필요</div>' +
+            '<div class="text-sm font-semibold text-primary-600">' + roomsNeededText + '</div>' +
+          '</div>' +
+        '</div>' +
+        
+        '<div class="flex items-center gap-3 mb-3">' +
+          '<label class="text-sm font-semibold text-gray-700">지정 방식:</label>' +
+          '<label class="inline-flex items-center">' +
+            '<input type="radio" name="mode_' + dept.name + '" value="floor"' + (mode==='floor'?' checked':'') + ' onchange="toggleAssignMode(\'' + dept.name + '\', \'floor\')" class="mr-1">' +
+            '<span class="text-sm">층 지정</span>' +
+          '</label>' +
+          '<label class="inline-flex items-center">' +
+            '<input type="radio" name="mode_' + dept.name + '" value="room"' + (mode==='room'?' checked':'') + ' onchange="toggleAssignMode(\'' + dept.name + '\', \'room\')" class="mr-1">' +
+            '<span class="text-sm">호실 직접 지정</span>' +
+          '</label>' +
+        '</div>' +
+        
+        '<div id="floorMode_' + dept.name + '" style="display:' + (mode==='floor'?'block':'none') + '">' +
+          '<div class="flex items-center gap-2">' +
+            '<label class="text-sm text-gray-600">배정 층:</label>' +
+            '<select onchange="updateAssignFloor(\'' + dept.name + '\', this.value)" class="border rounded px-2 py-1 text-sm">' +
+              floorOptions +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        
+        '<div id="roomMode_' + dept.name + '" style="display:' + (mode==='room'?'block':'none') + '">' +
+          '<div class="text-sm text-gray-600 mb-1">호실 번호 (콤마로 구분, 예: 201,202,203)</div>' +
+          '<input type="text" value="' + rooms.join(',') + '" onchange="updateAssignRooms(\'' + dept.name + '\', this.value)" placeholder="예: 201,202,203" class="w-full border rounded px-2 py-1 text-sm">' +
+        '</div>' +
+      '</div>'
+    );
+  }).join('');
+  
+  // 전체 모달 HTML
+  var html = 
+    '<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="if(event.target===this)closeModal()">' +
+      '<div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] flex flex-col">' +
+        '<div class="p-6 border-b flex justify-between items-center">' +
+          '<div>' +
+            '<h3 class="text-xl font-bold text-gray-800"><i class="fas fa-cog text-primary-500 mr-2"></i>학과별 배정 설정</h3>' +
+            '<p class="text-sm text-gray-500 mt-1">각 학과의 배정 층 또는 호실을 지정하세요. 설정은 자동 저장됩니다.</p>' +
+          '</div>' +
+          '<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>' +
+        '</div>' +
+        
+        '<div class="p-6 overflow-y-auto flex-1">' +
+          cardsHtml +
+        '</div>' +
+        
+        '<div class="p-4 border-t bg-gray-50 flex gap-2">' +
+          '<button onclick="resetAssignSettings()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg btn-press"><i class="fas fa-undo mr-1"></i>초기화</button>' +
+          '<button onclick="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg btn-press">취소</button>' +
+          '<button onclick="applyAssignSettings()" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg font-bold btn-press shadow-button"><i class="fas fa-check mr-2"></i>설정 적용 후 배정 실행</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  
+  var wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstChild);
+}
+// 학과별 배정 설정 모달: 중첩 방지 + X/취소 버튼 정상화
+(function fixAssignSettingsModal(){
+  // 학과 설정 모달 전용 닫기 함수
+  window.closeAssignSettings = function(){
+    document.querySelectorAll('div.fixed.inset-0').forEach(function(el){
+      if(el.textContent.indexOf('학과별 배정 설정') !== -1 
+         && el.id !== 'modalSystem'
+         && el.id !== 'assignResultModal'){
+        el.remove();
+      }
+    });
+  };
+  
+  // showAssignSettings 래핑
+  if(typeof window.showAssignSettings !== 'function'){
+    console.warn('showAssignSettings 함수가 없어 래퍼 적용 실패');
+    return;
+  }
+  
+  var _original = window.showAssignSettings;
+  window.showAssignSettings = function(){
+    // 1) 기존 모달 제거 (중첩 방지)
+    window.closeAssignSettings();
+    
+    // 2) 원본 실행
+    var result = _original.apply(this, arguments);
+    
+    // 3) 새로 생성된 모달의 closeModal() 버튼을 closeAssignSettings()로 교체
+    setTimeout(function(){
+      document.querySelectorAll('div.fixed.inset-0').forEach(function(el){
+        if(el.textContent.indexOf('학과별 배정 설정') !== -1 && el.id !== 'modalSystem'){
+          el.querySelectorAll('button[onclick="closeModal()"]').forEach(function(btn){
+            btn.setAttribute('onclick', 'closeAssignSettings()');
+          });
+          
+          // applyAssignSettings 이후 자동 닫기도 처리하기 위해 배경 클릭 지원
+          el.addEventListener('click', function(ev){
+            if(ev.target === el){
+              window.closeAssignSettings();
+            }
+          });
+        }
+      });
+    }, 30);
+    
+    return result;
+  };
+  
+  console.log('✅ 학과별 배정 설정 모달 수정 래퍼 적용됨');
+})();
+
+// 층/호실 모드 전환
+function toggleAssignMode(deptName, mode){
+  window._assignSettings[deptName].mode = mode;
+  document.getElementById('floorMode_' + deptName).style.display = (mode==='floor'?'block':'none');
+  document.getElementById('roomMode_' + deptName).style.display = (mode==='room'?'block':'none');
+}
+
+// 층 업데이트
+function updateAssignFloor(deptName, floor){
+  window._assignSettings[deptName].floor = parseInt(floor);
+}
+
+// 호실 업데이트
+function updateAssignRooms(deptName, roomsStr){
+  var rooms = roomsStr.split(',').map(function(r){ return r.trim(); }).filter(function(r){ return r; });
+  window._assignSettings[deptName].rooms = rooms;
+}
+
+// 설정 초기화
+function resetAssignSettings(){
+  if(!confirm('저장된 설정을 모두 초기화하시겠습니까?')) return;
+  localStorage.removeItem('dormAssignSettings');
+  closeModal();
+  showAssignSettings();
+}
+
+// 설정 적용 후 배정 실행
+function applyAssignSettings(){
+  saveAssignSettings(window._assignSettings);
+  
+  // 배정 설정 모달만 정확히 제거 (assignResultModal, modalSystem 등은 보호)
+  var overlays = document.querySelectorAll('.fixed.inset-0');
+  var PROTECTED_IDS = ['modalSystem', 'assignResultModal', 'vacationNoticeModal'];
+  overlays.forEach(function(el){ 
+    if(el.parentNode === document.body && PROTECTED_IDS.indexOf(el.id) === -1){
+      el.remove(); 
+    }
+  });
+  
+  // 배정 실행
+  setTimeout(function(){ runAutoAssignment(); }, 200);
+}
+
+// localStorage 저장
+function saveAssignSettings(settings){
+  try {
+    localStorage.setItem('dormAssignSettings', JSON.stringify(settings));
+    console.log('✅ 배정 설정 저장 완료:', settings);
+  } catch(e) {
+    console.error('설정 저장 실패:', e);
+  }
+}
+
+// localStorage 로드
+function loadAssignSettings(){
+  try {
+    var data = localStorage.getItem('dormAssignSettings');
+    return data ? JSON.parse(data) : {};
+  } catch(e) {
+    console.error('설정 로드 실패:', e);
+    return {};
+  }
+}
+
+// 🆕 Step B: 여학생 전원 1인실 옵션 토글
+function toggleFemaleAllSingle(checked){
+  window._femaleAllSingleOption = checked;
+  try {
+    localStorage.setItem('dormFemaleAllSingle', checked ? 'true' : 'false');
+    console.log('✅ 여학생 전원 1인실 옵션:', checked);
+  } catch(e){
+    console.error('설정 저장 실패:', e);
+  }
+}
+
+// ============ 자동 배정 알고리즘 (2단계) ============
+
+// 사용 가능한 호실 목록 (관리자님 규칙 기준)
+function getAvailableRooms(){
+  var STAFF_EXCLUDE = {322: true};  // 322호만 제외
+  
+  return {
+    female: (function(){
+      var arr = [];
+      for(var r=101; r<=111; r++) arr.push(r);
+      return arr;
+    })(),
+    male: (function(){
+      var arr = [];
+      for(var r=201; r<=229; r++) arr.push(r);
+      for(var r=301; r<=329; r++){
+        if(!STAFF_EXCLUDE[r]) arr.push(r);
+      }
+      for(var r=401; r<=429; r++) arr.push(r);
+      return arr;
+    })()
+  };
+}
+
+function getFloor(room){
+  return Math.floor(room / 100);
+}
+
+function splitBySmoking(students){
+  return {
+    smoke: students.filter(function(s){ return s.smoking === 'smoke'; }),
+    nonsmoke: students.filter(function(s){ return s.smoking === 'nonsmoke'; })
+  };
+}
+
+// 짝수 인원만 2명씩 짝짓고, 홀수 1명은 remainder로 반환
+function pairUp(students){
+  var pairs = [];
+  var remainder = null;
+  var i = 0;
+  while(i + 1 < students.length){
+    pairs.push([students[i], students[i+1]]);
+    i += 2;
+  }
+  if(i < students.length){
+    remainder = students[i];
+  }
+  return {pairs: pairs, remainder: remainder};
+}
+// ====================================================================
+// 🆕 Firebase 배정 결과 관리 (Firebase v8, Firestore)
+// ====================================================================
+// ==================== Step D-5: 전역 설정 동기화 ====================
+
+var DORM_SETTINGS_DOC = 'global';  // 단일 문서 방식
+
+// 설정을 Firestore에 저장
+async function saveDormSettingsToDB(){
+  try {
+    var user = firebase.auth().currentUser;
+    if(!user){ throw new Error('로그인이 필요합니다'); }
+    
+    // 현재 localStorage 값 읽기
+    var assignRulesRaw = localStorage.getItem('dormAssignSettings');
+    var femaleAllSingle = localStorage.getItem('dormFemaleAllSingle') === 'true';
+    var assignRules = {};
+    try { assignRules = assignRulesRaw ? JSON.parse(assignRulesRaw) : {}; } catch(e){ assignRules = {}; }
+    
+    var data = {
+      assignRules: assignRules,
+      femaleAllSingle: femaleAllSingle,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: user.email,
+      updatedByUid: user.uid
+    };
+    
+    await firebase.firestore().collection('dorm_settings').doc(DORM_SETTINGS_DOC).set(data, {merge: true});
+    console.log('✅ 설정 DB 저장 완료');
+    return true;
+  } catch(e){
+    console.error('❌ 설정 저장 실패:', e);
+    throw e;
+  }
+}
+
+// Firestore에서 설정 불러오기 (localStorage에 반영)
+async function loadDormSettingsFromDB(){
+  try {
+    var doc = await firebase.firestore().collection('dorm_settings').doc(DORM_SETTINGS_DOC).get();
+    if(!doc.exists){
+      console.log('ℹ️ DB에 설정 없음 (첫 실행)');
+      return null;
+    }
+    var data = doc.data();
+    
+    // localStorage에 반영
+    if(data.assignRules !== undefined){
+      localStorage.setItem('dormAssignSettings', JSON.stringify(data.assignRules));
+    }
+    if(data.femaleAllSingle !== undefined){
+      localStorage.setItem('dormFemaleAllSingle', data.femaleAllSingle ? 'true' : 'false');
+    }
+    
+    var updatedAtStr = data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate().toLocaleString('ko-KR') : String(data.updatedAt)) : '?';
+    console.log('✅ 설정 DB 불러오기 완료 (' + (data.updatedBy || '?') + ' / ' + updatedAtStr + ')');
+    return data;
+  } catch(e){
+    console.error('❌ 설정 불러오기 실패:', e);
+    return null;
+  }
+}
+
+// 설정 상태 비교 (DB vs 로컬)
+async function compareDormSettings(){
+  try {
+    var doc = await firebase.firestore().collection('dorm_settings').doc(DORM_SETTINGS_DOC).get();
+    var localRulesRaw = localStorage.getItem('dormAssignSettings') || '{}';
+    var localFemale = localStorage.getItem('dormFemaleAllSingle') === 'true';
+    var localRules = {};
+    try { localRules = JSON.parse(localRulesRaw); } catch(e){ localRules = {}; }
+    
+    if(!doc.exists){
+      return {status: 'no_db', message: 'DB에 설정 없음' };
+    }
+    var data = doc.data();
+    var dbRules = data.assignRules || {};
+    var dbFemale = data.femaleAllSingle === true;
+    
+    // 딥 비교 (정규화된 JSON 문자열)
+    function normalize(obj){
+      return JSON.stringify(obj, Object.keys(obj).sort());
+    }
+    var sameRules = normalize(localRules) === normalize(dbRules);
+    var sameFemale = (localFemale === dbFemale);
+    
+    return {
+      status: (sameRules && sameFemale) ? 'sync' : 'diff',
+      sameRules: sameRules,
+      sameFemale: sameFemale,
+      db: data,
+      updatedBy: data.updatedBy,
+      updatedAt: data.updatedAt
+    };
+  } catch(e){
+    return {status: 'error', message: e.message};
+  }
+}
+
+// ==================== 자동 동기화 (Step D-5 확장) ====================
+
+// localStorage 자동 감시 - 설정 변경 시 자동 DB 동기화
+(function setupDormSettingsAutoSync(){
+  var WATCH_KEYS = ['dormAssignSettings', 'dormFemaleAllSingle'];
+  var originalSetItem = localStorage.setItem.bind(localStorage);
+  var syncDebounceTimer = null;
+  
+  localStorage.setItem = function(key, value){
+    var oldValue = localStorage.getItem(key);
+    originalSetItem(key, value);
+    
+    if(WATCH_KEYS.indexOf(key) !== -1 && oldValue !== value){
+      if(syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(function(){
+        if(firebase.auth().currentUser){
+          saveDormSettingsToDB().then(function(){
+            console.log('☁️ 자동 동기화 완료:', key);
+            updateDormSyncStatus('synced');
+          }).catch(function(e){
+            console.warn('⚠️ 자동 동기화 실패:', e.message);
+            updateDormSyncStatus('error');
+          });
+        }
+      }, 2000);
+      updateDormSyncStatus('pending');
+    }
+  };
+  console.log('🔄 배정 설정 자동 동기화 활성화');
+})();
+
+// 동기화 상태 표시 (UI에 뱃지가 있으면 업데이트)
+function updateDormSyncStatus(status){
+  var badge = document.getElementById('dormSyncBadge');
+  if(!badge) return;
+  var map = {
+    'synced':  {text: '☁️ 동기화됨', cls: 'bg-success-100 text-success-700'},
+    'pending': {text: '⏳ 저장 중...', cls: 'bg-warning-100 text-warning-700'},
+    'error':   {text: '⚠️ 동기화 실패', cls: 'bg-danger-100 text-danger-700'},
+    'loading': {text: '📥 불러오는 중...', cls: 'bg-info-100 text-info-700'}
+  };
+  var info = map[status] || map['synced'];
+  badge.className = 'px-2 py-1 rounded text-xs font-bold ' + info.cls;
+  badge.textContent = info.text;
+}
+
+// 페이지 로드 후 로그인되면 자동으로 DB 설정 불러오기
+(function autoLoadDormSettings(){
+  var tries = 0;
+  var timer = setInterval(function(){
+    tries++;
+    if(firebase.auth().currentUser){
+      clearInterval(timer);
+      updateDormSyncStatus('loading');
+      loadDormSettingsFromDB().then(function(data){
+        if(data){
+          console.log('🔄 페이지 로드 시 설정 동기화 완료');
+        }
+        updateDormSyncStatus('synced');
+      }).catch(function(){
+        updateDormSyncStatus('error');
+      });
+    } else if(tries > 30){
+      clearInterval(timer);
+      console.log('ℹ️ 30초 내 로그인 없음 - 자동 동기화 대기 종료');
+    }
+  }, 1000);
+})();
+// ==================== Step D-7: 파기 프로세스 연동 ====================
+
+// 배정 이력에서 특정 학생 이름 익명화 (개별 파기용)
+async function anonymizeStudentInAssignments(studentName){
+  if(!studentName) return {scanned: 0, updated: 0};
+  try {
+    var user = firebase.auth().currentUser;
+    if(!user) throw new Error('로그인 필요');
+    
+    var db = firebase.firestore();
+    var snap = await db.collection('dorm_assignments').get();
+    var updated = 0;
+    var batch = db.batch();
+    var batchCount = 0;
+    
+    snap.forEach(function(doc){
+      var data = doc.data();
+      if(!data.result) return;
+      
+      var changed = false;
+      
+      // assignments 배열 안 학생 이름 익명화
+      if(Array.isArray(data.result.assignments)){
+        data.result.assignments.forEach(function(a){
+          if(Array.isArray(a.students)){
+            a.students.forEach(function(s){
+              if(s && s.name === studentName){
+                s.name = '***파기***';
+                if(s.birthDate) delete s.birthDate;
+                changed = true;
+              }
+            });
+          }
+        });
+      }
+      
+      // unassigned 배열도 처리
+      if(Array.isArray(data.result.unassigned)){
+        data.result.unassigned.forEach(function(s){
+          if(s && s.name === studentName){
+            s.name = '***파기***';
+            if(s.birthDate) delete s.birthDate;
+            changed = true;
+          }
+        });
+      }
+      
+      if(changed){
+        batch.update(doc.ref, {
+          result: data.result,
+          anonymizedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          anonymizedBy: user.email
+        });
+        batchCount++;
+        updated++;
+      }
+    });
+    
+    if(batchCount > 0){
+      await batch.commit();
+    }
+    
+    console.log('🔒 개인정보 익명화:', studentName, '→', updated + '건 처리');
+    return {scanned: snap.size, updated: updated};
+  } catch(e){
+    console.error('❌ 익명화 실패:', e);
+    return {scanned: 0, updated: 0, error: e.message};
+  }
+}
+
+// 배정 이력 전체 삭제 (기수 전환용)
+async function purgeAllAssignments(){
+  try {
+    var user = firebase.auth().currentUser;
+    if(!user) throw new Error('로그인 필요');
+    
+    var db = firebase.firestore();
+    var snap = await db.collection('dorm_assignments').get();
+    
+    if(snap.empty){
+      console.log('ℹ️ 삭제할 배정 이력 없음');
+      return {deleted: 0};
+    }
+    
+    // 배치로 안전하게 삭제 (500개 제한)
+    var batch = db.batch();
+    var count = 0;
+    snap.forEach(function(doc){
+      batch.delete(doc.ref);
+      count++;
+    });
+    await batch.commit();
+    
+    console.log('🗑️ 배정 이력 전체 파기 완료:', count + '건');
+    return {deleted: count};
+  } catch(e){
+    console.error('❌ 배정 이력 파기 실패:', e);
+    return {deleted: 0, error: e.message};
+  }
+}
+
+// approveResign 훅 - 퇴사 승인 후 익명화
+(function hookApproveResign(){
+  if(typeof approveResign !== 'function') return;
+  var original = approveResign;
+  window.approveResign = async function(reqId){
+    // 원본 함수 실행 전에 학생 이름 캡처 (원본이 requests 배열을 지울 수 있음)
+    var req = (typeof resignRequests !== 'undefined') ? 
+      resignRequests.find(function(r){ return r.id === reqId; }) : null;
+    var targetName = req ? req.name : null;
+    
+    // 원본 실행
+    var result = await original.apply(this, arguments);
+    
+    // 배정 이력 익명화
+    if(targetName){
+      try {
+        var r = await anonymizeStudentInAssignments(targetName);
+        if(r.updated > 0 && typeof showToast === 'function'){
+          showToast('배정 이력 익명화: ' + r.updated + '건', 'info');
+        }
+      } catch(e){
+        console.warn('배정 이력 익명화 스킵:', e.message);
+      }
+    }
+    
+    return result;
+  };
+  console.log('🔗 approveResign 파기 훅 활성화');
+})();
+
+// deleteStudentAction 훅 - 서약서 훅 이후에 감싸기 (익명화)
+(function hookDeleteStudentActionLate(){
+  var applied = false;
+  
+  function tryHook(attempt){
+    if(applied) return;
+    if(typeof window.deleteStudentAction !== 'function'){
+      if(attempt < 20) setTimeout(function(){ tryHook(attempt+1); }, 500);
+      return;
+    }
+    
+    // 서약서 훅이 적용됐는지 확인 (함수 소스에 _deleteAgreementByStudent 포함 여부)
+    var src = window.deleteStudentAction.toString();
+    var hasAgreementHook = src.indexOf('_deleteAgreementByStudent') !== -1;
+    
+    if(!hasAgreementHook && attempt < 20){
+      console.log('[deleteStudentAction 훅] 서약서 훅 대기 중... (' + attempt + '/20)');
+      setTimeout(function(){ tryHook(attempt+1); }, 500);
+      return;
+    }
+    
+    // 이제 감싸기
+    var original = window.deleteStudentAction;
+    window.deleteStudentAction = async function(){
+      var nameSelect = document.getElementById('delStudentName');
+      var targetName = nameSelect ? nameSelect.value : null;
+      
+      var result = await original.apply(this, arguments);
+      
+      if(targetName){
+        try {
+          await anonymizeStudentInAssignments(targetName);
+          if(typeof showToast === 'function'){
+            showToast('배정 이력이 익명화되었습니다: ' + targetName, 'info');
+          }
+        } catch(e){
+          console.error('[deleteStudentAction] 익명화 실패:', e);
+        }
+      }
+      
+      return result;
+    };
+    
+    applied = true;
+    console.log('✅ deleteStudentAction 훅 적용 완료 (서약서 훅 포함 확인:', hasAgreementHook, ')');
+  }
+  
+  // 페이지 로드 후 시도 시작
+  if(document.readyState === 'complete'){
+    setTimeout(function(){ tryHook(0); }, 1000);
+  } else {
+    window.addEventListener('load', function(){
+      setTimeout(function(){ tryHook(0); }, 1000);
+    });
+  }
+})();
+
+async function saveAssignmentToDB(options){
+  options = options || {};
+  var user = firebase.auth().currentUser;
+  if(!user) throw new Error('로그인이 필요합니다.');
+  if(!window._assignResult) throw new Error('저장할 배정 결과가 없습니다.');
+  
+  var results = window._assignResult.assignments || [];
+  var doubleRooms = results.filter(function(r){return r.students.length===2;}).length;
+  var singleRooms = results.filter(function(r){return r.students.length===1;}).length;
+  var smokingMismatchCount = results.filter(function(r){return r.smokingMismatch;}).length;
+  var crossDeptCount = results.filter(function(r){return r.crossDept;}).length;
+  
+  var ageGaps = [];
+  results.forEach(function(r){
+    if(r.students && r.students.length === 2){
+      ageGaps.push(Math.abs((r.students[0].age||0) - (r.students[1].age||0)));
+    }
+  });
+  var avgAgeGap = ageGaps.length ? (ageGaps.reduce(function(s,v){return s+v;},0) / ageGaps.length) : 0;
+  var maxAgeGap = ageGaps.length ? Math.max.apply(null, ageGaps) : 0;
+  
+  var now = new Date();
+  var payload = {
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    createdBy: user.email,
+    createdByUid: user.uid,
+    year: options.year || String(now.getFullYear()),
+    semester: options.semester || (now.getMonth() < 6 ? '1' : '2'),
+    label: options.label || (now.getFullYear() + '학년도 ' + (now.getMonth() < 6 ? '1' : '2') + '학기 배정'),
+    students: window._assignData || [],
+    pairs: window._assignPairs || [],
+    rooms: results,
+    unassigned: window._assignResult.unassigned || [],
+    warnings: window._assignResult.warnings || [],
+    settings: {
+      femaleAllSingle: localStorage.getItem('dormFemaleAllSingle') === 'true',
+      deptSettings: window._assignSettings || {}
+    },
+    stats: {
+      totalStudents: (window._assignData || []).length,
+      totalRooms: results.length,
+      doubleRooms: doubleRooms,
+      singleRooms: singleRooms,
+      unassignedCount: (window._assignResult.unassigned || []).length,
+      warningCount: (window._assignResult.warnings || []).length,
+      smokingMismatchCount: smokingMismatchCount,
+      crossDeptCount: crossDeptCount,
+      avgAgeGap: Math.round(avgAgeGap * 100) / 100,
+      maxAgeGap: maxAgeGap
+    }
+  };
+  
+  var db = firebase.firestore();
+  var docRef = await db.collection('dorm_assignments').add(payload);
+  console.log('✅ 배정 결과 저장:', docRef.id);
+  return docRef.id;
+}
+
+async function loadAssignmentHistory(limit){
+  var user = firebase.auth().currentUser;
+  if(!user) throw new Error('로그인이 필요합니다.');
+  var db = firebase.firestore();
+  var snap = await db.collection('dorm_assignments')
+    .orderBy('createdAt', 'desc').limit(limit || 20).get();
+  var list = [];
+  snap.forEach(function(doc){
+    var d = doc.data();
+    list.push({
+      id: doc.id, label: d.label, year: d.year, semester: d.semester,
+      createdAt: d.createdAt ? d.createdAt.toDate() : null,
+      createdBy: d.createdBy, stats: d.stats || {}
+    });
+  });
+  return list;
+}
+
+async function loadAssignmentById(id){
+  var user = firebase.auth().currentUser;
+  if(!user) throw new Error('로그인이 필요합니다.');
+  var db = firebase.firestore();
+  var doc = await db.collection('dorm_assignments').doc(id).get();
+  if(!doc.exists) throw new Error('해당 배정 이력을 찾을 수 없습니다.');
+  var data = doc.data();
+  data.id = doc.id;
+  return data;
+}
+
+async function deleteAssignmentById(id){
+  var user = firebase.auth().currentUser;
+  if(!user) throw new Error('로그인이 필요합니다.');
+  var db = firebase.firestore();
+  await db.collection('dorm_assignments').doc(id).delete();
+  console.log('🗑️ 배정 이력 삭제:', id);
+}
+// ==================== Step D-4: 배정 이력 조회 UI ====================
+
+// 이력 목록 모달 열기
+async function showAssignmentHistory(){
+  var h = '<div class="p-5">';
+  h += '<div class="flex items-center justify-between mb-4">';
+  h += '<h3 class="text-xl font-black text-gray-900"><i class="fas fa-history mr-2 text-info-500"></i>배정 이력</h3>';
+  h += '<button onclick="closeAssignResultModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  h += '</div>';
+  h += '<div id="historyListContainer"><div class="text-center py-8 text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div></div>';
+  h += '<div class="flex gap-2 mt-4 sticky bottom-0 bg-white pt-3 border-t">';
+  h += '<button onclick="closeAssignResultModal()" class="flex-1 px-4 py-3 bg-surface-100 text-gray-600 rounded-lg font-bold btn-press">닫기</button>';
+  h += '<button onclick="showAssignmentHistory()" class="flex-1 px-4 py-3 bg-info-500 text-white rounded-lg font-bold btn-press"><i class="fas fa-sync mr-2"></i>새로고침</button>';
+  h += '</div>';
+  h += '</div>';
+  openAssignResultModal(h);
+  
+  // 목록 비동기 로드
+  try {
+    var history = await loadAssignmentHistory(50);
+    renderAssignmentHistoryList(history);
+  } catch(e){
+    document.getElementById('historyListContainer').innerHTML = 
+      '<div class="p-4 bg-danger-50 rounded-lg text-danger-700 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>이력 조회 실패: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+// 이력 목록 렌더링
+function renderAssignmentHistoryList(history){
+  var container = document.getElementById('historyListContainer');
+  if(!container) return;
+  
+  if(!history || history.length === 0){
+    container.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-4xl mb-2"></i><div>저장된 배정 이력이 없습니다</div></div>';
+    return;
+  }
+  
+  var h = '<div class="space-y-2">';
+  history.forEach(function(item){
+    var stats = item.stats || {};
+    var createdAt = item.createdAt ? new Date(item.createdAt.toDate ? item.createdAt.toDate() : item.createdAt) : null;
+    var dateStr = createdAt ? createdAt.toLocaleString('ko-KR') : '날짜 없음';
+    var label = item.label || '(라벨 없음)';
+    var by = item.createdBy || '?';
+    
+    h += '<div class="p-3 bg-white border-2 border-gray-200 rounded-lg hover:border-primary-400 transition">';
+    h += '<div class="flex items-start justify-between gap-2">';
+    h += '<div class="flex-1 min-w-0">';
+    h += '<div class="font-black text-primary-700 text-sm mb-1 truncate">' + escapeHtml(label) + '</div>';
+    h += '<div class="text-xs text-gray-500 mb-1"><i class="fas fa-clock mr-1"></i>' + escapeHtml(dateStr) + ' · <i class="fas fa-user ml-1 mr-1"></i>' + escapeHtml(by) + '</div>';
+    h += '<div class="flex flex-wrap gap-1 text-xs">';
+    if(stats.totalAssigned !== undefined) h += '<span class="px-2 py-0.5 bg-primary-50 text-primary-700 rounded font-bold">배정 ' + stats.totalAssigned + '</span>';
+    if(stats.doubleRooms !== undefined) h += '<span class="px-2 py-0.5 bg-info-50 text-info-700 rounded font-bold">2인실 ' + stats.doubleRooms + '</span>';
+    if(stats.singleRooms !== undefined) h += '<span class="px-2 py-0.5 bg-warning-50 text-warning-700 rounded font-bold">1인실 ' + stats.singleRooms + '</span>';
+    if(stats.unassigned !== undefined && stats.unassigned > 0) h += '<span class="px-2 py-0.5 bg-danger-50 text-danger-700 rounded font-bold">미배정 ' + stats.unassigned + '</span>';
+    if(stats.warnings !== undefined && stats.warnings > 0) h += '<span class="px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded font-bold">⚠️ ' + stats.warnings + '</span>';
+    h += '</div>';
+    h += '</div>';
+    h += '<div class="flex flex-col gap-1 shrink-0">';
+    h += '<button onclick="viewAssignmentById(\'' + item.id + '\')" class="px-3 py-1.5 bg-info-500 text-white rounded text-xs font-bold btn-press whitespace-nowrap"><i class="fas fa-eye mr-1"></i>보기</button>';
+    h += '<button onclick="confirmDeleteAssignment(\'' + item.id + '\', \'' + escapeHtml(label).replace(/'/g,"\\'") + '\')" class="px-3 py-1.5 bg-danger-500 text-white rounded text-xs font-bold btn-press whitespace-nowrap"><i class="fas fa-trash mr-1"></i>삭제</button>';
+    h += '</div>';
+    h += '</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+  container.innerHTML = h;
+}
+
+// 특정 배정 이력 보기
+async function viewAssignmentById(id){
+  try {
+    var item = await loadAssignmentById(id);
+    if(!item){
+      alert('배정 데이터를 불러올 수 없습니다');
+      return;
+    }
+    
+    // result 필드가 있으면 그대로 사용, 없으면 최상위 필드에서 재구성
+    var result = item.result;
+    if(!result){
+      // Firestore 저장 구조: rooms 필드가 실제 assignments 배열
+      if(item.rooms || item.students || item.pairs){
+        result = {
+          assignments: item.rooms || [],       // ⭐ 핵심 매핑: rooms → assignments
+          unassigned: item.unassigned || [],
+          warnings: item.warnings || [],
+          // 부가 정보 (showAssignResult에서 참조하지 않지만 보존)
+          students: item.students || [],
+          pairs: item.pairs || [],
+          stats: item.stats || {},
+          settings: item.settings || {}
+        };
+      } else {
+        alert('배정 데이터 구조를 인식할 수 없습니다');
+        console.error('알 수 없는 데이터 구조:', Object.keys(item));
+        return;
+      }
+    }
+    
+    // 전역에 복원 (재저장/추가 작업 시 활용 가능)
+    window._assignResult = result;
+    
+    // 배정 결과 모달 재현
+    showAssignResult(result);
+  } catch(e){
+    console.error('viewAssignmentById 오류:', e);
+    alert('불러오기 실패: ' + e.message);
+  }
+}
+
+async function handleSaveAssignmentToDB(){
+  if(!window._assignResult){
+    alert('저장할 배정 결과가 없습니다.\n먼저 배정을 실행해주세요.');
+    return;
+  }
+  
+  var now = new Date();
+  var defaultLabel = now.getFullYear() + '학년도 ' + 
+                     (now.getMonth() < 6 ? '1' : '2') + '학기 배정 (' +
+                     (now.getMonth()+1) + '/' + now.getDate() + ')';
+  
+  var label = prompt(
+    '💾 배정 결과를 DB에 저장합니다.\n\n' +
+    '이 배정 이력을 구분할 이름을 입력해주세요:',
+    defaultLabel
+  );
+  
+  if(label === null) return;
+  if(!label.trim()){
+    alert('이름을 입력해주세요.');
+    return;
+  }
+  
+  try {
+    console.log('💾 DB 저장 중...');
+    var docId = await saveAssignmentToDB({ label: label.trim() });
+    
+    var stats = window._assignResult;
+    alert('✅ DB 저장 완료!\n\n' +
+          '📋 이름: ' + label.trim() + '\n' +
+          '📄 문서 ID: ' + docId + '\n' +
+          '👥 학생: ' + (window._assignData || []).length + '명\n' +
+          '🏠 배정 방: ' + (stats.assignments || []).length + '실\n' +
+          '❌ 미배정: ' + (stats.unassigned || []).length + '명');
+  } catch(e){
+    console.error('저장 실패:', e);
+    var msg = e.message || '알 수 없는 오류';
+    if(e.code === 'permission-denied'){
+      msg = '접근 권한이 없습니다. 로그인 상태를 확인해주세요.';
+    }
+    alert('❌ 저장 실패\n\n' + msg);
+  }
+}
+
+// 메인 배정 실행
+function runAutoAssignment(){
+  if(!window._assignData || window._assignData.length === 0){
+    alert('업로드된 데이터가 없습니다.');
+    return;
+  }
+  
+  var students = window._assignData;
+  var pairs = window._assignPairs || [];
+  var rooms = getAvailableRooms();
+  var settings = window._assignSettings || {}; // 🆕 학과별 지정 설정
+  
+  // 🆕 여학생 전원 1인실 배정 옵션 처리
+  var femaleAllSingle = localStorage.getItem('dormFemaleAllSingle') === 'true';
+  if(femaleAllSingle){
+    var femaleCheck = canAssignFemaleAllSingle(students);
+    if(!femaleCheck.canAssign){
+      alert('⚠️ 여학생 전원 1인실 배정 불가\n\n' +
+            '여학생: ' + femaleCheck.femaleCount + '명\n' +
+            '1층 사용 가능 방: ' + femaleCheck.availableRooms + '실\n\n' +
+            '옵션을 해제하거나 방을 추가해주세요.');
+      return;
+    }
+    // 여학생 전원에게 needSingle 플래그 강제 부여
+    students.forEach(function(s){
+      if(s.gender === 'F'){
+        s._originalNeedSingle = s.needSingle; // 원본 백업
+        s.needSingle = true;
+        s._forcedSingle = true; // 강제 지정 표시
+      }
+    });
+   console.log('✅ 여학생 ' + femaleCheck.femaleCount + '명 전원 1인실 배정 모드 활성화');
+  }
+  
+  // 🆕 Step A-6-3: 학과별 지정 사전 검증
+  if(!window._skipFeasibilityCheck && Object.keys(settings).length > 0){
+    var feasibility = checkAssignmentFeasibility(students, settings, rooms);
+    if(feasibility.hasIssues){
+      console.log('⚠️ 지정 부족 감지:', feasibility.summary);
+      // 여학생 needSingle 강제 부여를 롤백 (팝업 대기 중 원본 유지)
+      students.forEach(function(s){
+        if(s._forcedSingle){
+          s.needSingle = s._originalNeedSingle || false;
+          delete s._forcedSingle;
+          delete s._originalNeedSingle;
+        }
+      });
+      // 팝업 표시
+      showAssignmentWarningDialog(
+        feasibility,
+        function(){
+          // 확장 배정 진행
+          window._skipFeasibilityCheck = true;
+          try {
+            runAutoAssignment();
+          } finally {
+            window._skipFeasibilityCheck = false;
+          }
+        },
+        function(){
+          console.log('❌ 사용자가 배정을 취소했습니다.');
+        }
+      );
+      return; // 팝업 응답 대기
+    }
+  }
+  
+  var result = {
+    assignments: [],
+    unassigned: [],
+    warnings: []
+  };
+ 
+  // 페어링 학생 이름 셋
+  var pairedNames = {};
+  pairs.forEach(function(p){
+    pairedNames[p[0]] = true;
+    pairedNames[p[1]] = true;
+  });
+  
+  // 1️⃣ 페어링 우선 배정
+  var pairResult = assignPairs(students, pairs, rooms);
+  result.assignments = result.assignments.concat(pairResult.assignments);
+  result.warnings = result.warnings.concat(pairResult.warnings);
+  
+  // 페어링 배정 후 남은 방
+  var usedRooms = {};
+  pairResult.assignments.forEach(function(a){ usedRooms[a.room] = true; });
+  var remainingRooms = {
+    female: rooms.female.filter(function(r){ return !usedRooms[r]; }),
+    male: rooms.male.filter(function(r){ return !usedRooms[r]; })
+  };
+  
+  // 페어링 처리된 학생 제외
+  var remaining = students.filter(function(s){ return !pairedNames[s.name]; });
+  
+  // 성별 분리
+  var femaleAll = remaining.filter(function(s){ return s.gender === 'F'; });
+  var maleAll = remaining.filter(function(s){ return s.gender === 'M'; });
+  
+  // 특이사항 있는 학생 분리
+  var femaleSingle = femaleAll.filter(function(s){ return s.needSingle; });
+  var maleSingle = maleAll.filter(function(s){ return s.needSingle; });
+  var femaleShared = femaleAll.filter(function(s){ return !s.needSingle; });
+  var maleShared = maleAll.filter(function(s){ return !s.needSingle; });
+  
+  // 2️⃣ 여학생 배정 (지정 정보 반영)
+  var femaleResult = assignByGenderWithSettings(femaleShared, femaleSingle, remainingRooms.female, 'F', settings);
+  result.assignments = result.assignments.concat(femaleResult.assignments);
+  result.unassigned = result.unassigned.concat(femaleResult.unassigned);
+  result.warnings = result.warnings.concat(femaleResult.warnings);
+  
+  // 3️⃣ 남학생 배정 (지정 정보 반영)
+  var maleResult = assignByGenderWithSettings(maleShared, maleSingle, remainingRooms.male, 'M', settings);
+  result.assignments = result.assignments.concat(maleResult.assignments);
+  result.unassigned = result.unassigned.concat(maleResult.unassigned);
+  result.warnings = result.warnings.concat(maleResult.warnings);
+  
+  // 호실 번호순 정렬
+  result.assignments.sort(function(a,b){ return a.room - b.room; });
+  
+  // 결과 저장 및 표시
+  window._assignResult = result;
+  showAssignResult(result);
+}
+
+// ============ 학과 지정 정보 기반 방 필터 (Step A-5) ============
+
+// 지정된 층 또는 호실에 해당하는 방만 필터링
+function filterRoomsByAssignSetting(availableRooms, setting, gender){
+  if(!setting){
+    // 지정 없음: 원본 방 목록 그대로 반환
+    return availableRooms.slice();
+  }
+  
+  if(setting.mode === 'room' && setting.rooms && setting.rooms.length > 0){
+    // 호실 직접 지정: 지정된 호실 번호만 필터
+    var roomSet = {};
+    setting.rooms.forEach(function(r){ roomSet[String(r).trim()] = true; });
+    return availableRooms.filter(function(r){ return roomSet[String(r)]; });
+  }
+  
+  if(setting.mode === 'floor' && setting.floor){
+    // 층 지정: 해당 층의 방만 필터
+    var targetFloor = parseInt(setting.floor);
+    return availableRooms.filter(function(r){
+      return Math.floor(parseInt(r) / 100) === targetFloor;
+    });
+  }
+  
+  // 유효하지 않은 설정: 원본 반환
+  return availableRooms.slice();
+}
+
+// 🆕 Step A-6-1: 학과별 지정 배정 가능 여부 사전 검증
+function checkAssignmentFeasibility(students, settings, rooms){
+  var issues = [];
+  
+  if(!settings || Object.keys(settings).length === 0){
+    return { hasIssues: false, issues: [] };
+  }
+  
+  // 학과별 남학생 그룹핑 (여학생은 무조건 1층이므로 제외)
+  var deptGroups = {};
+  students.forEach(function(s){
+    if(s.gender !== 'M') return;
+    if(!s.dept) return;
+    if(!deptGroups[s.dept]) deptGroups[s.dept] = [];
+    deptGroups[s.dept].push(s);
+  });
+  
+  // 학과별 지정 설정 vs 실제 인원 비교
+  Object.keys(deptGroups).forEach(function(dept){
+    var setting = settings[dept];
+    if(!setting) return;
+    
+    var studentList = deptGroups[dept];
+    var studentCount = studentList.length;
+    var singleCount = studentList.filter(function(s){ return s.needSingle; }).length;
+    var pairableCount = studentCount - singleCount;
+    var neededRooms = Math.ceil(pairableCount / 2) + singleCount;
+    
+    if(setting.mode === 'floor' && setting.floor){
+      var floorRooms = (rooms.male || []).filter(function(r){
+        return Math.floor(r / 100) === setting.floor;
+      }).length;
+      
+      if(floorRooms < neededRooms){
+        issues.push({
+          type: 'floor_shortage',
+          dept: dept,
+          studentCount: studentCount,
+          neededRooms: neededRooms,
+          floor: setting.floor,
+          availableRooms: floorRooms,
+          shortage: neededRooms - floorRooms,
+          message: dept + ' ' + studentCount + '명 → ' + setting.floor + '층 지정 (필요: ' + neededRooms + '실, 가능: ' + floorRooms + '실, 부족: ' + (neededRooms - floorRooms) + '실)'
+        });
+      }
+    } else if(setting.mode === 'rooms' && setting.rooms && setting.rooms.length > 0){
+      if(setting.rooms.length < neededRooms){
+        issues.push({
+          type: 'rooms_shortage',
+          dept: dept,
+          studentCount: studentCount,
+          neededRooms: neededRooms,
+          assignedRooms: setting.rooms.length,
+          shortage: neededRooms - setting.rooms.length,
+          message: dept + ' ' + studentCount + '명 → 호실 ' + setting.rooms.length + '개 지정 (필요: ' + neededRooms + '실, 부족: ' + (neededRooms - setting.rooms.length) + '실)'
+        });
+      }
+    }
+  });
+  
+  return {
+    hasIssues: issues.length > 0,
+    issues: issues,
+    summary: issues.length + '건의 문제 발견'
+  };
+}
+
+// 🆕 Step A-6-2: 배정 부족 경고 팝업
+function showAssignmentWarningDialog(feasibilityResult, onConfirm, onCancel){
+  var issues = feasibilityResult.issues;
+  
+  var h = '<div class="p-5" style="max-width:600px; max-height:80vh; overflow-y:auto">';
+  
+  // 헤더
+  h += '<div class="flex items-center justify-between mb-4">';
+  h += '<h3 class="text-xl font-black text-warning-700">';
+  h += '<i class="fas fa-exclamation-triangle mr-2"></i>배정 지정 확인';
+  h += '</h3>';
+  h += '</div>';
+  
+  // 안내
+  h += '<div class="mb-4 p-3 bg-warning-50 border-2 border-warning-200 rounded-lg">';
+  h += '<div class="text-sm text-warning-800 font-bold mb-1">';
+  h += '<i class="fas fa-info-circle mr-1"></i>일부 학과의 지정 층/호실이 부족합니다.';
+  h += '</div>';
+  h += '<div class="text-xs text-warning-700">';
+  h += '아래 학과는 지정 층/호실을 넘어 <b>인접 층</b>으로 확장 배정됩니다.';
+  h += '</div>';
+  h += '</div>';
+  
+  // 문제 목록
+  h += '<div class="mb-4 space-y-2">';
+  issues.forEach(function(issue){
+    h += '<div class="p-3 bg-danger-50 border border-danger-200 rounded-lg">';
+    h += '<div class="font-bold text-danger-800 text-sm mb-1">';
+    h += '<i class="fas fa-users mr-1"></i>' + escapeHtml(issue.dept);
+    h += '</div>';
+    h += '<div class="text-xs text-gray-700 space-y-1">';
+    if(issue.type === 'floor_shortage'){
+      h += '<div>• 학생 수: <b>' + issue.studentCount + '명</b> (필요: ' + issue.neededRooms + '실)</div>';
+      h += '<div>• 지정 층: <b>' + issue.floor + '층</b> (사용 가능: ' + issue.availableRooms + '실)</div>';
+      h += '<div class="text-danger-600 font-bold">• 부족: ' + issue.shortage + '실 → 인접 층으로 확장</div>';
+    } else if(issue.type === 'rooms_shortage'){
+      h += '<div>• 학생 수: <b>' + issue.studentCount + '명</b> (필요: ' + issue.neededRooms + '실)</div>';
+      h += '<div>• 지정 호실: <b>' + issue.assignedRooms + '개</b></div>';
+      h += '<div class="text-danger-600 font-bold">• 부족: ' + issue.shortage + '실 → 인접 층으로 확장</div>';
+    }
+    h += '</div></div>';
+  });
+  h += '</div>';
+  
+  // 버튼
+  h += '<div class="flex gap-2 justify-end pt-2 border-t border-gray-200">';
+  h += '<button onclick="window._assignWarningCancel()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-sm">';
+  h += '<i class="fas fa-times mr-1"></i>취소';
+  h += '</button>';
+  h += '<button onclick="window._assignWarningConfirm()" class="px-4 py-2 bg-warning-500 hover:bg-warning-600 text-white rounded-lg font-bold text-sm">';
+  h += '<i class="fas fa-check mr-1"></i>확장 배정 진행';
+  h += '</button>';
+  h += '</div>';
+  
+  h += '</div>';
+  
+  // 콜백 저장
+  window._assignWarningConfirm = function(){
+    closeAssignWarningModal();
+    if(onConfirm) onConfirm();
+  };
+  window._assignWarningCancel = function(){
+    closeAssignWarningModal();
+    if(onCancel) onCancel();
+  };
+  
+  // 모달 표시
+  openModal(h);
+}
+
+// 경고 모달 닫기 헬퍼
+function closeAssignWarningModal(){
+  var modalSystem = document.getElementById('modalSystem');
+  if(modalSystem){
+    modalSystem.classList.add('hidden');
+    var content = document.getElementById('modalContent');
+    if(content) content.innerHTML = '';
+  }
+  document.body.style.overflow = '';
+}
+
+
+// 인접 층으로 확장한 방 목록 (층 부족 시 사용)
+function expandToNearbyFloors(availableRooms, startFloor, gender){
+  if(gender === 'F'){
+    // 여학생은 1층만 사용 가능
+    return availableRooms.filter(function(r){
+      return Math.floor(parseInt(r) / 100) === 1;
+    });
+  }
+  
+  // 남학생: 지정 층에서 가까운 층 순서로 정렬
+  var floors = getFloorOrderFrom(startFloor, gender);
+  var floorPriority = {};
+  floors.forEach(function(f, i){ floorPriority[f] = i; });
+  
+  return availableRooms.slice().sort(function(a, b){
+    var floorA = Math.floor(parseInt(a) / 100);
+    var floorB = Math.floor(parseInt(b) / 100);
+    var pa = floorPriority[floorA] !== undefined ? floorPriority[floorA] : 999;
+    var pb = floorPriority[floorB] !== undefined ? floorPriority[floorB] : 999;
+    return pa - pb;
+  });
+}
+
+// ============ 여학생 전원 1인실 옵션 관련 헬퍼 (Step B) ============
+
+// 1층 배정 가능한 여학생 방 개수 조회
+function getFemaleAvailableRoomCount(){
+  var rooms = getAvailableRooms();
+  return rooms.female ? rooms.female.length : 0;
+}
+
+// 여학생 전원 1인실 배정 가능 여부 판단
+function canAssignFemaleAllSingle(students){
+  var femaleCount = students.filter(function(s){ return s.gender === 'F'; }).length;
+  var availableRooms = getFemaleAvailableRoomCount();
+  return {
+    canAssign: femaleCount > 0 && femaleCount <= availableRooms,
+    femaleCount: femaleCount,
+    availableRooms: availableRooms
+  };
+}
+
+// ============ 성별별 배정 (학과별 그룹핑, 흡연 분리) ============
+function assignByGender(sharedStudents, singleStudents, availableRooms, gender){
+  var assignments = [];
+  var unassigned = [];
+  var warnings = [];
+  
+  if(!availableRooms || availableRooms.length === 0){
+    if(sharedStudents.length > 0 || singleStudents.length > 0){
+      warnings.push((gender === 'F' ? '여학생' : '남학생') + ' 배정 가능한 방이 없습니다.');
+      unassigned = unassigned.concat(sharedStudents, singleStudents);
+    }
+    return { assignments: assignments, unassigned: unassigned, warnings: warnings };
+  }
+  
+  // 방 목록을 복사해서 사용 (원본 훼손 방지)
+  var rooms = availableRooms.slice();
+  
+  // 1️⃣ 1인실 요청자 우선 배정
+  singleStudents.forEach(function(s){
+    if(rooms.length === 0){
+      unassigned.push(s);
+      warnings.push(s.name + ' 1인실 배정 실패 (방 부족)');
+      return;
+    }
+    var room = rooms.shift();
+    assignments.push({
+      room: room,
+      students: [s],
+      type: '1인실(요청)',
+      dept: s.dept
+    });
+  });
+  
+  // 2️⃣ 나머지 학생을 학과별로 그룹핑
+  var byDept = {};
+  sharedStudents.forEach(function(s){
+    if(!byDept[s.dept]) byDept[s.dept] = [];
+    byDept[s.dept].push(s);
+  });
+  
+  // 3️⃣ 학과별로 흡연/비흡연 분리 후 페어링
+  Object.keys(byDept).forEach(function(dept){
+    var deptStudents = byDept[dept];
+    var smokers = deptStudents.filter(function(s){ return s.smoke === 'smoke'; });
+    var nonSmokers = deptStudents.filter(function(s){ return s.smoke !== 'smoke'; });
+    
+    // 흡연자 페어링
+    processGroup(smokers, dept, 'smoke');
+    // 비흡연자 페어링
+    processGroup(nonSmokers, dept, 'nonsmoke');
+  });
+  
+  // 그룹 처리 함수 (2명씩 페어, 홀수는 1인실)
+  function processGroup(list, dept, smokeType){
+    for(var i = 0; i < list.length; i += 2){
+      if(rooms.length === 0){
+        // 방이 없으면 나머지 전부 미배정
+        for(var j = i; j < list.length; j++){
+          unassigned.push(list[j]);
+        }
+        warnings.push(dept + ' (' + (smokeType === 'smoke' ? '흡연' : '비흡연') + ') 방 부족');
+        return;
+      }
+      
+      var room = rooms.shift();
+      if(i + 1 < list.length){
+        // 2명 배정
+        assignments.push({
+          room: room,
+          students: [list[i], list[i+1]],
+          type: '2인실',
+          dept: dept
+        });
+      } else {
+        // 홀수 - 1인실
+        assignments.push({
+          room: room,
+          students: [list[i]],
+          type: '1인실(홀수)',
+          dept: dept
+        });
+      }
+    }
+  }
+  
+  return { assignments: assignments, unassigned: unassigned, warnings: warnings };
+}
+
+// ============ 성별별 배정 (학과별 지정 정보 반영) - Step A-5 ============
+function assignByGenderWithSettings(sharedStudents, singleStudents, availableRooms, gender, settings){
+    var assignments = [];
+  var unassigned = [];
+  var warnings = [];
+  var orphansSmoke = []; // 🆕 흡연자 홀수 잔여 (학과 간 매칭용)
+  
+  if(!availableRooms || availableRooms.length === 0){
+    if(sharedStudents.length > 0 || singleStudents.length > 0){
+      warnings.push((gender === 'F' ? '여학생' : '남학생') + ' 배정 가능한 방이 없습니다.');
+      unassigned = unassigned.concat(sharedStudents, singleStudents);
+    }
+    return { assignments: assignments, unassigned: unassigned, warnings: warnings };
+  }
+  
+  var rooms = availableRooms.slice();
+  var usedRooms = {};
+  
+  // 학과별로 그룹핑
+  var allStudents = sharedStudents.concat(singleStudents);
+  var byDept = {};
+  allStudents.forEach(function(s){
+    if(!byDept[s.dept]) byDept[s.dept] = { shared: [], single: [] };
+    if(s.needSingle){
+      byDept[s.dept].single.push(s);
+    } else {
+      byDept[s.dept].shared.push(s);
+    }
+  });
+  
+  // 🆕 학과별 그룹 내 나이순 정렬 (인접 페어링 시 나이차 최소화)
+  //    흡연자/비흡연자 분리 후 각각 나이순 정렬
+  Object.keys(byDept).forEach(function(dept){
+    var group = byDept[dept];
+    // shared를 흡연/비흡연으로 재정렬 후 나이순
+    group.shared.sort(function(a, b){
+      // 1순위: 흡연 여부 (같은 흡연 그룹끼리 인접)
+      var smokeA = (a.smoking === 'Y') ? 1 : 0;
+      var smokeB = (b.smoking === 'Y') ? 1 : 0;
+      if(smokeA !== smokeB) return smokeA - smokeB;
+      // 2순위: 나이 오름차순
+      return (a.age || 0) - (b.age || 0);
+    });
+    // single도 나이순 정렬 (배정 순서 안정성)
+    group.single.sort(function(a, b){
+      return (a.age || 0) - (b.age || 0);
+    });
+  });
+  
+  // 학과별로 배정 (지정 정보 반영)
+  Object.keys(byDept).forEach(function(dept){
+
+    var deptData = byDept[dept];
+    var setting = settings[dept];
+    
+    // 학과 지정 방 목록 우선 사용
+    var deptRooms = filterRoomsByAssignSetting(rooms, setting, gender);
+    // 사용된 방 제외
+    deptRooms = deptRooms.filter(function(r){ return !usedRooms[r]; });
+    
+    // 지정된 방이 부족하면 인접 층으로 확장
+    var needed = Math.ceil((deptData.shared.length) / 2) + deptData.single.length;
+    if(deptRooms.length < needed && setting && setting.mode === 'floor'){
+      // 층 지정 모드: 인접 층으로 확장
+      var startFloor = parseInt(setting.floor) || 2;
+      var expandedRooms = expandToNearbyFloors(rooms, startFloor, gender);
+      expandedRooms = expandedRooms.filter(function(r){ return !usedRooms[r]; });
+      
+      // 우선순위: 지정 층 먼저, 그다음 인접 층
+      var deptRoomSet = {};
+      deptRooms.forEach(function(r){ deptRoomSet[r] = true; });
+      var additionalRooms = expandedRooms.filter(function(r){ return !deptRoomSet[r]; });
+      deptRooms = deptRooms.concat(additionalRooms);
+      
+      if(setting.floor){
+        warnings.push(dept + ': 지정 층(' + setting.floor + '층) 방이 부족하여 인접 층으로 확장 배정');
+      }
+    } else if(deptRooms.length < needed && setting && setting.mode === 'room'){
+      // 호실 지정 모드: 부족해도 강행 (팝업은 Step A-6)
+      warnings.push(dept + ': 지정 호실이 부족합니다. (' + deptRooms.length + '/' + needed + ')');
+    }
+    
+    // 1️⃣ 1인실 요청자 우선 배정
+    deptData.single.forEach(function(s){
+      if(deptRooms.length === 0){
+        unassigned.push(s);
+        warnings.push(s.name + ' 1인실 배정 실패 (방 부족)');
+        return;
+      }
+      var room = deptRooms.shift();
+      usedRooms[room] = true;
+      assignments.push({
+        room: room,
+        students: [s],
+        type: '1인실(요청)',
+        dept: dept
+      });
+    });
+    
+     // 2️⃣ 🆕 흡연/비흡연 분리 후 페어링 (smoking === 'Y'/'N' 사용)
+    var smokers = deptData.shared.filter(function(s){ return s.smoking === 'Y'; });
+    var nonSmokers = deptData.shared.filter(function(s){ return s.smoking !== 'Y'; });
+    
+    // 흡연자 페어링 (짝수만, 홀수 잔여는 orphansSmoke에 저장)
+    var smokerPairs = Math.floor(smokers.length / 2);
+    for(var si = 0; si < smokerPairs; si++){
+      if(deptRooms.length === 0){
+        unassigned.push(smokers[si*2], smokers[si*2+1]);
+        warnings.push(dept + ' (흡연) 방 부족');
+        continue;
+      }
+      var room = deptRooms.shift();
+      usedRooms[room] = true;
+      assignments.push({
+        room: room,
+        students: [smokers[si*2], smokers[si*2+1]],
+        type: '2인실',
+        dept: dept
+      });
+    }
+    // 흡연자 홀수 잔여 → 다른 학과와 매칭 위해 보류
+    if(smokers.length % 2 === 1){
+      var orphan = smokers[smokers.length - 1];
+      orphan._orphanDept = dept;
+      orphan._orphanRoomsLeft = deptRooms; // 학과 전용 방 참조
+      orphansSmoke.push(orphan);
+    }
+    
+    // 비흡연자 페어링 (짝수만, 홀수 잔여는 즉시 1인실 배정)
+    var nonSmokerPairs = Math.floor(nonSmokers.length / 2);
+    for(var ni = 0; ni < nonSmokerPairs; ni++){
+      if(deptRooms.length === 0){
+        unassigned.push(nonSmokers[ni*2], nonSmokers[ni*2+1]);
+        warnings.push(dept + ' (비흡연) 방 부족');
+        continue;
+      }
+      var room = deptRooms.shift();
+      usedRooms[room] = true;
+      assignments.push({
+        room: room,
+        students: [nonSmokers[ni*2], nonSmokers[ni*2+1]],
+        type: '2인실',
+        dept: dept
+      });
+    }
+    // 비흡연자 홀수 잔여 → 즉시 1인실 배정
+    if(nonSmokers.length % 2 === 1){
+      var orphanNS = nonSmokers[nonSmokers.length - 1];
+      if(deptRooms.length === 0){
+        unassigned.push(orphanNS);
+        warnings.push(orphanNS.name + ' 1인실 배정 실패 (방 부족)');
+      } else {
+        var roomNS = deptRooms.shift();
+        usedRooms[roomNS] = true;
+        assignments.push({
+          room: roomNS,
+          students: [orphanNS],
+          type: '1인실(홀수)',
+          dept: dept,
+          reason: 'odd'
+        });
+      }
+    }
+   });
+  
+  // 🆕 3️⃣ 학과 간 흡연자 잔여자 통합 매칭 (나이순)
+  if(orphansSmoke.length > 0){
+    // 나이순 정렬
+    orphansSmoke.sort(function(a, b){ return (a.age || 0) - (b.age || 0); });
+    
+    // 인접끼리 페어링
+    var crossPairs = Math.floor(orphansSmoke.length / 2);
+    for(var ci = 0; ci < crossPairs; ci++){
+      var s1 = orphansSmoke[ci*2];
+      var s2 = orphansSmoke[ci*2+1];
+      // 사용 가능한 방 찾기 (아무 학과 방에서)
+      var availableRoom = rooms.find(function(r){ return !usedRooms[r]; });
+      if(!availableRoom){
+        unassigned.push(s1, s2);
+        warnings.push('흡연자 학과간 매칭 방 부족: ' + s1.name + ', ' + s2.name);
+        continue;
+      }
+      usedRooms[availableRoom] = true;
+      assignments.push({
+        room: availableRoom,
+        students: [s1, s2],
+        type: '2인실',
+        dept: s1.dept + ' / ' + s2.dept,
+        crossDept: true, // 🆕 다른 학과 매칭 표시
+        warningType: 'smoking_cross_dept'
+      });
+      warnings.push('학과간 흡연자 매칭: ' + s1.name + '(' + s1.dept + ') ↔ ' + s2.name + '(' + s2.dept + ')');
+    }
+    // 최종 홀수 잔여 → 1인실
+    if(orphansSmoke.length % 2 === 1){
+      var lastOrphan = orphansSmoke[orphansSmoke.length - 1];
+      var availableRoom2 = rooms.find(function(r){ return !usedRooms[r]; });
+      if(!availableRoom2){
+        unassigned.push(lastOrphan);
+        warnings.push(lastOrphan.name + ' 1인실 배정 실패 (방 부족)');
+      } else {
+        usedRooms[availableRoom2] = true;
+        assignments.push({
+          room: availableRoom2,
+          students: [lastOrphan],
+          type: '1인실(홀수)',
+          dept: lastOrphan.dept,
+          reason: 'odd'
+        });
+      }
+    }
+  }
+  
+  return { assignments: assignments, unassigned: unassigned, warnings: warnings };
+}
+
+// 🆕 룸메이트 페어링 배정 (최우선) - 학과 지정 정보 반영 (Step A-5)
+function assignPairs(students, pairs, rooms){
+  var assignments = [];
+  var warnings = [];
+  
+  if(!pairs || pairs.length === 0){
+    return { assignments: assignments, warnings: warnings };
+  }
+  
+  var settings = window._assignSettings || {};
+  var usedRooms = {};
+  
+  // 학생 이름 → 학생 객체 매핑
+  var nameMap = {};
+  students.forEach(function(s){ nameMap[s.name] = s; });
+  
+  pairs.forEach(function(pair){
+    var s1 = nameMap[pair[0]];
+    var s2 = nameMap[pair[1]];
+    
+    if(!s1 || !s2){
+      warnings.push('페어링 학생을 찾을 수 없음: ' + pair.join(' ↔ '));
+      return;
+    }
+    
+    // 성별에 따라 가용 방 목록 결정
+    var gender = s1.gender;
+    var availableRooms = gender === 'F' 
+      ? rooms.female.filter(function(r){ return !usedRooms[r]; })
+      : rooms.male.filter(function(r){ return !usedRooms[r]; });
+    
+    // 🆕 학과 지정 정보 반영 (첫 번째 학생 기준)
+    var setting = settings[s1.dept];
+    var candidateRooms = filterRoomsByAssignSetting(availableRooms, setting, gender);
+    
+    // 지정된 방이 없으면 인접 층으로 확장
+    if(candidateRooms.length === 0){
+      if(setting && setting.mode === 'floor'){
+        var startFloor = parseInt(setting.floor) || (gender === 'F' ? 1 : 2);
+        candidateRooms = expandToNearbyFloors(availableRooms, startFloor, gender);
+        if(candidateRooms.length > 0){
+          warnings.push(s1.dept + ' 페어링(' + pair.join('+') + '): 지정 층 방 부족, 인접 층으로 확장');
+        }
+      } else {
+        candidateRooms = availableRooms.slice();
+      }
+    }
+    
+    if(candidateRooms.length === 0){
+      warnings.push('페어링 배정 실패 (방 없음): ' + pair.join(' + '));
+      return;
+    }
+    
+    var room = candidateRooms[0];
+    usedRooms[room] = true;
+    
+    // 🆕 흡연 여부 불일치 검사 (사용자 지정 페어링은 존중하되 경고)
+    var smokingMismatch = (s1.smoking !== s2.smoking);
+    var pairWarning = null;
+    if(smokingMismatch){
+      pairWarning = '흡연 여부 다름 (' + s1.name + ':' + (s1.smoking || 'N') + 
+                    ' / ' + s2.name + ':' + (s2.smoking || 'N') + ')';
+      warnings.push('⚠️ 사용자 지정 페어링 - ' + pairWarning);
+    }
+    
+    assignments.push({
+      room: room,
+      students: [s1, s2],
+      type: '2인실(페어링)',
+      dept: s1.dept,
+      smokingMismatch: smokingMismatch,      // 🆕 결과 UI에서 아이콘 표시용
+      warningType: smokingMismatch ? 'pair_smoking_mismatch' : null,
+      warningMsg: pairWarning
+    });
+  });
+  
+  return { assignments: assignments, warnings: warnings };
+}
+
+// ============ 페어링 배정용: 층 우선순위 정렬 ============
+function getFloorOrderFrom(startFloor, gender){
+  if(gender === 'F') return [1];
+  var maleFloors = [2, 3, 4];
+  if(!maleFloors.includes(startFloor)) return maleFloors;
+  return maleFloors.slice().sort(function(a, b){
+    return Math.abs(a - startFloor) - Math.abs(b - startFloor);
+  });
+}
+
+// ============ 배정 결과 표시 ============
+function showAssignResult(result){
+  var assignments = result.assignments;
+  var unassigned = result.unassigned;
+  var warnings = result.warnings;
+  
+  // 통계
+  var totalAssigned = 0;
+  var doubleRooms = 0;
+  var singleRooms = 0;
+  var singleReasonNote = 0;
+  var singleReasonOdd = 0;
+  
+  assignments.forEach(function(a){
+    totalAssigned += a.students.length;
+    if(a.type === 'double') doubleRooms++;
+    else {
+      singleRooms++;
+      if(a.reason === 'note') singleReasonNote++;
+      else if(a.reason === 'odd') singleReasonOdd++;
+    }
+  });
+  
+  // 층별 그룹화
+  var byFloor = {};
+  assignments.forEach(function(a){
+    var f = getFloor(a.room);
+    if(!byFloor[f]) byFloor[f] = [];
+    byFloor[f].push(a);
+  });
+  var floors = Object.keys(byFloor).map(Number).sort(function(a,b){ return a-b; });
+  
+  var h = '<div class="p-5">';
+  h += '<div class="flex items-center justify-between mb-4">';
+  h += '<h3 class="text-xl font-black text-gray-900"><i class="fas fa-check-circle mr-2 text-success-500"></i>배정 결과 ('+totalAssigned+'명)</h3>';
+  h += '<button onclick="closeAssignResultModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>';
+  h += '</div>';
+  
+  // 통계 카드
+  h += '<div class="grid grid-cols-5 gap-2 mb-4">';
+  h += '<div class="text-center p-3 bg-primary-50 rounded-xl"><div class="text-2xl font-black text-primary-600">'+totalAssigned+'</div><div class="text-xs text-gray-500">배정 완료</div></div>';
+  h += '<div class="text-center p-3 bg-info-50 rounded-xl"><div class="text-2xl font-black text-info-600">'+doubleRooms+'</div><div class="text-xs text-gray-500">2인실</div></div>';
+  h += '<div class="text-center p-3 bg-warning-50 rounded-xl"><div class="text-2xl font-black text-warning-600">'+singleRooms+'</div><div class="text-xs text-gray-500">1인실</div></div>';
+  h += '<div class="text-center p-3 bg-surface-100 rounded-xl"><div class="text-2xl font-black text-gray-600">'+(doubleRooms+singleRooms)+'</div><div class="text-xs text-gray-500">사용 호실</div></div>';
+  h += '<div class="text-center p-3 '+(unassigned.length>0?'bg-danger-50':'bg-success-50')+' rounded-xl"><div class="text-2xl font-black '+(unassigned.length>0?'text-danger-600':'text-success-600')+'">'+unassigned.length+'</div><div class="text-xs text-gray-500">미배정</div></div>';
+  
+  // 경고 요약 카드
+  var smokingMismatchCount = assignments.filter(function(a){return a.smokingMismatch;}).length;
+  var crossDeptCount = assignments.filter(function(a){return a.crossDept;}).length;
+  var warningTotal = smokingMismatchCount + crossDeptCount;
+  if(warningTotal > 0){
+    var warningTitle = [];
+    if(smokingMismatchCount > 0) warningTitle.push('흡연혼합 ' + smokingMismatchCount);
+    if(crossDeptCount > 0) warningTitle.push('학과간 ' + crossDeptCount);
+    h += '<div class="text-center p-3 bg-yellow-50 rounded-xl border-2 border-yellow-300" title="'+warningTitle.join(' / ')+'"><div class="text-2xl font-black text-yellow-600">'+warningTotal+'</div><div class="text-xs text-gray-500">⚠️ 경고</div></div>';
+  }
+  
+  h += '</div>';
+
+  // 1인실 세부 안내
+  if(singleRooms > 0){
+    h += '<div class="mb-3 p-2 bg-warning-50 rounded-lg text-xs text-warning-700">';
+    h += '💡 1인실 '+singleRooms+'실 = 특이사항 요청 '+singleReasonNote+'실 + 홀수 잔여 '+singleReasonOdd+'실';
+    h += '</div>';
+  }
+  
+  // 경고 메시지
+  if(warnings.length > 0){
+    h += '<div class="mb-4 p-3 bg-warning-50 rounded-lg border border-warning-200">';
+    h += '<div class="font-bold text-warning-700 mb-2 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i>알림 '+warnings.length+'건</div>';
+    h += '<ul class="text-xs text-warning-700 space-y-1 ml-4 list-disc">';
+    warnings.forEach(function(w){ h += '<li>'+escapeHtml(w)+'</li>'; });
+    h += '</ul></div>';
+  }
+  
+  // 미배정 학생
+  if(unassigned.length > 0){
+    h += '<div class="mb-4 p-3 bg-danger-50 rounded-lg border border-danger-200">';
+    h += '<div class="font-bold text-danger-700 mb-2 text-sm"><i class="fas fa-times-circle mr-1"></i>미배정 '+unassigned.length+'명 (방 부족)</div>';
+    h += '<div class="flex flex-wrap gap-1">';
+    unassigned.forEach(function(s){
+      h += '<span class="px-2 py-1 bg-white rounded text-xs font-bold">'+escapeHtml(s.name)+' ('+escapeHtml(s.dept)+')</span>';
+    });
+    h += '</div></div>';
+  }
+  
+  // 층별 배정 결과
+  floors.forEach(function(f){
+    var floorAssigns = byFloor[f].sort(function(a,b){ return a.room - b.room; });
+    var floorPeople = 0;
+    floorAssigns.forEach(function(a){ floorPeople += a.students.length; });
+    
+    h += '<div class="mt-4 mb-2 pb-2" style="border-bottom:3px solid #6366f1">';
+    h += '<div class="flex items-center justify-between">';
+    h += '<div class="text-lg font-black text-primary-700"><i class="fas fa-layer-group mr-2"></i>'+f+'층</div>';
+    h += '<div class="text-xs font-bold text-gray-600">'+floorAssigns.length+'실 · '+floorPeople+'명</div>';
+    h += '</div></div>';
+    
+    h += '<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 mb-4">';
+     floorAssigns.forEach(function(a){
+      var isSingle = a.type === 'single';
+      
+      var isSmokingMismatch = a.smokingMismatch === true;
+      var isCrossDept = a.crossDept === true;
+      
+      var bgClass;
+      if(isSmokingMismatch){
+        bgClass = 'bg-yellow-50 border-yellow-400 ring-2 ring-yellow-300';
+      } else if(isCrossDept){
+        bgClass = 'bg-blue-50 border-blue-400 ring-2 ring-blue-300';
+      } else if(isSingle){
+        bgClass = (a.reason === 'note' ? 'bg-danger-50 border-danger-200' : 'bg-warning-50 border-warning-200');
+      } else {
+        bgClass = 'bg-white border-gray-200';
+      }
+      
+      h += '<div class="p-3 rounded-lg border-2 '+bgClass+'" ';
+      if(isSmokingMismatch){
+        h += 'title="⚠️ 사용자 지정 페어링 - 흡연 여부 다름"';
+      } else if(isCrossDept){
+        h += 'title="🔄 학과간 흡연자 매칭 (홀수 잔여 처리)"';
+      }
+      h += '>';
+      
+      h += '<div class="flex items-center justify-between mb-2">';
+      h += '<div class="text-lg font-black text-primary-600">'+a.room+'호</div>';
+      h += '<div class="flex gap-1 flex-wrap">';
+      
+      if(isSmokingMismatch){
+        h += '<span class="text-xs px-2 py-0.5 bg-yellow-500 text-white rounded font-bold" title="흡연 여부 다름">🚬 흡연혼합</span>';
+      }
+      if(isCrossDept){
+        h += '<span class="text-xs px-2 py-0.5 bg-blue-500 text-white rounded font-bold" title="학과간 매칭">🔄 학과간</span>';
+      }
+      
+      if(isSingle){
+        var badgeText = a.reason === 'note' ? '1인실(요청)' : '1인실(홀수)';
+        var badgeColor = a.reason === 'note' ? 'bg-danger-500' : 'bg-warning-500';
+        h += '<span class="text-xs px-2 py-0.5 '+badgeColor+' text-white rounded font-bold">'+badgeText+'</span>';
+      }
+
+      if(a.smoking === 'smoke'){
+        h += '<span class="text-xs px-2 py-0.5 bg-gray-700 text-white rounded font-bold">🚬 흡연</span>';
+      }
+      h += '</div></div>';
+      
+      a.students.forEach(function(s){
+        h += '<div class="text-sm py-0.5">';
+        h += '<span class="font-bold">'+escapeHtml(s.name)+(s.gender==='F'?'(여)':'')+'</span>';
+        h += '<span class="text-xs text-gray-500 ml-2">'+escapeHtml(s.dept)+'</span>';
+        if(s.age) h += '<span class="text-xs text-gray-400 ml-1">('+s.age+'세)</span>';
+        h += '</div>';
+      });
+      
+      h += '</div>';
+    });
+    h += '</div>';
+  });
+  
+  // 액션 버튼
+  h += '<div class="flex gap-2 mt-4 sticky bottom-0 bg-white pt-3 border-t flex-wrap">';
+  h += '<button onclick="closeAssignResultModal()" class="px-4 py-3 bg-surface-100 text-gray-600 rounded-lg font-bold btn-press">닫기</button>';
+  h += '<button onclick="handleSaveAssignmentToDB()" class="flex-1 px-4 py-3 bg-success-500 text-white rounded-lg font-bold btn-press"><i class="fas fa-cloud-upload-alt mr-2"></i>DB 저장</button>';
+  h += '<button onclick="showAssignmentHistory()" class="flex-1 px-4 py-3 bg-purple-500 text-white rounded-lg font-bold btn-press"><i class="fas fa-history mr-2"></i>이력</button>';
+  h += '<button onclick="runAutoAssignment()" class="flex-1 px-4 py-3 bg-info-500 text-white rounded-lg font-bold btn-press"><i class="fas fa-redo mr-2"></i>다시 배정</button>';
+  h += '<button onclick="alert(\'수동 조정 기능은 다음 단계에서 구현됩니다\')" class="flex-1 px-4 py-3 bg-warning-500 text-white rounded-lg font-bold btn-press"><i class="fas fa-exchange-alt mr-2"></i>수동 조정 (준비 중)</button>';
+  h += '<button onclick="alert(\'인쇄 기능은 다음 단계에서 구현됩니다\')" class="flex-1 px-4 py-3 bg-primary-500 text-white rounded-lg font-bold btn-press"><i class="fas fa-print mr-2"></i>인쇄 (준비 중)</button>';
+  h += '</div>';
+  
+  h += '</div>';
+  
+  openAssignResultModal(h);
+}
+
 // 진단용 전역 도구
 window.diagRoom=function(roomNum){
     try{
@@ -1737,6 +4028,15 @@ function openConfirmModal(title,msg,onConfirm,confirmText,cancelText){
     if(!confirmText)confirmText='확인';if(!cancelText)cancelText='취소';
     var fn='_c_'+Date.now();window[fn]=function(){closeModal();onConfirm();delete window[fn]};
     openModal('<div class="p-6 md:p-8"><h3 class="text-xl font-bold text-gray-900 mb-2">'+escapeHtml(title)+'</h3><p class="text-gray-500 mb-6 text-sm leading-relaxed">'+msg+'</p><div class="flex gap-3"><button onclick="closeModal()" class="flex-1 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">'+escapeHtml(cancelText)+'</button><button onclick="window[\''+fn+'\']()" class="flex-1 py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-sm btn-press shadow-button">'+escapeHtml(confirmText)+'</button></div></div>');
+}
+function openAssignResultModal(html){
+  document.getElementById('assignResultContent').innerHTML = html;
+  document.getElementById('assignResultModal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeAssignResultModal(){
+  document.getElementById('assignResultModal').classList.add('hidden');
+  document.body.style.overflow = '';
 }
 function openInputModal(title,fields,onSubmit){
     var fn='_s_'+Date.now();window[fn]=onSubmit;
@@ -6902,6 +9202,7 @@ h+='<div class="pb-5 mt-4">';
   h+='<button onclick="window._roomViewMode=\'floor\';render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._roomViewMode==='floor'?'bg-primary-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-map mr-1.5"></i>평면도</button>';
 h+='<button onclick="window._showEmptyRooms=!window._showEmptyRooms;render()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all '+(window._showEmptyRooms?'bg-warning-500 text-white shadow-button':'bg-surface-100 text-gray-600')+'"><i class="fas fa-door-open mr-1.5"></i>'+(window._showEmptyRooms?'공실 ON':'공실 OFF')+'</button>';
   h+='<button onclick="printRoomStatusByFloor()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all bg-primary-500 text-white shadow-button" title="사감실 게시용 층별 호실 현황 인쇄"><i class="fas fa-print mr-1.5"></i>인쇄</button>';
+  h+='<button onclick="showAutoAssignModal()" class="px-5 py-1.5 rounded-lg text-sm font-bold btn-press transition-all bg-success-500 text-white shadow-button" title="엑셀 업로드로 신규 교육생 호실 자동 배정"><i class="fas fa-magic mr-1.5"></i>자동 배정</button>';
   h+='<div class="flex-1"></div>';
   h+='<button onclick="window._roomFloorOpen={\'1\':true,\'2\':true,\'3\':true,\'4\':true};window._floorPlanOpen={\'1F\':true,\'2F\':true,\'3F\':true,\'4F\':true};render()" class="px-5 py-1.5 bg-surface-100 text-gray-600 rounded-lg text-sm font-bold btn-press"><i class="fas fa-expand-alt mr-1.5"></i>펼치기</button>';
   h+='<button onclick="window._roomFloorOpen={};window._floorPlanOpen={};render()" class="px-5 py-1.5 bg-surface-100 text-gray-600 rounded-lg text-sm font-bold btn-press"><i class="fas fa-compress-alt mr-1.5"></i>접기</button>';
@@ -17629,15 +19930,496 @@ function fixDepartmentCounts(){
     }, true);
   }
 
-  if(document.readyState==='loading'){
+   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
 })();
+
+// ============================================================
+// 배정 미리보기 모달: 학과 설정 모달과 폭 통일 (max-w-3xl)
+// ============================================================
+(function fixAssignPreviewWidth(){
+  function applyWrapper(){
+    if(typeof window.showAssignPreview !== 'function'){
+      console.warn('[fixAssignPreviewWidth] showAssignPreview 함수 없음, 재시도');
+      return false;
+    }
+    
+    // 이미 래핑됐는지 확인 (중복 방지)
+    if(window.showAssignPreview.toString().indexOf('assign-preview-widened') !== -1){
+      return true;
+    }
+    
+    var _original = window.showAssignPreview;
+    window.showAssignPreview = function(){
+      var result = _original.apply(this, arguments);
+      
+      // 렌더링 완료 후 모달 박스 폭 확장
+      setTimeout(function(){
+        var ms = document.getElementById('modalSystem');
+        if(ms && !ms.classList.contains('hidden')){
+          var box = ms.querySelector('div.bg-white, div[class*="max-w"]');
+          if(box && !box.classList.contains('assign-preview-widened')){
+            box.classList.remove('md:max-w-md', 'md:max-w-lg', 'md:max-w-xl', 'md:max-w-2xl');
+            box.classList.add('md:max-w-3xl', 'md:w-full', 'md:mx-4', 'assign-preview-widened');
+            console.log('✅ 배정 미리보기 모달 폭 확장 (max-w-3xl)');
+          }
+        }
+      }, 30);
+      
+      return result;
+    };
+    
+    console.log('✅ showAssignPreview 폭 통일 래퍼 적용됨');
+    return true;
+  }
+  
+  // 즉시 시도, 실패 시 지연 재시도
+  if(!applyWrapper()){
+    setTimeout(applyWrapper, 500);
+    setTimeout(applyWrapper, 2000);
+  }
+})();
+
+// ============================================================
+// 배정 결과 모달: 폭 통일 (max-w-4xl, 인라인 style override)
+// ============================================================
+(function fixAssignResultWidth(){
+  function applyWrapper(){
+    if(typeof window.openAssignResultModal !== 'function'){
+      console.warn('[fixAssignResultWidth] openAssignResultModal 함수 없음');
+      return false;
+    }
+    
+    if(window.openAssignResultModal.toString().indexOf('assign-result-widened') !== -1){
+      return true;
+    }
+    
+    var _original = window.openAssignResultModal;
+    window.openAssignResultModal = function(html){
+      var result = _original.apply(this, arguments);
+      
+      setTimeout(function(){
+        var arm = document.getElementById('assignResultModal');
+        if(arm && !arm.classList.contains('hidden')){
+          var box = arm.querySelector('div.bg-white');
+          if(box && !box.classList.contains('assign-result-widened')){
+            // 인라인 style의 max-width를 강제 override (더 낮은 값으로)
+            box.style.maxWidth = '896px';
+            
+            // 마커 클래스 추가
+            box.classList.add('assign-result-widened');
+            console.log('✅ 배정 결과 모달 폭 통일 (max-width: 896px)');
+          }
+        }
+      }, 30);
+      
+      return result;
+    };
+    
+    console.log('✅ openAssignResultModal 폭 통일 래퍼 적용됨');
+    return true;
+  }
+  
+  if(!applyWrapper()){
+    setTimeout(applyWrapper, 500);
+    setTimeout(applyWrapper, 2000);
+  }
+})();
+
+// ============================================================
+// applyAssignSettings 래퍼: 미리보기 모달까지 함께 정리
+// ============================================================
+(function fixApplyAssignSettings(){
+  function applyWrapper(){
+    if(typeof window.applyAssignSettings !== 'function'){
+      console.warn('[fixApplyAssignSettings] applyAssignSettings 함수 없음');
+      return false;
+    }
+    
+    if(window.applyAssignSettings.toString().indexOf('cleanup-preview') !== -1){
+      return true;
+    }
+    
+    var _original = window.applyAssignSettings;
+    window.applyAssignSettings = function(){
+      // cleanup-preview: 원본 실행 전에 미리보기 모달(modalSystem) 먼저 닫기
+      var ms = document.getElementById('modalSystem');
+      if(ms && !ms.classList.contains('hidden')){
+        ms.classList.add('hidden');
+        document.body.style.overflow = '';
+        console.log('[applyAssignSettings] 미리보기 모달 사전 정리');
+      }
+      
+      // 원본 실행 (설정 저장 + 학과 설정 모달 제거 + runAutoAssignment 호출)
+      return _original.apply(this, arguments);
+    };
+    
+    console.log('✅ applyAssignSettings 래퍼 적용됨');
+    return true;
+  }
+  
+   if(!applyWrapper()){
+    setTimeout(applyWrapper, 500);
+    setTimeout(applyWrapper, 2000);
+  }
+})();
 </script>
+
+<script>
+/* openAssignResultModal 자동 복구 래퍼 */
+(function fixOpenAssignResultModal(){
+  function apply(){
+    if(typeof window.openAssignResultModal !== 'function') return false;
+    if(window.openAssignResultModal.toString().indexOf('auto-restore-modal') !== -1) return true;
+    var _orig = window.openAssignResultModal;
+    window.openAssignResultModal = function(html){
+      // auto-restore-modal: assignResultModal이 사라졌으면 재생성
+      var modal = document.getElementById('assignResultModal');
+      var content = document.getElementById('assignResultContent');
+      
+      if(!modal){
+        console.warn('[openAssignResultModal] assignResultModal 누락 감지 → 재생성');
+        modal = document.createElement('div');
+        modal.id = 'assignResultModal';
+        modal.className = 'fixed inset-0 z-50 hidden';
+        modal.innerHTML = 
+          '<div class="absolute inset-0 bg-black/50" onclick="closeAssignResultModal()"></div>' +
+          '<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-modal w-[92vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">' +
+            '<div id="assignResultContent" style="overflow-y:auto; overflow-x:hidden; flex:1;"></div>' +
+          '</div>';
+        document.body.appendChild(modal);
+        content = document.getElementById('assignResultContent');
+      } else if(!content){
+        console.warn('[openAssignResultModal] assignResultContent 누락 감지 → 재생성');
+        content = document.createElement('div');
+        content.id = 'assignResultContent';
+        content.style.cssText = 'overflow-y:auto; overflow-x:hidden; flex:1;';
+        var box = modal.querySelector('.bg-white') || modal.firstElementChild;
+        (box || modal).appendChild(content);
+      }
+      
+      // 콘텐츠 삽입 및 표시
+      content.innerHTML = html || '';
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      console.log('✅ openAssignResultModal 정상 실행');
+    };
+    return true;
+  }
+    if(!apply()){ setTimeout(apply, 500); setTimeout(apply, 2000); }
+})();
+</script>
+
+<script>
+/* 배정 결과 모달 크기 통일 + 닫기 시 미리보기로 복귀 */
+(function fixAssignResultModal(){
+  // 1) showAssignPreview에 캐싱 후킹 추가
+  function hookPreview(){
+    if(typeof window.showAssignPreview !== 'function') return false;
+    if(window.showAssignPreview.toString().indexOf('preview-cached') !== -1) return true;
+    var _origPreview = window.showAssignPreview;
+    window.showAssignPreview = function(){
+      // preview-cached: 인자 저장하여 복귀 시 재사용
+      window._lastPreviewArgs = Array.prototype.slice.call(arguments);
+      return _origPreview.apply(this, arguments);
+    };
+    console.log('✅ showAssignPreview 캐싱 후킹 완료');
+    return true;
+  }
+  
+  function apply(){
+    if(typeof window.openAssignResultModal !== 'function') return false;
+    if(typeof window.closeAssignResultModal !== 'function') return false;
+    if(window.openAssignResultModal.toString().indexOf('result-match-upload') !== -1) return true;
+    
+    hookPreview();
+    
+    /* ===== 크기 통일 (openAssignResultModal 래퍼) ===== */
+    var _origOpen = window.openAssignResultModal;
+    window.openAssignResultModal = function(html){
+      // result-match-upload: 업로드 데이터 확인 모달과 동일 크기
+      var result = _origOpen.apply(this, arguments);
+      setTimeout(function(){
+        var modal = document.getElementById('assignResultModal');
+        if(!modal) return;
+        var box = modal.querySelector('.bg-white');
+        if(box){
+          box.style.maxWidth = '672px';
+          box.style.width = '92vw';
+          box.style.maxHeight = '85vh';
+          console.log('✅ 배정 결과 모달 폭 통일 (672px / 92vw)');
+        }
+      }, 10);
+      return result;
+    };
+    
+    /* ===== 닫기 시 미리보기로 복귀 (closeAssignResultModal 래퍼) ===== */
+    var _origClose = window.closeAssignResultModal;
+    window.closeAssignResultModal = function(){
+      // back-to-preview: 닫은 후 미리보기 재표시
+      _origClose.apply(this, arguments);
+      
+      setTimeout(function(){
+        if(window._lastPreviewArgs && typeof window.showAssignPreview === 'function'){
+          console.log('↩️ 배정 미리보기로 복귀');
+          window.showAssignPreview.apply(window, window._lastPreviewArgs);
+        } else {
+          console.log('ℹ️ 미리보기 데이터 없음 - 일반 닫기');
+        }
+      }, 50);
+    };
+    
+    console.log('✅ 배정 결과 모달 통합 래퍼 적용 완료');
+    return true;
+  }
+  
+    // 즉시 시도 + 재시도 (다른 스크립트 로드 순서 대응)
+  hookPreview();
+  if(!apply()){ setTimeout(apply, 500); setTimeout(apply, 2000); }
+})();
+</script>
+
+<script>
+/* [D-7 훅 이관] executeStudentDelete에 익명화 훅 정착 */
+(function hookExecuteStudentDeleteForAnonymize(){
+  function apply(){
+    if(typeof window.executeStudentDelete !== 'function') return false;
+    if(typeof window.anonymizeStudentInAssignments !== 'function') return false;
+    if(window.executeStudentDelete.toString().indexOf('d7-anonymize-hook') !== -1) return true;
+    
+    var _origExec = window.executeStudentDelete;
+    window.executeStudentDelete = async function(dept, name){
+      // d7-anonymize-hook: 원본 삭제 완료 후 배정 이력 익명화
+      var result;
+      try {
+        result = await _origExec.apply(this, arguments);
+      } catch(e){
+        throw e;
+      }
+      
+      // 원본 삭제가 정상 완료된 후 익명화 수행
+      if(name){
+        try {
+          console.log('🔒 [D-7] 배정 이력 익명화 시작:', name);
+          var anonResult = await window.anonymizeStudentInAssignments(name);
+          if(anonResult && anonResult.updated > 0){
+            console.log('✅ [D-7] 배정 이력 익명화 완료:', anonResult.updated + '건');
+            if(typeof showToast === 'function'){
+              showToast('배정 이력 익명화: ' + anonResult.updated + '건', 'info');
+            }
+          } else {
+            console.log('ℹ️ [D-7] 익명화할 배정 이력 없음');
+          }
+        } catch(anonErr){
+          console.error('❌ [D-7] 배정 이력 익명화 실패 (삭제는 완료됨):', anonErr.message);
+        }
+      }
+      
+      return result;
+    };
+    
+    console.log('✅ [D-7] executeStudentDelete 익명화 훅 정착 완료');
+    return true;
+  }
+  
+  if(!apply()){ 
+    setTimeout(apply, 500); 
+    setTimeout(apply, 2000); 
+    setTimeout(apply, 5000);
+  }
+})();
+</script>
+
+<script>
+/* [D-7 수정] anonymizeStudentInAssignments 실제 데이터 구조에 맞게 재작성 */
+(function overrideAnonymizeStudentInAssignments(){
+  function apply(){
+    if(typeof firebase === 'undefined' || !firebase.firestore) return false;
+    if(window.anonymizeStudentInAssignments && window.anonymizeStudentInAssignments._d7Fixed) return true;
+    
+    var newFn = async function anonymizeStudentInAssignments(studentName){
+      if(!studentName) return {scanned: 0, updated: 0};
+      try {
+        var user = firebase.auth().currentUser;
+        if(!user) throw new Error('로그인 필요');
+        
+        var db = firebase.firestore();
+        var snap = await db.collection('dorm_assignments').get();
+        var updated = 0;
+        var batch = db.batch();
+        var batchCount = 0;
+        var ANON = '***파기***';
+        
+        snap.forEach(function(doc){
+          var data = doc.data();
+          var changed = false;
+          var updatePayload = {};
+          
+          // 1) rooms 배열 안 students 익명화
+          if(Array.isArray(data.rooms)){
+            data.rooms.forEach(function(room){
+              if(Array.isArray(room.students)){
+                room.students.forEach(function(s){
+                  if(s && s.name === studentName){
+                    s.name = ANON;
+                    if(s.birthDate) delete s.birthDate;
+                    if(s.age) delete s.age;
+                    if(s.roommate) s.roommate = '';
+                    if(s.note) delete s.note;
+                    changed = true;
+                  }
+                });
+              }
+            });
+            if(changed) updatePayload.rooms = data.rooms;
+          }
+          
+          // 2) students 최상위 배열 익명화
+          if(Array.isArray(data.students)){
+            var stuChanged = false;
+            data.students.forEach(function(s){
+              if(s && s.name === studentName){
+                s.name = ANON;
+                if(s.birthDate) delete s.birthDate;
+                if(s.age) delete s.age;
+                if(s.roommate) s.roommate = '';
+                if(s.note) delete s.note;
+                stuChanged = true;
+                changed = true;
+              }
+            });
+            if(stuChanged) updatePayload.students = data.students;
+          }
+          
+          // 3) unassigned 배열 익명화
+          if(Array.isArray(data.unassigned)){
+            var unChanged = false;
+            data.unassigned.forEach(function(s){
+              if(s && s.name === studentName){
+                s.name = ANON;
+                if(s.birthDate) delete s.birthDate;
+                if(s.age) delete s.age;
+                if(s.note) delete s.note;
+                unChanged = true;
+                changed = true;
+              }
+            });
+            if(unChanged) updatePayload.unassigned = data.unassigned;
+          }
+          
+          // 4) pairs 배열 익명화 (문자열 이름 매칭)
+          if(Array.isArray(data.pairs) && data.pairs.length > 0){
+            var pairChanged = false;
+            data.pairs.forEach(function(p){
+              if(Array.isArray(p)){
+                p.forEach(function(item, idx){
+                  if(typeof item === 'string' && item === studentName){
+                    p[idx] = ANON;
+                    pairChanged = true;
+                    changed = true;
+                  } else if(item && typeof item === 'object' && item.name === studentName){
+                    item.name = ANON;
+                    pairChanged = true;
+                    changed = true;
+                  }
+                });
+              } else if(p && typeof p === 'object'){
+                ['a','b','student1','student2','name1','name2'].forEach(function(k){
+                  if(p[k] === studentName){ p[k] = ANON; pairChanged = true; changed = true; }
+                });
+              }
+            });
+            if(pairChanged) updatePayload.pairs = data.pairs;
+          }
+          
+          // 5) 변경사항이 있으면 batch에 추가
+          if(changed){
+            updatePayload.anonymizedAt = firebase.firestore.FieldValue.serverTimestamp();
+            updatePayload.anonymizedBy = user.email;
+            batch.update(doc.ref, updatePayload);
+            batchCount++;
+            updated++;
+          }
+        });
+        
+        if(batchCount > 0){
+          await batch.commit();
+        }
+        
+        console.log('🔒 개인정보 익명화 (D-7 수정판):', studentName, '→', updated + '건 처리');
+        return {scanned: snap.size, updated: updated};
+      } catch(e){
+        console.error('❌ 익명화 실패:', e);
+        return {scanned: 0, updated: 0, error: e.message};
+      }
+    };
+    
+    newFn._d7Fixed = true;
+    window.anonymizeStudentInAssignments = newFn;
+    console.log('✅ [D-7] anonymizeStudentInAssignments 실제 구조 대응 오버라이드 완료');
+    return true;
+  }
+  
+  if(!apply()){ setTimeout(apply, 500); setTimeout(apply, 2000); }
+})();
+</script>
+
+<script>
+/* [B단계] 미구현 버튼 숨김 - 수동 조정 / 인쇄 */
+(function hideUnimplementedButtons(){
+  function hideButtons(){
+    var modal = document.getElementById('assignResultModal');
+    if(!modal) return false;
+    
+    var buttons = modal.querySelectorAll('button');
+    var hidden = 0;
+    buttons.forEach(function(btn){
+      var text = btn.textContent || '';
+      var onclick = btn.getAttribute('onclick') || '';
+      if(text.indexOf('준비 중') !== -1 || 
+         onclick.indexOf('수동 조정 기능은') !== -1 || 
+         onclick.indexOf('인쇄 기능은') !== -1){
+        btn.style.display = 'none';
+        hidden++;
+      }
+    });
+    
+    if(hidden > 0){
+      console.log('✅ [B] 미구현 버튼 ' + hidden + '개 숨김 완료');
+    }
+    return true;
+  }
+  
+  // openAssignResultModal 후킹하여 모달 열릴 때마다 실행
+  function apply(){
+    if(typeof window.openAssignResultModal !== 'function') return false;
+    if(window.openAssignResultModal.toString().indexOf('hide-unimpl') !== -1) return true;
+    
+    var _orig = window.openAssignResultModal;
+    window.openAssignResultModal = function(html){
+      // hide-unimpl: 모달 열린 후 미구현 버튼 숨김
+      var result = _orig.apply(this, arguments);
+      setTimeout(hideButtons, 30);
+      return result;
+    };
+    console.log('✅ [B] 미구현 버튼 숨김 훅 정착 완료');
+    return true;
+  }
+  
+  if(!apply()){ setTimeout(apply, 500); setTimeout(apply, 2000); }
+})();
+</script>
+
+</div>
 </body>
 </html>
+
+
+
+
 
 
 
