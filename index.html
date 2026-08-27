@@ -20926,13 +20926,95 @@ function fixDepartmentCounts(){
     };
   }
   
-  console.log('✅ 서약서 일괄 PDF 다운로드 모듈 로드 완료');
+      console.log('✅ 서약서 일괄 PDF 다운로드 모듈 로드 완료');
+  })();
+</script>
+
+<!-- ============================================ -->
+<!-- 🔧 학과 선택 드롭다운 위치 자동 조정 (v2) -->
+<!-- ============================================ -->
+<script>
+(function() {
+  'use strict';
+  
+  function adjustDeptDropdown() {
+    const dd = document.getElementById('deptDropdown');
+    if (!dd) return;
+    
+    const r = dd.getBoundingClientRect();
+    if (r.height === 0) return; // 아직 렌더링 전
+    
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const MARGIN = 30;
+    const MIN_HEIGHT = 200;
+    
+    const spaceBelow = vh - r.top;
+    const spaceAbove = r.top;
+    
+    // 위로 펼치는 게 유리한 경우
+    if (spaceBelow < 300 && spaceAbove > spaceBelow) {
+      dd.style.setProperty('top', 'auto', 'important');
+      dd.style.setProperty('bottom', (vh - r.top + 8) + 'px', 'important');
+      dd.style.setProperty('max-height', Math.max(MIN_HEIGHT, Math.min(spaceAbove - MARGIN, 500)) + 'px', 'important');
+    } else {
+      // 아래로 펼치되 화면 안에 맞추기
+      dd.style.setProperty('max-height', Math.max(MIN_HEIGHT, spaceBelow - MARGIN) + 'px', 'important');
+    }
+    
+    // 좌우 화면 밖 넘침 방지
+    const r2 = dd.getBoundingClientRect();
+    if (r2.right > vw - 10) {
+      dd.style.setProperty('left', Math.max(10, vw - r2.width - 10) + 'px', 'important');
+    }
+    if (r2.left < 10) {
+      dd.style.setProperty('left', '10px', 'important');
+    }
+  }
+  
+  // showDeptFilterModal 후킹
+  function hookShowDeptFilterModal() {
+    const orig = window.showDeptFilterModal;
+    if (typeof orig !== 'function') return false;
+    if (orig._positionHooked) return true;
+    
+    window.showDeptFilterModal = function(...args) {
+      const result = orig.apply(this, args);
+      // 다양한 타이밍에서 조정 (렌더링 지연 대응)
+      setTimeout(adjustDeptDropdown, 0);
+      setTimeout(adjustDeptDropdown, 50);
+      setTimeout(adjustDeptDropdown, 150);
+      return result;
+    };
+    window.showDeptFilterModal._positionHooked = true;
+    console.log('✅ 학과 선택 드롭다운 위치 자동 조정 활성화');
+    return true;
+  }
+  
+  // 즉시 시도, 실패 시 재시도
+  if (!hookShowDeptFilterModal()) {
+    const retry = setInterval(() => {
+      if (hookShowDeptFilterModal()) clearInterval(retry);
+    }, 500);
+    setTimeout(() => clearInterval(retry), 30000);
+  }
+  
+  // 창 크기 변경 시에도 조정
+  window.addEventListener('resize', () => {
+    if (document.getElementById('deptDropdown')) adjustDeptDropdown();
+  });
+  
+  // 스크롤 시에도 조정
+  window.addEventListener('scroll', () => {
+    if (document.getElementById('deptDropdown')) adjustDeptDropdown();
+  }, { passive: true });
 })();
 </script>
 
 </div>
 </body>
 </html>
+
 
 
 
