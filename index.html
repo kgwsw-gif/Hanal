@@ -20419,7 +20419,6 @@ function fixDepartmentCounts(){
      - 2초 안에 재누름: 앱 종료
      - 모달 열려있으면: 모달만 닫기
      - 새로고침: 로그인 상태에서 확인창
-     - 당겨서 새로고침 방지
      ============================================ -->
 <script>
 (() => {
@@ -20496,7 +20495,6 @@ function fixDepartmentCounts(){
     
     if (openModals.length > 0) {
       const topModal = openModals[openModals.length - 1];
-      // 닫기 버튼 찾아서 클릭 (기존 로직 유지)
       const closeBtn = topModal.querySelector(
         '[onclick*="close"], [onclick*="hidden"], .modal-close, [aria-label="닫기"], button[onclick*="Modal"]'
       );
@@ -20505,7 +20503,6 @@ function fixDepartmentCounts(){
       } else {
         topModal.classList.add('hidden');
       }
-      // 히스토리 다시 채우기
       try { history.pushState({ level: 'app' }, '', location.href); } catch(e) {}
       return;
     }
@@ -20513,35 +20510,21 @@ function fixDepartmentCounts(){
     // (2) 메인 화면 → 종료 확인 토스트
     const now = Date.now();
     if (now - lastBackTime < EXIT_INTERVAL) {
-      // 2초 안에 두 번째 누름 → 종료
       hideToast();
       try { window.close(); } catch(e) {}
-      // window.close()가 안 먹으면 (일반 브라우저) → 빈 페이지로
       setTimeout(() => { 
         try { location.href = 'about:blank'; } catch(e) {}
       }, 100);
       return;
     }
     
-    // 첫 번째 누름 → 토스트 표시
     lastBackTime = now;
     showToast();
     setTimeout(hideToast, EXIT_INTERVAL);
-    // 히스토리 다시 채우기
     try { history.pushState({ level: 'app' }, '', location.href); } catch(e) {}
   });
   
-  // ====== 4) 스와이프 새로고침 방지 ======
-  document.documentElement.style.overscrollBehavior = 'contain';
-  if (document.body) {
-    document.body.style.overscrollBehavior = 'contain';
-  } else {
-    document.addEventListener('DOMContentLoaded', () => {
-      document.body.style.overscrollBehavior = 'contain';
-    });
-  }
-  
-  // ====== 5) 새로고침 시 확인 (로그인 상태에서만) ======
+  // ====== 4) 새로고침 시 확인 (로그인 상태에서만) ======
   window.addEventListener('beforeunload', function(e) {
     try {
       if (typeof firebase !== 'undefined' 
@@ -20555,7 +20538,7 @@ function fixDepartmentCounts(){
     } catch(err) {}
   });
   
-  console.log('✅ 뒤로가기/새로고침 핸들러 설치 완료');
+  console.log('✅ 뒤로가기/새로고침 핸들러 설치 완료 (v2)');
 })();
 </script>
 
