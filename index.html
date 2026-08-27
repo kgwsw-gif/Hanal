@@ -20542,6 +20542,394 @@ function fixDepartmentCounts(){
 })();
 </script>
 
+<!-- ============================================ -->
+<!-- 📦 서약서/지문동의서 일괄 PDF 다운로드 기능 -->
+<!-- ============================================ -->
+<script>
+(function() {
+  'use strict';
+  
+  // ========== 유틸 ==========
+  const v = (x) => (x === undefined || x === null || x === '') ? '-' : x;
+  const yn = (x) => x ? '✓ 동의' : '✗ 미동의';
+  const safe = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '_');
+  
+  function loadScriptTag(url) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('스크립트 로드 실패: ' + url));
+      document.head.appendChild(s);
+    });
+  }
+  
+  // ========== 서약서 HTML ==========
+  function buildAgreementHtml(data) {
+    return ''
+      + '<div style="text-align:center;margin-bottom:20px;">'
+      + '<h1 style="font-size:24px;font-weight:bold;margin:0 0 8px 0;">기숙사 입사 서약서 및 개인정보 수집·이용 동의서</h1>'
+      + '<div style="font-size:13px;color:#666;">한국폴리텍대학 화성캠퍼스</div>'
+      + '</div>'
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
+      + '<tr><td colspan="4" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">1. 학생 정보</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">이름</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.name) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">학과</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.department) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">반</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.subClass) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">호실</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.room) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">출생년도</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.birthYear) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">휴대전화</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.mobile) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">주소</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.address) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">상세주소</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.addressDetail) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">차량번호</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.vehicleNumber) + '</td></tr>'
+      + '</table>'
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
+      + '<tr><td colspan="4" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">2. 보호자 / 비상연락처</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">보호자명</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.guardianName) + '</td>'
+      + '<td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:15%;font-weight:bold;">관계</td><td style="border:1px solid #d1d5db;padding:8px;width:35%;">' + v(data.guardianRelation) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">연락처</td><td colspan="3" style="border:1px solid #d1d5db;padding:8px;">' + v(data.guardianPhone) + '</td></tr>'
+      + '</table>'
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;">'
+      + '<tr><td colspan="2" style="background:#4338ca;color:white;padding:8px 12px;font-weight:bold;">3. 건강 상태</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;width:20%;font-weight:bold;">특이사항</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.healthNotes || data.health) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">알레르기</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.allergies) + '</td></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:8px;background:#f9fafb;font-weight:bold;">복용약물</td><td style="border:1px solid #d1d5db;padding:8px;">' + v(data.medications) + '</td></tr>'
+      + '</table>'
+      + '<div style="border:2px solid #4338ca;border-radius:8px;padding:16px;margin-bottom:20px;font-size:13px;line-height:1.8;">'
+      + '<div style="font-weight:bold;font-size:15px;margin-bottom:10px;text-align:center;">기숙사 입사 서약서</div>'
+      + '<div style="font-size:13px;line-height:1.7;">상기 본인은 기숙사생으로서 생활지도 규칙을 준수하고, 교육 훈련에 매진하며, 제반 지시사항을 성실히 따를 것과 학생 상호 간의 예절을 지키고, 학생의 품위를 잃지 않도록 노력하며, 규칙위반, 시설물 파손과 그에 따른 사고, 호실 내 청결 유지 등 손해 발생에 대해서는 본인이 책임질 것을 서약합니다.</div>'
+      + '<div style="margin-top:14px;font-weight:bold;font-size:14px;">📋 개인정보 수집·이용 내역</div>'
+      + '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px;">'
+      + '<tr style="background:#f9fafb;"><th style="border:1px solid #d1d5db;padding:7px;width:38%;">수집 항목</th><th style="border:1px solid #d1d5db;padding:7px;width:42%;">이용 목적</th><th style="border:1px solid #d1d5db;padding:7px;width:20%;">보유기간</th></tr>'
+      + '<tr><td style="border:1px solid #d1d5db;padding:7px;">사진, 출생년도, 차량번호, 개인 정보</td><td style="border:1px solid #d1d5db;padding:7px;">기숙사 인원보고 시스템 등록 및 관리</td><td style="border:1px solid #d1d5db;padding:7px;text-align:center;color:#b91c1c;font-weight:bold;">퇴사 시 삭제</td></tr>'
+      + '</table>'
+      + '<div style="font-size:12px;color:#6b7280;margin-top:7px;line-height:1.6;">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 미동의 시 앱 이용이 제한되며 사감실을 통한 별도 절차가 필요합니다.</div>'
+      + '<div style="text-align:right;margin-top:12px;font-weight:bold;font-size:13px;">개인정보 수집·이용 동의: ' + yn(data.privacyAgreed) + '</div>'
+      + '</div>'
+      + '<div style="text-align:center;margin:20px 0;font-size:14px;">'
+      + '<div style="margin-bottom:8px;font-weight:bold;">제출일자: ' + v(data.submittedDate) + '</div>'
+      + '<div style="margin:20px 0;">신청자: <span style="font-weight:bold;font-size:16px;">' + v(data.name) + '</span> (서명)</div>'
+      + (data.signature 
+        ? '<div style="text-align:center;margin:15px 0;"><img src="' + data.signature + '" style="max-width:220px;max-height:110px;border:1px solid #d1d5db;background:white;padding:6px;"></div>'
+        : '<div style="color:#9ca3af;">서명 없음</div>')
+      + '<div style="margin-top:24px;font-weight:bold;">한국폴리텍대학 화성캠퍼스 지역대학장 귀하</div>'
+      + '</div>';
+  }
+  
+  // ========== 지문등록동의서 HTML ==========
+  function buildFingerprintHtml(data) {
+    const submitDate = data.submittedAt?.toDate ? data.submittedAt.toDate() : (data.submittedAt ? new Date(data.submittedAt) : new Date());
+    const y = submitDate.getFullYear();
+    const m = submitDate.getMonth() + 1;
+    const d = submitDate.getDate();
+    
+    const agreedText = data.fingerprintAgreed === true ? '☑ 동의함    □ 동의하지 않음' 
+                     : data.fingerprintAgreed === false ? '□ 동의함    ☑ 동의하지 않음'
+                     : '□ 동의함    □ 동의하지 않음';
+    
+    return ''
+      + '<div style="text-align:center;margin-bottom:24px;">'
+      + '<h1 style="font-size:20px;font-weight:bold;margin:0 0 8px 0;line-height:1.5;">기숙사 출입통제시스템 지문등록 동의서<br><span style="font-size:16px;">(여학생용)</span></h1>'
+      + '</div>'
+      + '<div style="font-size:14px;line-height:1.9;margin-bottom:24px;text-align:justify;">'
+      + '한국폴리텍대학 화성캠퍼스는 적법한 절차에 따라 최소한의 개인정보만 수집합니다. 기숙사 출입통제시스템 지문등록을 위한 개인정보를 수집·이용하고자 하오니 내용을 자세히 읽으신 후 동의여부를 결정하여 주시기 바랍니다.'
+      + '</div>'
+      + '<div style="font-size:15px;font-weight:bold;margin-bottom:10px;">□ 개인정보 수집·이용 내역</div>'
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:14px;">'
+      + '<tr style="background:#f3f4f6;"><th style="border:1px solid #333;padding:10px;width:33%;">수집 항목</th><th style="border:1px solid #333;padding:10px;width:44%;">수집 이용 목적</th><th style="border:1px solid #333;padding:10px;width:23%;">보유기간</th></tr>'
+      + '<tr><td style="border:1px solid #333;padding:14px 10px;text-align:center;line-height:1.6;">지문<br><span style="font-size:12px;color:#555;">(시스템에 등록되는<br>개인정보 기재)</span></td>'
+      + '<td style="border:1px solid #333;padding:14px 10px;text-align:center;">기숙사 출입통제시스템 지문등록</td>'
+      + '<td style="border:1px solid #333;padding:14px 10px;text-align:center;font-weight:bold;">기숙사<br>퇴사시 삭제</td></tr>'
+      + '</table>'
+      + '<div style="font-size:12px;color:#555;margin-bottom:20px;line-height:1.7;">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으며, 동의하지 않을 경우 별도 비치된 수기 대장을 이용하여야 합니다.</div>'
+      + '<div style="font-size:15px;font-weight:bold;margin-bottom:12px;">위와 같이 개인정보의 수집·이용에 동의하십니까?</div>'
+      + '<div style="font-size:16px;margin-bottom:40px;padding:14px;border:2px solid #333;text-align:center;font-weight:bold;letter-spacing:2px;">' + agreedText + '</div>'
+      + '<div style="text-align:center;font-size:15px;margin:40px 0 20px 0;">' + y + '년 &nbsp;&nbsp; ' + m + '월 &nbsp;&nbsp; ' + d + '일</div>'
+      + '<div style="font-size:15px;margin:20px 0;line-height:2.2;">'
+      + '<div>성명 : <span style="display:inline-block;min-width:200px;border-bottom:1px solid #333;padding:0 10px;font-weight:bold;">' + (data.name || '') + '</span> (날인 또는 서명)</div>'
+      + '</div>'
+      + (data.signature 
+          ? '<div style="text-align:right;margin-top:10px;"><img src="' + data.signature + '" style="max-width:180px;max-height:80px;border-bottom:1px solid #333;"/></div>'
+          : '')
+      + '<div style="text-align:center;font-size:16px;font-weight:bold;margin-top:50px;">한국폴리텍대학 화성캠퍼스 학장 귀하</div>';
+  }
+  
+  // ========== HTML → PDF Blob ==========
+  async function htmlToPdfBlob(html, kind = 'agreement') {
+    const padding = kind === 'fingerprint' ? '40px 50px' : '30px 40px';
+    const container = document.createElement('div');
+    container.style.cssText = `position:fixed;left:-9999px;top:0;width:794px;background:white;padding:${padding};font-family:"Malgun Gothic","맑은 고딕",sans-serif;color:#111;`;
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    
+    try {
+      const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+      const pdf = new jsPDFCtor('p', 'mm', 'a4');
+      
+      const pdfWidth = 210, pdfPageHeight = 297;
+      const naturalHeight = (canvas.height * pdfWidth) / canvas.width;
+      const finalHeight = Math.min(naturalHeight, pdfPageHeight);
+      const finalWidth = naturalHeight > pdfPageHeight 
+        ? (canvas.width * pdfPageHeight) / canvas.height 
+        : pdfWidth;
+      const xOffset = (pdfWidth - finalWidth) / 2;
+      
+      pdf.addImage(imgData, 'PNG', xOffset, 0, finalWidth, finalHeight);
+      return pdf.output('blob');
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+  
+  // ========== 진행률 오버레이 ==========
+  function createProgressOverlay(total) {
+    const o = document.createElement('div');
+    o.id = 'bulkDownloadOverlay';
+    o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;';
+    o.innerHTML = `
+      <div style="background:white;border-radius:12px;padding:30px;min-width:400px;max-width:500px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <h3 style="font-size:18px;font-weight:bold;margin:0 0 16px 0;">📦 서약서 일괄 다운로드 중...</h3>
+        <div id="bulkProgressText" style="font-size:14px;color:#4b5563;margin-bottom:12px;">준비 중... (0 / ${total})</div>
+        <div style="background:#e5e7eb;border-radius:8px;height:24px;overflow:hidden;">
+          <div id="bulkProgressBar" style="background:linear-gradient(90deg,#4338ca,#6366f1);height:100%;width:0%;transition:width 0.3s;"></div>
+        </div>
+        <div id="bulkProgressDetail" style="font-size:12px;color:#6b7280;margin-top:10px;min-height:18px;"></div>
+        <div style="margin-top:16px;text-align:right;">
+          <button id="bulkCancelBtn" style="padding:8px 16px;background:#ef4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;">취소</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(o);
+    
+    let cancelled = false;
+    let finished = false;
+    document.getElementById('bulkCancelBtn').onclick = () => {
+      if (finished) o.remove();
+      else cancelled = true;
+    };
+    
+    return {
+      update(i, name) {
+        const pct = Math.round((i / total) * 100);
+        document.getElementById('bulkProgressText').textContent = `처리 중... (${i} / ${total}) ${pct}%`;
+        document.getElementById('bulkProgressBar').style.width = pct + '%';
+        if (name) document.getElementById('bulkProgressDetail').textContent = `현재: ${name}`;
+      },
+      finish(msg) {
+        finished = true;
+        document.getElementById('bulkProgressText').textContent = msg || '완료!';
+        document.getElementById('bulkProgressDetail').textContent = '';
+        document.getElementById('bulkProgressBar').style.width = '100%';
+        const btn = document.getElementById('bulkCancelBtn');
+        btn.textContent = '닫기';
+        btn.style.background = '#4338ca';
+      },
+      close() { o.remove(); },
+      isCancelled() { return cancelled; }
+    };
+  }
+  
+  // ========== 메인: 일괄 다운로드 ==========
+  window.downloadAllAgreementsAsZip = async function(options = {}) {
+    const { deptFilter = null, includeFingerprint = true } = options;
+    
+    const cache = window._agreementListCache;
+    if (!cache || cache.length === 0) {
+      alert('서약서 목록이 로드되지 않았습니다. 목록을 먼저 불러온 후 시도해주세요.');
+      return;
+    }
+    
+    let targets = cache;
+    if (deptFilter) targets = targets.filter(a => a.department === deptFilter);
+    
+    if (targets.length === 0) {
+      alert('다운로드할 서약서가 없습니다.');
+      return;
+    }
+    
+    if (!confirm(`${targets.length}명의 서약서를 PDF로 일괄 다운로드합니다.\n\n예상 소요 시간: 약 ${Math.ceil(targets.length * 3 / 60)}분\n\n진행하시겠습니까?`)) {
+      return;
+    }
+    
+    // 라이브러리 로드
+    if (!window.JSZip) {
+      await loadScriptTag('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    }
+    await window._ensurePdfLibs();
+    
+    const femaleCount = includeFingerprint ? targets.filter(a => a.name?.includes('(여)')).length : 0;
+    const totalPdfs = targets.length + femaleCount;
+    const overlay = createProgressOverlay(totalPdfs);
+    
+    const zip = new JSZip();
+    let done = 0;
+    const errors = [];
+    
+    for (const data of targets) {
+      if (overlay.isCancelled()) break;
+      
+      const dept = safe(data.department || '미지정');
+      const name = safe(data.name || '이름없음');
+      const dateStr = String(data.submittedDate || '').replace(/[^0-9]/g, '');
+      
+      // 서약서
+      try {
+        overlay.update(done, `${name} 서약서 생성 중...`);
+        const html = buildAgreementHtml(data);
+        const blob = await htmlToPdfBlob(html, 'agreement');
+        zip.file(`${dept}/서약서_${dept}_${name}_${dateStr}.pdf`, blob);
+        done++;
+        overlay.update(done, `${name} 서약서 완료`);
+      } catch (e) {
+        errors.push(`${name} 서약서: ${e.message}`);
+        console.error(`서약서 실패 (${name}):`, e);
+      }
+      
+      // 지문등록동의서 (여학생만)
+      if (includeFingerprint && data.name?.includes('(여)')) {
+        try {
+          overlay.update(done, `${name} 지문등록동의서 생성 중...`);
+          const html = buildFingerprintHtml(data);
+          const blob = await htmlToPdfBlob(html, 'fingerprint');
+          zip.file(`${dept}/지문등록동의서_${name}.pdf`, blob);
+          done++;
+          overlay.update(done, `${name} 지문등록동의서 완료`);
+        } catch (e) {
+          errors.push(`${name} 지문동의서: ${e.message}`);
+          console.error(`지문동의서 실패 (${name}):`, e);
+        }
+      }
+      
+      await new Promise(r => setTimeout(r, 50));
+    }
+    
+    if (overlay.isCancelled()) {
+      overlay.finish('❌ 사용자가 취소했습니다.');
+      return;
+    }
+    
+    // ZIP 생성 및 다운로드
+    overlay.update(done, 'ZIP 파일 압축 중...');
+    const zipBlob = await zip.generateAsync({ type: 'blob' }, (meta) => {
+      overlay.update(done, `압축 중... ${Math.round(meta.percent)}%`);
+    });
+    
+    const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const zipName = deptFilter 
+      ? `서약서_${safe(deptFilter)}_${today}.zip`
+      : `서약서_전체_${today}.zip`;
+    
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = zipName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    
+    const summary = `✅ 완료! 서약서 ${targets.length - errors.filter(e=>e.includes('서약서')).length}개 + 지문동의서 ${femaleCount - errors.filter(e=>e.includes('지문')).length}개 = 총 ${done}개 PDF`
+      + (errors.length > 0 ? ` (오류 ${errors.length}건)` : '');
+    overlay.finish(summary);
+    
+    if (errors.length > 0) console.warn('오류 목록:', errors);
+  };
+  
+  // ========== UI 버튼 자동 삽입 ==========
+  function injectBulkDownloadButton() {
+    // 이미 삽입되어 있으면 스킵
+    if (document.getElementById('bulkPdfDownloadBtn')) return true;
+    
+    // 엑셀 다운로드 버튼 찾기
+    const excelBtn = [...document.querySelectorAll('button')].find(b => 
+      /엑셀 다운로드/.test(b.textContent) && 
+      b.getAttribute('onclick')?.includes('downloadAgreementExcel')
+    );
+    if (!excelBtn) return false;
+    
+    // 학과 목록 수집 (캐시가 있으면)
+    const cache = window._agreementListCache || [];
+    const deptCount = {};
+    cache.forEach(a => {
+      const d = a.department || '미지정';
+      deptCount[d] = (deptCount[d] || 0) + 1;
+    });
+    const depts = Object.keys(deptCount).sort();
+    
+    // 드롭다운 컨테이너 생성
+    const wrapper = document.createElement('div');
+    wrapper.id = 'bulkPdfDownloadBtn';
+    wrapper.style.cssText = 'position:relative;display:inline-block;';
+    
+    const optionsHtml = depts.map(d => 
+      `<div class="bulkPdfOption" data-dept="${d.replace(/"/g,'&quot;')}" style="padding:10px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid #f3f4f6;">${d} <span style="color:#6b7280;font-size:12px;">(${deptCount[d]}명)</span></div>`
+    ).join('');
+    
+    wrapper.innerHTML = `
+      <button id="bulkPdfMainBtn" style="padding:10px 16px;background:#4338ca;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        📦 PDF 일괄 다운로드 <span style="font-size:11px;">▼</span>
+      </button>
+      <div id="bulkPdfDropdown" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:white;border:1px solid #d1d5db;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.15);min-width:240px;max-height:400px;overflow-y:auto;z-index:9999;">
+        <div class="bulkPdfOption" data-dept="__all__" style="padding:12px 14px;cursor:pointer;font-size:14px;font-weight:bold;background:#eef2ff;border-bottom:2px solid #c7d2fe;">📦 전체 (${cache.length}명)</div>
+        ${optionsHtml}
+      </div>
+    `;
+    
+    excelBtn.parentElement.appendChild(wrapper);
+    
+    // 이벤트 바인딩
+    const mainBtn = wrapper.querySelector('#bulkPdfMainBtn');
+    const dropdown = wrapper.querySelector('#bulkPdfDropdown');
+    
+    mainBtn.onclick = (e) => {
+      e.stopPropagation();
+      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    };
+    
+    document.addEventListener('click', (e) => {
+      if (!wrapper.contains(e.target)) dropdown.style.display = 'none';
+    });
+    
+    wrapper.querySelectorAll('.bulkPdfOption').forEach(opt => {
+      opt.onmouseenter = () => { opt.style.background = '#f9fafb'; };
+      opt.onmouseleave = () => { 
+        opt.style.background = opt.dataset.dept === '__all__' ? '#eef2ff' : ''; 
+      };
+      opt.onclick = () => {
+        dropdown.style.display = 'none';
+        const dept = opt.dataset.dept;
+        if (dept === '__all__') {
+          window.downloadAllAgreementsAsZip();
+        } else {
+          window.downloadAllAgreementsAsZip({ deptFilter: dept });
+        }
+      };
+    });
+    
+    console.log('✅ PDF 일괄 다운로드 버튼 삽입 완료');
+    return true;
+  }
+  
+  // ========== 버튼 자동 감지 (서약서 관리 패널 열릴 때마다) ==========
+  // 방법 1: 주기적 확인 (가장 안정적)
+  const checkInterval = setInterval(() => {
+    injectBulkDownloadButton();
+  }, 1000);
+  
+  // 방법 2: renderAgreementList 후크 (있으면 즉시 삽입)
+  const origRender = window.renderAgreementList;
+  if (typeof origRender === 'function') {
+    window.renderAgreementList = function(...args) {
+      const r = origRender.apply(this, args);
+      setTimeout(injectBulkDownloadButton, 100);
+      return r;
+    };
+  }
+  
+  console.log('✅ 서약서 일괄 PDF 다운로드 모듈 로드 완료');
+})();
+</script>
+
 </div>
 </body>
 </html>
