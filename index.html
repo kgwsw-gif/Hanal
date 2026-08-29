@@ -21662,6 +21662,266 @@ function fixDepartmentCounts(){
 })();
 </script>
 
+<!-- ============================================================
+     개인정보 파기 사유 시스템 (Block 1/3)
+     - 파기 사유 선택 다이얼로그
+     - reason 필드 순수 업데이트 (Firestore 보안 규칙 준수)
+     - 최근 로그 검색 (logId 미반환 대응)
+     - completelyDeleteStudent 훅 (자동 사유 저장)
+     ============================================================ -->
+<script>
+(function() {
+  console.log('🔧 개인정보 파기 사유 시스템 로드 시작');
+  
+  // ============================================================
+  // 1. 파기 사유 선택 다이얼로그
+  // ============================================================
+  window._askDeletionReason = function(studentName) {
+    return new Promise((resolve) => {
+      const existing = document.getElementById('deletionReasonModal');
+      if (existing) existing.remove();
+      
+      const html = `
+        <div id="deletionReasonModal" style="
+          position:fixed; inset:0; background:rgba(0,0,0,0.6);
+          z-index:99999; display:flex; align-items:center; justify-content:center;
+        ">
+          <div style="
+            background:#fff; border-radius:12px; padding:28px;
+            width:90%; max-width:480px; box-shadow:0 20px 60px rgba(0,0,0,0.3);
+          ">
+            <h3 style="margin:0 0 8px; font-size:18px; color:#111;">
+              🗑️ 파기 사유 선택
+            </h3>
+            <p style="margin:0 0 20px; color:#666; font-size:13px;">
+              ${studentName ? `<b>${studentName}</b> ` : ''}파기 사유를 선택해 주세요. (감사 증빙용)
+            </p>
+            
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer;">
+                <input type="radio" name="delReason" value="수료 완료" checked>
+                <span>수료 완료 (정상 수료 후 파기)</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer;">
+                <input type="radio" name="delReason" value="중도 퇴사">
+                <span>중도 퇴사</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer;">
+                <input type="radio" name="delReason" value="본인 요청">
+                <span>본인 요청 (개인정보 삭제 요구권 행사)</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer;">
+                <input type="radio" name="delReason" value="보유기간 경과">
+                <span>보유기간 경과 (5년 초과)</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; padding:10px; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer;">
+                <input type="radio" name="delReason" value="기타">
+                <span>기타 (아래 입력)</span>
+              </label>
+            </div>
+            
+            <textarea id="delReasonMemo" placeholder="추가 메모 (선택사항, 기타 선택 시 필수)" style="
+              width:100%; min-height:60px; padding:10px;
+              border:1px solid #d1d5db; border-radius:8px;
+              font-family:inherit; font-size:13px; resize:vertical;
+              box-sizing:border-box;
+            "></textarea>
+            
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+              <button id="delReasonCancel" style="
+                padding:10px 20px; border:1px solid #d1d5db; background:#fff;
+                border-radius:8px; cursor:pointer; font-size:14px;
+              ">취소</button>
+              <button id="delReasonOk" style="
+                padding:10px 20px; border:none; background:#dc2626; color:#fff;
+                border-radius:8px; cursor:pointer; font-size:14px; font-weight:600;
+              ">파기 진행</button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', html);
+      
+      const modal = document.getElementById('deletionReasonModal');
+      
+      document.getElementById('delReasonCancel').onclick = () => {
+        modal.remove();
+        resolve(null);
+      };
+      
+      document.getElementById('delReasonOk').onclick = () => {
+        const selected = document.querySelector('input[name="delReason"]:checked').value;
+        const memo = document.getElementById('delReasonMemo').value.trim();
+        
+        if (selected === '기타' && !memo) {
+          alert('기타 선택 시 사유를 입력해 주세요.');
+          return;
+        }
+        
+        const finalReason = memo ? `${selected} - ${memo}` : selected;
+        modal.remove();
+        resolve(finalReason);
+      };
+    });
+  };
+  
+  // ============================================================
+  // 2. reason 필드 순수 업데이트 (Firestore 규칙 준수)
+  //    ⚠️ 중요: reason 필드만 업데이트, updatedAt 등 절대 추가 금지
+  // ============================================================
+  window._updateDeletionReason = async function(logId, reason) {
+    if (!logId || !reason) {
+      console.warn('logId 또는 reason이 비어있음');
+      return { success: false };
+    }
+    
+    try {
+      const db = firebase.firestore();
+      await db.collection('deletionLogs').doc(logId).update({
+        reason: reason
+      });
+      console.log('✅ 파기 사유 저장 성공:', logId, '→', reason);
+      return { success: true };
+    } catch (e) {
+      console.error('❌ 파기 사유 저장 실패:', e.code, e.message);
+      return { success: false, error: e.message };
+    }
+  };
+  
+  // ============================================================
+  // 3. 최근 로그 검색 (logId 미반환 대응)
+  //    executor.uid + executedAt 기준으로 방금 만든 로그 정확히 매칭
+  // ============================================================
+  window._findRecentDeletionLog = async function(startTime, maxWaitMs = 8000) {
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    const uid = auth.currentUser?.uid;
+    
+    if (!uid) {
+      console.warn('  ⚠️ 인증 UID 없음');
+      return null;
+    }
+    
+    const interval = 500;
+    const maxAttempts = Math.ceil(maxWaitMs / interval);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const snap = await db.collection('deletionLogs')
+          .orderBy('executedAt', 'desc')
+          .limit(10)
+          .get();
+        
+        for (const doc of snap.docs) {
+          const data = doc.data();
+          const executorUid = data.executor?.uid;
+          const executedAt = data.executedAt?.toMillis?.() || 0;
+          
+          if (executorUid === uid && executedAt >= startTime - 1000) {
+            console.log(`  ✅ 로그 발견 (${attempt}회 시도): ${doc.id}`);
+            return doc.id;
+          }
+        }
+        
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, interval));
+        }
+      } catch (e) {
+        console.warn(`  ⚠️ 조회 오류 (${attempt}회):`, e.message);
+        await new Promise(r => setTimeout(r, interval));
+      }
+    }
+    
+    console.warn(`  ⚠️ ${maxWaitMs}ms 동안 로그 찾지 못함`);
+    return null;
+  };
+  
+  // ============================================================
+  // 4. completelyDeleteStudent 훅 v2
+  //    파기 전 사유 입력 → 파기 실행 → 로그에 사유 저장
+  // ============================================================
+  function installDeletionHook() {
+    if (typeof window.completelyDeleteStudent !== 'function') {
+      console.warn('⚠️ completelyDeleteStudent 아직 없음. 500ms 후 재시도');
+      setTimeout(installDeletionHook, 500);
+      return;
+    }
+    
+    // 이미 훅이 있으면 skip (중복 방지)
+    if (window._completelyDeleteStudent_original) {
+      console.log('  ℹ️ 훅 이미 설치됨. 재설치 skip');
+      return;
+    }
+    
+    window._completelyDeleteStudent_original = window.completelyDeleteStudent;
+    
+    window.completelyDeleteStudent = async function(student, options = {}) {
+      console.log('🎯 [훅] completelyDeleteStudent 호출됨');
+      
+      let reason = options.reason || null;
+      
+      if (!reason && !options.skipReasonPrompt) {
+        const studentName = student?.name || student?.이름 || '(이름 없음)';
+        reason = await window._askDeletionReason(studentName);
+        
+        if (!reason) {
+          console.log('❌ 사용자가 파기를 취소함');
+          return { success: false, cancelled: true };
+        }
+      }
+      
+      const startTime = Date.now();
+      console.log('🗑️ 파기 실행 중... 사유:', reason);
+      
+      let result;
+      let originalError = null;
+      try {
+        result = await window._completelyDeleteStudent_original(student, options);
+      } catch (e) {
+        originalError = e;
+        console.warn('  ⚠️ 원본 함수 오류:', e.message);
+      }
+      
+      let logId = result?.logId || null;
+      
+      if (!logId && reason) {
+        console.log('🔍 logId 미반환 → 최신 로그 검색 중...');
+        await new Promise(r => setTimeout(r, 800));
+        logId = await window._findRecentDeletionLog(startTime);
+      }
+      
+      if (reason && logId) {
+        const updateRes = await window._updateDeletionReason(logId, reason);
+        if (updateRes.success) {
+          console.log('✅ 파기 로그에 사유 기록 완료:', logId);
+          if (!result) result = {};
+          result.logId = logId;
+          result.reason = reason;
+        } else {
+          console.warn('⚠️ 사유 기록 실패:', updateRes.error);
+        }
+      } else if (reason && !logId) {
+        console.warn('⚠️ logId를 찾지 못해 사유 저장 스킵');
+      }
+      
+      if (originalError && !result) {
+        return { success: false, error: originalError.message, cancelled: false };
+      }
+      
+      return result || { success: false };
+    };
+    
+    console.log('✅ completelyDeleteStudent 훅 v2 설치 완료');
+  }
+  
+  // 즉시 설치 시도 (원본 함수가 없으면 500ms 후 재시도)
+  installDeletionHook();
+  
+  console.log('✅ 개인정보 파기 사유 시스템 로드 완료');
+})();
+</script>
+
 <!-- 📋 슈퍼관리자 파기 관련 UI (파기 이력 + 준수 보고서 버튼) -->
 <script>
 (function initSuperAdminPrivacyUI() {
