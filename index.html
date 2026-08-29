@@ -21347,6 +21347,100 @@ function fixDepartmentCounts(){
 </script>
 <!-- ============================================ -->
 
+<!-- ============================================ -->
+<!-- 🔗 deleteStudentAction 완전 파기 훅 통합 -->
+<!-- ============================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // deleteStudentAction과 completelyDeleteStudent가 모두 로드될 때까지 대기
+  function waitForFunctions(callback, maxWait = 15000) {
+    const startTime = Date.now();
+    const check = setInterval(() => {
+      if (typeof window.deleteStudentAction === 'function' 
+          && typeof window.completelyDeleteStudent === 'function') {
+        clearInterval(check);
+        callback();
+      } else if (Date.now() - startTime > maxWait) {
+        clearInterval(check);
+        console.warn('⚠️ 완전 파기 훅 적용 대기 시간 초과');
+      }
+    }, 200);
+  }
+
+  waitForFunctions(() => {
+    if (window.__completeDeletionHookApplied) {
+      console.warn('⚠️ 완전 파기 훅이 이미 적용되어 있습니다.');
+      return;
+    }
+
+    const previousHook = window.deleteStudentAction;
+
+    window.deleteStudentAction = async function() {
+      // 1. 삭제 대상 이름/학과 확보 (원본 실행 전 미리)
+      const nameSelect = document.getElementById('delStudentName');
+      const deptSelect = document.getElementById('delStudentDept') 
+                      || document.getElementById('studentDept')
+                      || document.getElementById('departmentSelect');
+      const targetName = nameSelect ? nameSelect.value : null;
+      const targetDept = deptSelect ? deptSelect.value : null;
+
+      console.log(`\n🔥 [완전 파기 통합] 삭제 시작: ${targetName} (${targetDept || '자동감지'})`);
+
+      // 2. 기존 훅 실행 (원본 삭제 + 배정 이력 익명화)
+      let originalResult;
+      try {
+        originalResult = await previousHook.apply(this, arguments);
+      } catch(e) {
+        console.error('❌ 기존 삭제 로직 실패:', e);
+        return originalResult;
+      }
+
+      // 3. 완전 파기 실행
+      if (!targetName) {
+        console.warn('⚠️ 대상 이름이 없어 완전 파기를 건너뜁니다.');
+        return originalResult;
+      }
+
+      try {
+        const result = await window.completelyDeleteStudent(
+          targetName, 
+          targetDept || null,
+          { skipConfirm: true }
+        );
+
+        if (result.success) {
+          console.log(`✅ 완전 파기 완료: ${result.successCount}/${result.totalCount}건`);
+          if (typeof showToast === 'function') {
+            showToast(
+              `개인정보 완전 파기: ${result.totalCount}건 처리`,
+              'success'
+            );
+          }
+        } else if (result.error !== 'user-cancelled') {
+          console.warn(`⚠️ 완전 파기 실패: ${result.error}`);
+          if (typeof showToast === 'function') {
+            showToast(`완전 파기 일부 실패: ${result.error}`, 'warning');
+          }
+        }
+      } catch(e) {
+        console.error('❌ [완전 파기 통합] 실패:', e);
+        if (typeof showToast === 'function') {
+          showToast('완전 파기 중 오류 발생 (로그 확인)', 'error');
+        }
+      }
+
+      return originalResult;
+    };
+
+    window.__completeDeletionHookApplied = true;
+    console.log('✅ 완전 파기 훅 적용 완료 (이중 훅: 배정 이력 익명화 + 12개 컬렉션 완전 파기)');
+  });
+})();
+</script>
+<!-- ============================================ -->
+
 </div>
 </body>
 </html>
