@@ -21922,6 +21922,127 @@ function fixDepartmentCounts(){
 })();
 </script>
 
+<!-- ============================================================
+     준수 보고서 웹 관리 기준 섹션 (Block 2/3)
+     - 9개 항목의 웹 관리 기준 표
+     - openPrivacyComplianceReport 훅으로 자동 삽입
+     ============================================================ -->
+<script>
+(function() {
+  console.log('🔧 준수 보고서 웹 관리 기준 섹션 로드 시작');
+  
+  // ============================================================
+  // 웹 관리 기준 섹션 빌더 (9개 항목)
+  // ============================================================
+  window._buildEnhancedStandardsSection = function() {
+    const standards = [
+      { no:1, category:'파기 방법 문서화', ours:'시스템 자동 문서화 + 실시간 통계 반영',           evidence:'준수 보고서 자동 생성 기능' },
+      { no:2, category:'파기 이력 보관',   ours:'append-only 3년 (수정·삭제 불가)',                evidence:'Firestore 보안 규칙: update/delete 금지' },
+      { no:3, category:'파기 사유 기록',   ours:'파기 시점 강제 입력 + 로그 필드 저장',             evidence:'_askDeletionReason 강제 노출' },
+      { no:4, category:'파기 권한 통제',   ours:'슈퍼관리자만 (isSuperAdmin 검증)',                 evidence:'보안 규칙 + 클라이언트 이중 검증' },
+      { no:5, category:'파기 전 확인',     ours:'DRY-RUN 필수 + 사유 선택 + 확인 다이얼로그',       evidence:'3단계 검증 프로세스' },
+      { no:6, category:'민감정보 암호화',  ours:'Firebase Auth 위임 + Firestore 격리',             evidence:'평문 저장 원천 차단' },
+      { no:7, category:'접근 제한',        ours:'Firestore 규칙 + 클라이언트 훅 이중',             evidence:'firestore.rules 참조' },
+      { no:8, category:'파기 정합성 검증', ours:'12개 컬렉션 슈퍼관리자 상시 스캔 + 잔존 데이터 감지', evidence:'준수 보고서 진단 스크립트' },
+      { no:9, category:'감사 증빙',        ours:'실시간 준수 보고서 + 파기 관리대장 자동 출력',      evidence:'문서번호 자동 채번 (파기대장-YYYY-NNN)' }
+    ];
+    
+    let rows = '';
+    standards.forEach(s => {
+      rows += `
+        <tr>
+          <td style="border:1px solid #cbd5e1;padding:4px 6px;text-align:center;">${s.no}</td>
+          <td style="border:1px solid #cbd5e1;padding:4px 6px;">${s.category}</td>
+          <td style="border:1px solid #cbd5e1;padding:4px 6px;color:#1e40af;font-weight:600;">${s.ours}</td>
+          <td style="border:1px solid #cbd5e1;padding:4px 6px;color:#555;font-size:9.5px;">${s.evidence}</td>
+        </tr>
+      `;
+    });
+    
+    return `
+      <div id="enhancedStandardsSection" style="margin-top:24px;page-break-inside:auto;">
+        <h3 style="font-size:14px;margin:0 0 8px;color:#1e40af;border-left:4px solid #1e40af;padding-left:8px;">
+          ■ 웹 관리 기준
+        </h3>
+        <table style="width:100%;border-collapse:collapse;font-size:10px;">
+          <thead>
+            <tr style="background:#eff6ff;">
+              <th style="border:1px solid #cbd5e1;padding:4px 6px;width:6%;">No</th>
+              <th style="border:1px solid #cbd5e1;padding:4px 6px;width:22%;">관리 항목</th>
+              <th style="border:1px solid #cbd5e1;padding:4px 6px;width:42%;">본 앱 적용 기준</th>
+              <th style="border:1px solid #cbd5e1;padding:4px 6px;width:30%;">증빙 근거</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  };
+  
+  // ============================================================
+  // openPrivacyComplianceReport 훅
+  // 보고서 모달이 열리면 자동으로 웹 관리 기준 섹션 삽입
+  // ============================================================
+  function installReportHook() {
+    if (typeof window.openPrivacyComplianceReport !== 'function') {
+      console.warn('⚠️ openPrivacyComplianceReport 아직 없음. 500ms 후 재시도');
+      setTimeout(installReportHook, 500);
+      return;
+    }
+    
+    // 중복 훅 방지
+    if (window._openPrivacyComplianceReport_originalV2) {
+      console.log('  ℹ️ 훅 이미 설치됨. 재설치 skip');
+      return;
+    }
+    
+    window._openPrivacyComplianceReport_originalV2 = window.openPrivacyComplianceReport;
+    
+    window.openPrivacyComplianceReport = async function() {
+      await window._openPrivacyComplianceReport_originalV2.apply(this, arguments);
+      
+      // 모달이 그려진 후 웹 관리 기준 섹션 삽입
+      setTimeout(() => {
+        const modal = document.getElementById('privacyReportModal');
+        if (!modal) return;
+        
+        // 중복 삽입 방지
+        if (modal.querySelector('#enhancedStandardsSection')) return;
+        
+        const content = modal.querySelector('.privacy-report-content');
+        if (!content) {
+          console.warn('⚠️ .privacy-report-content 없음');
+          return;
+        }
+        
+        // 인쇄/닫기 버튼 div 찾기
+        let buttonDiv = null;
+        const printBtn = content.querySelector('button[onclick*="_printViaIframe"], button[onclick*="print"]');
+        if (printBtn) {
+          buttonDiv = printBtn.closest('div[style*="text-align"]') || printBtn.parentElement;
+        }
+        
+        const html = window._buildEnhancedStandardsSection();
+        
+        if (buttonDiv && buttonDiv.parentElement === content) {
+          buttonDiv.insertAdjacentHTML('beforebegin', html);
+          console.log('✅ 웹 관리 기준 섹션 삽입 완료 (버튼 앞)');
+        } else {
+          content.insertAdjacentHTML('beforeend', html);
+          console.log('✅ 웹 관리 기준 섹션 삽입 완료 (content 끝)');
+        }
+      }, 300);
+    };
+    
+    console.log('✅ openPrivacyComplianceReport 훅 설치 완료');
+  }
+  
+  installReportHook();
+  
+  console.log('✅ 준수 보고서 웹 관리 기준 섹션 로드 완료');
+})();
+</script>
+
 <!-- 📋 슈퍼관리자 파기 관련 UI (파기 이력 + 준수 보고서 버튼) -->
 <script>
 (function initSuperAdminPrivacyUI() {
