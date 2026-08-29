@@ -22042,6 +22042,512 @@ function fixDepartmentCounts(){
   console.log('✅ 준수 보고서 웹 관리 기준 섹션 로드 완료');
 })();
 </script>
+<!-- ============================================================
+     개인정보 파기 관리대장 시스템 (Block 3/3)
+     - 파기 로그 조회 (DRY-RUN 제외, 필터, 문서번호 채번)
+     - 관리대장 모달 UI (조회/CSV/인쇄)
+     - 슈퍼관리자 [파기 관리대장] 버튼 자동 삽입
+     ============================================================ -->
+<script>
+(function() {
+  console.log('🔧 개인정보 파기 관리대장 시스템 로드 시작');
+  
+  // ============================================================
+  // 유틸: 컬렉션별 파기 건수 요약
+  // ============================================================
+  function summarizeCollections(collections) {
+    if (!collections || typeof collections !== 'object') return 0;
+    let total = 0;
+    Object.values(collections).forEach(v => {
+      if (typeof v === 'number') total += v;
+      else if (v?.count) total += v.count;
+      else if (v?.deleted) total += v.deleted;
+    });
+    return total;
+  }
+  
+  // ============================================================
+  // 1. 파기 로그 조회 (필터 + 문서번호 채번)
+  // ============================================================
+  window._fetchDeletionLedger = async function(filters = {}) {
+    console.log('📋 파기 로그 조회 중...', filters);
+    
+    try {
+      const db = firebase.firestore();
+      const now = new Date();
+      const defaultFrom = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      const fromDate = filters.from ? new Date(filters.from) : defaultFrom;
+      const toDate = filters.to ? new Date(filters.to + 'T23:59:59') : now;
+      
+      const snap = await db.collection('deletionLogs')
+        .orderBy('executedAt', 'desc')
+        .limit(500)
+        .get();
+      
+      const logs = [];
+      snap.forEach(doc => {
+        const d = doc.data();
+        const executedAt = d.executedAt?.toDate?.() || null;
+        
+        // DRY-RUN 제외
+        if (d.dryRun === true) return;
+        
+        // 기간 필터
+        if (executedAt) {
+          if (executedAt < fromDate) return;
+          if (executedAt > toDate) return;
+        }
+        
+        // 사유 필터
+        if (filters.reason && filters.reason !== 'all') {
+          const r = d.reason || '';
+          if (!r.startsWith(filters.reason)) return;
+        }
+        
+        // 실행자 필터
+        if (filters.executor && filters.executor !== 'all') {
+          if (d.executor?.uid !== filters.executor) return;
+        }
+        
+        // 대상자 이름 안전 파싱
+        let resolvedName = null;
+        const target = d.target || {};
+        if (target.name && target.name !== 'null') resolvedName = target.name;
+        else if (target['이름']) resolvedName = target['이름'];
+        else if (target.studentName) resolvedName = target.studentName;
+        else if (target.displayName) resolvedName = target.displayName;
+        
+        if (!resolvedName && typeof d.summary === 'string') {
+          const match = d.summary.match(/대상[:\s]+([^\s,]+)/);
+          if (match) resolvedName = match[1];
+        }
+        
+        if (!resolvedName) resolvedName = '(이름 미기재)';
+        
+        logs.push({
+          id: doc.id,
+          executedAt: executedAt,
+          target: { ...target, _resolvedName: resolvedName },
+          reason: d.reason || '(미기재)',
+          executor: d.executor || {},
+          collections: d.collections || {},
+          summary: typeof d.summary === 'string' ? d.summary : '',
+          errors: d.errors || []
+        });
+      });
+      
+      // 오래된 것부터 순번 부여 (문서번호 채번)
+      logs.reverse();
+      logs.forEach((log, i) => {
+        const year = log.executedAt ? log.executedAt.getFullYear() : new Date().getFullYear();
+        const seq = String(i + 1).padStart(3, '0');
+        log.docNo = `파기대장-${year}-${seq}`;
+        log.seq = i + 1;
+      });
+      logs.reverse();  // 다시 최신순
+      
+      console.log(`  ✅ ${logs.length}건 조회 완료 (DRY-RUN 제외)`);
+      return logs;
+    } catch (e) {
+      console.error('  ❌ 조회 실패:', e);
+      return [];
+    }
+  };
+  
+  // ============================================================
+  // 2. 관리대장 모달 열기
+  // ============================================================
+  window.openDeletionLedger = async function() {
+    console.log('📖 파기 관리대장 열기');
+    
+    const existing = document.getElementById('deletionLedgerModal');
+    if (existing) existing.remove();
+    
+    const html = `
+      <div id="deletionLedgerModal" style="
+        position:fixed;inset:0;background:rgba(0,0,0,0.6);
+        z-index:99999;display:flex;align-items:center;justify-content:center;
+        padding:20px;box-sizing:border-box;
+      ">
+        <div style="
+          background:#fff;border-radius:12px;
+          width:100%;max-width:1300px;max-height:90vh;
+          display:flex;flex-direction:column;overflow:hidden;
+        ">
+          <div style="padding:18px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <h2 style="margin:0;font-size:20px;color:#111;">📋 개인정보 파기 관리대장</h2>
+              <p style="margin:6px 0 0;font-size:13px;color:#666;">감사 증빙용 실전 파기 기록 (DRY-RUN 제외)</p>
+            </div>
+            <button onclick="document.getElementById('deletionLedgerModal').remove()" style="
+              padding:10px 18px;border:1px solid #d1d5db;background:#fff;
+              border-radius:8px;cursor:pointer;font-size:15px;font-weight:500;
+            ">✕ 닫기</button>
+          </div>
+          
+          <div style="padding:16px 24px;background:#f9fafb;border-bottom:1px solid #e5e7eb;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="font-size:15px;color:#374151;font-weight:500;">기간:</label>
+              <input type="date" id="ledgerFromDate" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+              <span style="color:#999;font-size:16px;">~</span>
+              <input type="date" id="ledgerToDate" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="font-size:15px;color:#374151;font-weight:500;">사유:</label>
+              <select id="ledgerReasonFilter" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;min-width:130px;">
+                <option value="all">전체</option>
+                <option value="수료 완료">수료 완료</option>
+                <option value="중도 퇴사">중도 퇴사</option>
+                <option value="본인 요청">본인 요청</option>
+                <option value="보유기간 경과">보유기간 경과</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+            <button id="ledgerApplyFilter" style="
+              padding:9px 20px;background:#3b82f6;color:#fff;border:none;
+              border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;
+            ">🔍 조회</button>
+            <div style="margin-left:auto;display:flex;gap:8px;">
+              <button id="ledgerExportCsv" style="
+                padding:9px 20px;background:#10b981;color:#fff;border:none;
+                border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;
+              ">📥 CSV</button>
+              <button id="ledgerPrint" style="
+                padding:9px 20px;background:#374151;color:#fff;border:none;
+                border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;
+              ">🖨️ 인쇄</button>
+            </div>
+          </div>
+          
+          <div id="ledgerListContainer" style="flex:1;overflow:auto;padding:16px 24px;">
+            <div style="text-align:center;padding:40px;color:#999;font-size:14px;">조회 중...</div>
+          </div>
+          
+          <div id="ledgerSummary" style="padding:12px 24px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:14px;color:#374151;text-align:right;font-weight:500;">
+            총 0건
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', html);
+    
+    const now = new Date();
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    document.getElementById('ledgerFromDate').value = threeMonthsAgo.toISOString().split('T')[0];
+    document.getElementById('ledgerToDate').value = now.toISOString().split('T')[0];
+    
+    document.getElementById('ledgerApplyFilter').onclick = () => window._renderLedgerList();
+    document.getElementById('ledgerExportCsv').onclick = () => window._exportLedgerCsv();
+    document.getElementById('ledgerPrint').onclick = () => window._printLedger();
+    
+    await window._renderLedgerList();
+  };
+  
+  // ============================================================
+  // 3. 목록 렌더링
+  // ============================================================
+  window._renderLedgerList = async function() {
+    const container = document.getElementById('ledgerListContainer');
+    const summaryEl = document.getElementById('ledgerSummary');
+    if (!container) return;
+    
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;font-size:14px;">조회 중...</div>';
+    
+    const from = document.getElementById('ledgerFromDate')?.value;
+    const to = document.getElementById('ledgerToDate')?.value;
+    const reason = document.getElementById('ledgerReasonFilter')?.value;
+    
+    const logs = await window._fetchDeletionLedger({ from, to, reason });
+    window._currentLedgerData = logs;
+    
+    if (logs.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:#999;font-size:14px;">조회된 파기 기록이 없습니다.</div>';
+      if (summaryEl) summaryEl.textContent = '총 0건';
+      return;
+    }
+    
+    let rows = '';
+    logs.forEach(log => {
+      const dt = log.executedAt ? 
+        log.executedAt.toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) 
+        : '(시각 없음)';
+      const targetName = log.target?._resolvedName || '(이름 미기재)';
+      const executorName = log.executor?.name || log.executor?.email || '(알 수 없음)';
+      const collectionCount = summarizeCollections(log.collections);
+      const errorMark = (log.errors && log.errors.length > 0) ? ' ⚠️' : '';
+      
+      rows += `
+        <tr style="border-bottom:1px solid #f3f4f6;">
+          <td style="padding:12px 10px;text-align:center;font-size:13px;color:#666;">${log.seq}</td>
+          <td style="padding:12px 10px;font-size:13px;font-family:monospace;color:#1e40af;">${log.docNo}</td>
+          <td style="padding:12px 10px;font-size:14px;">${dt}</td>
+          <td style="padding:12px 10px;font-size:14px;font-weight:600;">${targetName}${errorMark}</td>
+          <td style="padding:12px 10px;font-size:14px;color:#374151;">${log.reason}</td>
+          <td style="padding:12px 10px;font-size:14px;color:#374151;">${executorName}</td>
+          <td style="padding:12px 10px;font-size:13px;text-align:center;color:#666;">${collectionCount}건</td>
+        </tr>
+      `;
+    });
+    
+    container.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#f3f4f6;position:sticky;top:0;">
+            <th style="padding:12px 10px;font-size:14px;text-align:center;width:5%;">순번</th>
+            <th style="padding:12px 10px;font-size:14px;text-align:left;width:16%;">문서번호</th>
+            <th style="padding:12px 10px;font-size:14px;text-align:left;width:16%;">파기일시</th>
+            <th style="padding:12px 10px;font-size:14px;text-align:left;width:15%;">대상자</th>
+            <th style="padding:12px 10px;font-size:14px;text-align:left;width:20%;">파기 사유</th>
+            <th style="padding:12px 10px;font-size:14px;text-align:left;width:18%;">실행자</th>
+            <th style="padding:12px 10px;font-size:14px;text-align:center;width:10%;">파기 항목</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+    
+    if (summaryEl) summaryEl.textContent = `총 ${logs.length}건`;
+  };
+  
+  // ============================================================
+  // 4. CSV 다운로드
+  // ============================================================
+  window._exportLedgerCsv = function() {
+    const logs = window._currentLedgerData || [];
+    if (logs.length === 0) {
+      alert('내보낼 데이터가 없습니다.');
+      return;
+    }
+    
+    const headers = ['순번', '문서번호', '파기일시', '대상자', '대상ID', '파기사유', '실행자', '실행자UID', '파기항목수', '오류여부'];
+    const rows = logs.map(log => [
+      log.seq,
+      log.docNo,
+      log.executedAt ? log.executedAt.toISOString() : '',
+      log.target?._resolvedName || '',
+      log.target?.id || '',
+      (log.reason || '').replace(/,/g, ' '),
+      log.executor?.name || log.executor?.email || '',
+      log.executor?.uid || '',
+      summarizeCollections(log.collections),
+      (log.errors && log.errors.length > 0) ? 'Y' : 'N'
+    ]);
+    
+    let csv = '\uFEFF';
+    csv += headers.join(',') + '\n';
+    rows.forEach(r => {
+      csv += r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `개인정보파기관리대장_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    console.log('  ✅ CSV 다운로드 완료');
+  };
+  
+  // ============================================================
+  // 5. A4 인쇄 (20건/페이지, iframe 격리)
+  // ============================================================
+  window._printLedger = function() {
+    const logs = window._currentLedgerData || [];
+    if (logs.length === 0) {
+      alert('인쇄할 데이터가 없습니다.');
+      return;
+    }
+    
+    const ITEMS_PER_PAGE = 20;
+    const totalPages = Math.ceil(logs.length / ITEMS_PER_PAGE);
+    const now = new Date();
+    const printDate = now.toLocaleString('ko-KR');
+    
+    let pagesHtml = '';
+    for (let page = 0; page < totalPages; page++) {
+      const start = page * ITEMS_PER_PAGE;
+      const end = Math.min(start + ITEMS_PER_PAGE, logs.length);
+      const pageLogs = logs.slice(start, end);
+      
+      let rows = '';
+      pageLogs.forEach(log => {
+        const dt = log.executedAt ? 
+          log.executedAt.toLocaleString('ko-KR', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+          : '';
+        const targetName = log.target?._resolvedName || '';
+        const executorName = log.executor?.name || log.executor?.email || '';
+        const collectionCount = summarizeCollections(log.collections);
+        
+        rows += `
+          <tr>
+            <td style="text-align:center;">${log.seq}</td>
+            <td style="font-family:monospace;font-size:9px;">${log.docNo}</td>
+            <td style="font-size:9px;">${dt}</td>
+            <td>${targetName}</td>
+            <td>${log.reason}</td>
+            <td>${executorName}</td>
+            <td style="text-align:center;">${collectionCount}</td>
+          </tr>
+        `;
+      });
+      
+      pagesHtml += `
+        <div class="ledger-page">
+          <div class="ledger-header">
+            <h1>개인정보 파기 관리대장</h1>
+            <div class="meta">
+              <span>작성일: ${printDate}</span>
+              <span>작성부서: 사감실</span>
+              <span>페이지: ${page + 1} / ${totalPages}</span>
+            </div>
+          </div>
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th style="width:5%;">순번</th>
+                <th style="width:15%;">문서번호</th>
+                <th style="width:14%;">파기일시</th>
+                <th style="width:15%;">대상자</th>
+                <th style="width:24%;">파기 사유</th>
+                <th style="width:17%;">실행자</th>
+                <th style="width:10%;">파기 항목</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+    
+    const printHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>개인정보 파기 관리대장</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          * { box-sizing: border-box; }
+          body { 
+            margin: 0; padding: 0; 
+            font-family: 'Malgun Gothic', sans-serif; 
+            background: #fff !important;
+            color: #000;
+          }
+          .ledger-page { 
+            page-break-after: always; 
+            padding: 0;
+          }
+          .ledger-page:last-child { page-break-after: auto; }
+          .ledger-header { 
+            border-bottom: 2px solid #000; 
+            padding-bottom: 8px; 
+            margin-bottom: 12px; 
+          }
+          .ledger-header h1 { 
+            margin: 0 0 6px; 
+            font-size: 16px; 
+            text-align: center; 
+          }
+          .meta { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 10px; 
+            color: #333; 
+          }
+          .ledger-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 10px; 
+          }
+          .ledger-table th, .ledger-table td { 
+            border: 1px solid #333; 
+            padding: 4px 5px; 
+            text-align: left; 
+            word-break: break-all;
+          }
+          .ledger-table th { 
+            background: #f0f0f0; 
+            font-weight: 600; 
+            text-align: center; 
+          }
+        </style>
+      </head>
+      <body>${pagesHtml}</body>
+      </html>
+    `;
+    
+    const oldIframe = document.getElementById('ledgerPrintIframe');
+    if (oldIframe) oldIframe.remove();
+    
+    const iframe = document.createElement('iframe');
+    iframe.id = 'ledgerPrintIframe';
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:210mm;height:297mm;border:0;';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(printHtml);
+    doc.close();
+    
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => iframe.remove(), 1000);
+    }, 300);
+    
+    console.log(`  ✅ 인쇄 준비 완료 (${totalPages}페이지, ${logs.length}건)`);
+  };
+  
+  // ============================================================
+  // 6. 슈퍼관리자 [파기 관리대장] 버튼 자동 삽입
+  // ============================================================
+  window._injectLedgerButton = function() {
+    if (document.querySelector('[data-privacy-btn="ledger"]')) return false;
+    
+    const complianceBtn = document.querySelector('[data-privacy-btn="report"]');
+    if (!complianceBtn) return false;
+    
+    const btnHtml = `
+      <button data-privacy-btn="ledger" onclick="window.openDeletionLedger()" 
+        class="py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200">
+        <i class="fas fa-clipboard-list text-gray-400 text-2xl mb-1"></i>
+        <div class="text-sm font-bold text-gray-500">파기 관리대장</div>
+      </button>
+    `;
+    
+    complianceBtn.insertAdjacentHTML('afterend', btnHtml);
+    console.log('  ✅ [파기 관리대장] 버튼 삽입 완료');
+    return true;
+  };
+  
+  // 즉시 삽입 시도
+  window._injectLedgerButton();
+  
+  // MutationObserver: SPA 페이지 전환 시 자동 재삽입
+  if (window._ledgerButtonObserver) {
+    window._ledgerButtonObserver.disconnect();
+  }
+  window._ledgerButtonObserver = new MutationObserver(() => {
+    const complianceBtn = document.querySelector('[data-privacy-btn="report"]');
+    const ledgerBtn = document.querySelector('[data-privacy-btn="ledger"]');
+    if (complianceBtn && !ledgerBtn) {
+      window._injectLedgerButton();
+    }
+  });
+  window._ledgerButtonObserver.observe(document.body, { childList: true, subtree: true });
+  
+  // 폴링 백업 (초기 3회)
+  [500, 1500, 3000].forEach(delay => {
+    setTimeout(() => window._injectLedgerButton(), delay);
+  });
+  
+  console.log('✅ 개인정보 파기 관리대장 시스템 로드 완료');
+})();
+</script>
+
 
 <!-- 📋 슈퍼관리자 파기 관련 UI (파기 이력 + 준수 보고서 버튼) -->
 <script>
