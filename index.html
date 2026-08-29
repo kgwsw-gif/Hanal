@@ -21017,6 +21017,335 @@ function fixDepartmentCounts(){
   }, { passive: true });
 })();
 </script>
+<!-- ============================================ -->
+<!-- 🔒 개인정보 완전 파기 시스템 (개인정보보호법 준수) -->
+<!-- ============================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // Firebase 초기화 대기
+  function waitForFirebase(callback, maxWait = 10000) {
+    const startTime = Date.now();
+    const check = setInterval(() => {
+      if (typeof firebase !== 'undefined' && firebase.firestore && firebase.auth) {
+        clearInterval(check);
+        callback();
+      } else if (Date.now() - startTime > maxWait) {
+        clearInterval(check);
+        console.error('❌ Firebase 초기화 타임아웃');
+      }
+    }, 100);
+  }
+
+  waitForFirebase(() => {
+    // ────────────────────────────────
+    // 1. 파기 로그 기록 함수
+    // ────────────────────────────────
+    window.writeDeletionLog = async function(logData) {
+      try {
+        const db = firebase.firestore();
+        const currentUser = firebase.auth().currentUser;
+        if (!currentUser) {
+          console.error('❌ 로그인 상태가 아닙니다.');
+          return { success: false, error: 'not-authenticated' };
+        }
+        const logEntry = {
+          type: logData.type || 'student',
+          target: {
+            name: logData.name || null,
+            dept: logData.dept || null,
+            detectedAuto: logData.detectedAuto || false
+          },
+          summary: {
+            totalCount: logData.totalCount || 0,
+            nameBasedDocs: logData.nameBasedDocs || 0,
+            queryMatchedDocs: logData.queryMatchedDocs || 0,
+            arrayRemoved: logData.arrayRemoved || 0,
+            failedCount: logData.failedCount || 0
+          },
+          collections: logData.collections || {},
+          executor: {
+            email: currentUser.email || 'unknown',
+            uid: currentUser.uid,
+            displayName: currentUser.displayName || currentUser.email || 'unknown'
+          },
+          executedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          durationMs: logData.durationMs || 0,
+          dryRun: logData.dryRun || false,
+          errors: logData.errors || []
+        };
+        const docRef = await db.collection('deletionLogs').add(logEntry);
+        return { success: true, logId: docRef.id };
+      } catch (err) {
+        console.error('❌ 파기 로그 기록 실패:', err);
+        return { success: false, error: err.message };
+      }
+    };
+
+    // ────────────────────────────────
+    // 2. 파기 로그 조회 함수
+    // ────────────────────────────────
+    window.viewDeletionLogs = async function(limit = 20) {
+      try {
+        const db = firebase.firestore();
+        const snapshot = await db.collection('deletionLogs')
+          .orderBy('executedAt', 'desc').limit(limit).get();
+        if (snapshot.empty) {
+          console.log('📋 파기 로그가 없습니다.');
+          return [];
+        }
+        const logs = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          logs.push({
+            id: doc.id,
+            type: data.type,
+            target: `${data.target?.name || '-'} (${data.target?.dept || '-'})`,
+            totalCount: data.summary?.totalCount || 0,
+            executor: data.executor?.email || '-',
+            executedAt: data.executedAt?.toDate?.().toLocaleString('ko-KR') || '-',
+            dryRun: data.dryRun ? '🔍 미리보기' : '✅ 실제 파기'
+          });
+        });
+        console.table(logs);
+        console.log(`📋 총 ${logs.length}건의 파기 로그`);
+        return logs;
+      } catch (err) {
+        console.error('❌ 로그 조회 실패:', err);
+        return [];
+      }
+    };
+
+    // ────────────────────────────────
+    // 3. 학과 자동 감지 헬퍼
+    // ────────────────────────────────
+    window.detectStudentDept = async function(name) {
+      const db = firebase.firestore();
+      const detected = new Set();
+      try {
+        const pwDoc = await db.collection('passwords').doc(name).get();
+        if (pwDoc.exists && pwDoc.data().department) detected.add(pwDoc.data().department);
+      } catch(e) {}
+      try {
+        const rnDoc = await db.collection('roomNumbers').doc(name).get();
+        if (rnDoc.exists && rnDoc.data().department) detected.add(rnDoc.data().department);
+      } catch(e) {}
+      try {
+        const agSnap = await db.collection('dormitoryAgreements').where('name', '==', name).get();
+        agSnap.forEach(doc => {
+          const d = doc.data();
+          if (d.department) detected.add(d.department);
+        });
+      } catch(e) {}
+      try {
+        const stuSnap = await db.collection('students').get();
+        stuSnap.forEach(doc => {
+          const data = doc.data();
+          const students = data.students || Object.values(data).filter(v => typeof v === 'string');
+          if (students.includes(name) && doc.id !== '_guest') detected.add(doc.id);
+        });
+      } catch(e) {}
+      return Array.from(detected);
+    };
+
+    // ────────────────────────────────
+    // 4. 학생 완전 파기 함수 (v3)
+    // ────────────────────────────────
+    window.completelyDeleteStudent = async function(name, dept = null, options = {}) {
+      const startTime = Date.now();
+      const { dryRun = false, skipConfirm = false, logDryRun = false, forceAllDepts = false } = options;
+
+      if (!name || typeof name !== 'string') {
+        console.error('❌ 학생 이름이 필요합니다.');
+        return { success: false, error: 'invalid-name' };
+      }
+
+      const db = firebase.firestore();
+      const marker = dryRun ? '🔍 [DRY-RUN]' : '🔥 [실제 파기]';
+      console.log(`\n${marker} 학생 완전 파기 시작: ${name}`);
+
+      // 학과 자동 감지
+      let detectedAuto = false;
+      if (!dept) {
+        const detectedDepts = await window.detectStudentDept(name);
+        if (detectedDepts.length === 0) {
+          console.warn('⚠️ 학과를 찾을 수 없습니다.');
+          return { success: false, error: 'dept-not-found' };
+        }
+        if (detectedDepts.length > 1 && !forceAllDepts) {
+          console.warn(`⚠️ 여러 학과 발견: ${detectedDepts.join(', ')}`);
+          return { success: false, error: 'multiple-depts', depts: detectedDepts };
+        }
+        dept = detectedDepts[0];
+        detectedAuto = true;
+        console.log(`✨ 학과 자동 감지: ${dept}`);
+      } else {
+        const actual = await window.detectStudentDept(name);
+        if (actual.length > 0 && !actual.includes(dept)) {
+          console.warn(`⚠️ 입력 학과(${dept})와 실제 학과(${actual.join(', ')}) 불일치!`);
+        }
+      }
+
+      // 파기 대상 스캔
+      const targets = { nameBased: [], queryMatched: [], arrayItems: [] };
+      const collectionCounts = {};
+
+      const nameBasedCollections = ['passwords', 'roomNumbers', 'vehicleNumbers', 'fcmTokens', 'photos'];
+      for (const col of nameBasedCollections) {
+        try {
+          const doc = await db.collection(col).doc(name).get();
+          if (doc.exists) {
+            targets.nameBased.push({ collection: col, id: name });
+            collectionCounts[col] = (collectionCounts[col] || 0) + 1;
+          }
+        } catch(e) {}
+      }
+
+      const queryCollections = [
+        'submissions', 'outings', 'resignRequests', 'hvacRequests',
+        'facilityRequests', 'accessRequests', 'penaltyPoints',
+        'noticeConfirmations', 'dormitoryAgreements', 'outingHistory',
+        'passwordChangeLogs', 'loginLogs'
+      ];
+      for (const col of queryCollections) {
+        try {
+          const snap = await db.collection(col).where('name', '==', name).get();
+          snap.forEach(doc => {
+            targets.queryMatched.push({ collection: col, id: doc.id });
+            collectionCounts[col] = (collectionCounts[col] || 0) + 1;
+          });
+        } catch(e) {}
+      }
+
+      try {
+        const stuDoc = await db.collection('students').doc(dept).get();
+        if (stuDoc.exists) {
+          const data = stuDoc.data();
+          const students = data.students || Object.values(data).filter(v => typeof v === 'string');
+          if (students.includes(name)) {
+            targets.arrayItems.push({ collection: 'students', dept, name });
+            collectionCounts['students'] = 1;
+          }
+        }
+      } catch(e) {}
+
+      const totalCount = targets.nameBased.length + targets.queryMatched.length + targets.arrayItems.length;
+
+      console.log(`\n📊 파기 대상: 이름기반 ${targets.nameBased.length}건, 쿼리매칭 ${targets.queryMatched.length}건, 명단 ${targets.arrayItems.length}건 (총 ${totalCount}건)`);
+      console.log(`   컬렉션별:`, collectionCounts);
+
+      if (totalCount === 0) {
+        console.log('✅ 파기 대상 없음.');
+        return { success: true, totalCount: 0, dryRun };
+      }
+
+      // DRY-RUN 처리
+      if (dryRun) {
+        console.log(`\n${marker} 미리보기 완료 (실제 삭제 없음)`);
+        const durationMs = Date.now() - startTime;
+        if (logDryRun) {
+          await window.writeDeletionLog({
+            type: 'student', name, dept, detectedAuto, totalCount,
+            nameBasedDocs: targets.nameBased.length,
+            queryMatchedDocs: targets.queryMatched.length,
+            arrayRemoved: targets.arrayItems.length,
+            collections: collectionCounts, durationMs, dryRun: true
+          });
+        }
+        return { success: true, dryRun: true, totalCount, targets, collectionCounts, durationMs };
+      }
+
+      // 최종 확인
+      if (!skipConfirm) {
+        const confirmed = confirm(
+          `⚠️ 학생 "${name}" (${dept})의 정보를 완전히 파기합니다.\n\n` +
+          `총 ${totalCount}건의 데이터가 영구 삭제됩니다.\n` +
+          `이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`
+        );
+        if (!confirmed) {
+          console.log('❌ 사용자가 취소했습니다.');
+          return { success: false, error: 'user-cancelled' };
+        }
+      }
+
+      // 실제 파기
+      const errors = [];
+      let successCount = 0;
+
+      for (const t of targets.nameBased) {
+        try {
+          await db.collection(t.collection).doc(t.id).delete();
+          successCount++;
+        } catch(e) { errors.push({ ...t, error: e.message }); }
+      }
+
+      const batchSize = 400;
+      for (let i = 0; i < targets.queryMatched.length; i += batchSize) {
+        const batch = db.batch();
+        const chunk = targets.queryMatched.slice(i, i + batchSize);
+        chunk.forEach(t => batch.delete(db.collection(t.collection).doc(t.id)));
+        try {
+          await batch.commit();
+          successCount += chunk.length;
+        } catch(e) {
+          chunk.forEach(t => errors.push({ ...t, error: e.message }));
+        }
+      }
+
+      for (const t of targets.arrayItems) {
+        try {
+          const stuDoc = await db.collection('students').doc(t.dept).get();
+          const data = stuDoc.data();
+          if (Array.isArray(data.students)) {
+            const newStudents = data.students.filter(s => s !== t.name);
+            await db.collection('students').doc(t.dept).update({ students: newStudents });
+          } else {
+            const keys = Object.keys(data);
+            const updates = {};
+            keys.forEach(k => {
+              if (data[k] === t.name) updates[k] = firebase.firestore.FieldValue.delete();
+            });
+            if (Object.keys(updates).length > 0) {
+              await db.collection('students').doc(t.dept).update(updates);
+            }
+          }
+          successCount++;
+        } catch(e) { errors.push({ ...t, error: e.message }); }
+      }
+
+      const durationMs = Date.now() - startTime;
+      console.log(`\n✅ 파기 완료: ${successCount}/${totalCount}건 (${durationMs}ms)`);
+      if (errors.length > 0) console.warn(`⚠️ 실패: ${errors.length}건`, errors);
+
+      // 로그 자동 기록
+      const logResult = await window.writeDeletionLog({
+        type: 'student', name, dept, detectedAuto, totalCount,
+        nameBasedDocs: targets.nameBased.length,
+        queryMatchedDocs: targets.queryMatched.length,
+        arrayRemoved: targets.arrayItems.length,
+        failedCount: errors.length,
+        collections: collectionCounts,
+        durationMs, dryRun: false,
+        errors: errors.slice(0, 20)
+      });
+
+      if (logResult.success) {
+        console.log(`📋 감사 로그 기록: ${logResult.logId}`);
+      }
+
+      return {
+        success: true, totalCount, successCount,
+        failedCount: errors.length, errors, durationMs,
+        logId: logResult.logId
+      };
+    };
+
+    console.log('🔒 개인정보 완전 파기 시스템 로드 완료');
+  });
+})();
+</script>
+<!-- ============================================ -->
 
 </div>
 </body>
