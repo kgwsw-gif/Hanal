@@ -21612,6 +21612,165 @@ function fixDepartmentCounts(){
 })();
 </script>
 
+<!-- 📋 슈퍼관리자 파기 관련 UI (파기 이력 + 준수 보고서 버튼) -->
+<script>
+(function initSuperAdminPrivacyUI() {
+  
+  // ===== 파기 이력 조회 모달 =====
+  window.openDeletionHistoryModal = async function() {
+    const db = firebase.firestore();
+    const modalId = 'deletionHistoryModal';
+    document.getElementById(modalId)?.remove();
+    
+    // 로딩 표시
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="${modalId}" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#fff;padding:40px;border-radius:12px;">로딩 중...</div>
+      </div>
+    `);
+    
+    // 최근 30일 로그 조회
+    const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000);
+    let logs = [];
+    try {
+      const snap = await db.collection('deletionLogs').orderBy('timestamp','desc').get();
+      snap.forEach(doc => {
+        const d = doc.data();
+        const ts = d.timestamp?.toDate?.() || new Date(d.timestamp);
+        logs.push({ id: doc.id, ...d, _date: ts });
+      });
+    } catch(e) { console.error('로그 조회 실패:', e); }
+    
+    const stats = {
+      total: logs.length,
+      real: logs.filter(l => !l.dryRun).length,
+      dryRun: logs.filter(l => l.dryRun).length,
+      recent30: logs.filter(l => l._date >= thirtyDaysAgo && !l.dryRun).length
+    };
+    
+    const rows = logs.slice(0, 100).map(l => `
+      <tr>
+        <td style="border:1px solid #ddd;padding:6px 8px;font-size:12px;">${l._date?.toLocaleString('ko-KR') || '-'}</td>
+        <td style="border:1px solid #ddd;padding:6px 8px;font-size:12px;">${l.name || '-'}</td>
+        <td style="border:1px solid #ddd;padding:6px 8px;font-size:12px;">${l.dept || '-'}</td>
+        <td style="border:1px solid #ddd;padding:6px 8px;font-size:12px;text-align:center;">${l.totalCount ?? 0}건</td>
+        <td style="border:1px solid #ddd;padding:6px 8px;font-size:12px;text-align:center;">
+          ${l.dryRun ? '<span style="color:#888;">DRY-RUN</span>' : '<span style="color:#c00;font-weight:bold;">실전</span>'}
+        </td>
+        <td style="border:1px solid #ddd;padding:6px 8px;font-size:11px;color:#666;">${l.executor?.email || l.executor?.uid || '-'}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" style="border:1px solid #ddd;padding:20px;text-align:center;color:#999;">파기 이력이 없습니다.</td></tr>';
+    
+    document.getElementById(modalId).innerHTML = `
+      <div style="background:#fff;width:90%;max-width:900px;max-height:85vh;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;">
+        <div style="padding:16px 20px;background:#f8f8f8;border-bottom:1px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;font-size:18px;font-weight:bold;">📋 개인정보 파기 이력</h2>
+          <button onclick="document.getElementById('${modalId}').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">×</button>
+        </div>
+        <div style="padding:16px 20px;background:#fafafa;border-bottom:1px solid #eee;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+          <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;"><div style="font-size:11px;color:#666;">전체</div><div style="font-size:22px;font-weight:bold;">${stats.total}</div></div>
+          <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;"><div style="font-size:11px;color:#666;">실전 파기</div><div style="font-size:22px;font-weight:bold;color:#c00;">${stats.real}</div></div>
+          <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;"><div style="font-size:11px;color:#666;">DRY-RUN</div><div style="font-size:22px;font-weight:bold;color:#888;">${stats.dryRun}</div></div>
+          <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;"><div style="font-size:11px;color:#666;">최근 30일</div><div style="font-size:22px;font-weight:bold;color:#0066cc;">${stats.recent30}</div></div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:0 20px;">
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+            <thead>
+              <tr style="background:#f0f0f0;">
+                <th style="border:1px solid #ddd;padding:8px;font-size:12px;">일시</th>
+                <th style="border:1px solid #ddd;padding:8px;font-size:12px;">대상자</th>
+                <th style="border:1px solid #ddd;padding:8px;font-size:12px;">학과</th>
+                <th style="border:1px solid #ddd;padding:8px;font-size:12px;">건수</th>
+                <th style="border:1px solid #ddd;padding:8px;font-size:12px;">구분</th>
+                <th style="border:1px solid #ddd;padding:8px;font-size:12px;">실행자</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="padding:12px 20px;background:#f8f8f8;border-top:1px solid #ddd;text-align:right;">
+          <button onclick="window.exportDeletionLogsCSV?.()" style="padding:8px 16px;background:#0066cc;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:8px;">📥 CSV 내보내기</button>
+          <button onclick="document.getElementById('${modalId}').remove()" style="padding:8px 16px;background:#999;color:#fff;border:none;border-radius:6px;cursor:pointer;">닫기</button>
+        </div>
+      </div>
+    `;
+  };
+  
+  // ===== 슈퍼관리자 버튼 삽입 함수 =====
+  function injectPrivacyButtons() {
+    if (!window.isSuperAdmin) return false;
+    
+    const secSuper = document.getElementById('sec-super');
+    if (!secSuper) return false;
+    
+    const grid = secSuper.querySelector('.grid.grid-cols-4, [class*="grid-cols-"]');
+    if (!grid) return false;
+    
+    // 이미 삽입되어 있으면 스킵
+    if (grid.querySelector('[data-privacy-btn]')) return true;
+    
+    // 6열로 확장
+    grid.classList.remove('grid-cols-4');
+    grid.classList.add('grid-cols-3');
+    grid.style.gridTemplateColumns = 'repeat(3, minmax(0, 1fr))';
+    
+    // [파기 이력] 버튼
+    const btnHistory = document.createElement('button');
+    btnHistory.setAttribute('data-privacy-btn', 'history');
+    btnHistory.setAttribute('onclick', 'window.openDeletionHistoryModal()');
+    btnHistory.className = 'py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200';
+    btnHistory.innerHTML = `<i class="fas fa-history text-gray-400 text-2xl mb-1"></i><div class="text-sm font-bold text-gray-500">파기 이력</div>`;
+    
+    // [준수 보고서] 버튼
+    const btnReport = document.createElement('button');
+    btnReport.setAttribute('data-privacy-btn', 'report');
+    btnReport.setAttribute('onclick', 'window.openPrivacyComplianceReport()');
+    btnReport.className = 'py-3 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200';
+    btnReport.innerHTML = `<i class="fas fa-file-shield text-gray-400 text-2xl mb-1"></i><div class="text-sm font-bold text-gray-500">준수 보고서</div>`;
+    
+    grid.appendChild(btnHistory);
+    grid.appendChild(btnReport);
+    
+    return true;
+  }
+  
+  // ===== 자동 재삽입 (render() 로 덮어쓰기 대응) =====
+  function startWatcher() {
+    // 초기 시도
+    setTimeout(injectPrivacyButtons, 500);
+    setTimeout(injectPrivacyButtons, 2000);
+    setTimeout(injectPrivacyButtons, 5000);
+    
+    // MutationObserver로 지속 감시
+    const observer = new MutationObserver(() => {
+      if (window.isSuperAdmin) {
+        const secSuper = document.getElementById('sec-super');
+        if (secSuper && !secSuper.querySelector('[data-privacy-btn]')) {
+          injectPrivacyButtons();
+        }
+      }
+    });
+    
+    // body 관찰 (sec-super가 나중에 렌더링될 수 있음)
+    if (document.body) {
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+  
+  // DOM 준비 후 시작
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startWatcher);
+  } else {
+    startWatcher();
+  }
+  
+  // 수동 재삽입용 전역 함수
+  window._injectPrivacyButtons = injectPrivacyButtons;
+  
+  console.log('📋 슈퍼관리자 파기 관련 UI 시스템 로드 완료');
+})();
+</script>
+
 </div>
 </body>
 </html>
