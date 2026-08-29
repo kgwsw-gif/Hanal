@@ -21348,13 +21348,12 @@ function fixDepartmentCounts(){
 <!-- ============================================ -->
 
 <!-- ============================================ -->
-<!-- 🔗 deleteStudentAction 완전 파기 훅 통합 (자기 방어형) -->
+<!-- 🔗 deleteStudentAction 완전 파기 훅 통합 (지연 적용형) -->
 <!-- ============================================ -->
 <script>
 (function() {
   'use strict';
 
-  // 완전 파기 훅을 감싸는 팩토리 함수
   function createCompleteDeletionHook(previousHook) {
     return async function() {
       const nameSelect = document.getElementById('delStudentName');
@@ -21366,7 +21365,6 @@ function fixDepartmentCounts(){
 
       console.log(`\n🔥 [완전 파기 통합] 삭제 시작: ${targetName} (${targetDept || '자동감지'})`);
 
-      // 1. 기존 로직 실행 (원본 삭제 + 서약서 훅 + 배정 이력 익명화)
       let originalResult;
       try {
         originalResult = await previousHook.apply(this, arguments);
@@ -21375,7 +21373,6 @@ function fixDepartmentCounts(){
         return originalResult;
       }
 
-      // 2. 완전 파기 실행
       if (!targetName) {
         console.warn('⚠️ 대상 이름 없음 → 완전 파기 건너뜀');
         return originalResult;
@@ -21412,62 +21409,67 @@ function fixDepartmentCounts(){
     };
   }
 
-  // 훅이 이미 우리 훅인지 확인
   function isOurHook(fn) {
-    if (typeof fn !== 'function') return false;
-    return fn.toString().includes('[완전 파기 통합]');
+    return typeof fn === 'function' && fn.toString().includes('[완전 파기 통합]');
   }
 
-  // 훅 적용 함수
-  function applyHook() {
+  function applyHookIfNeeded() {
     if (typeof window.deleteStudentAction !== 'function') return false;
-    if (isOurHook(window.deleteStudentAction)) return true;  // 이미 우리 훅
-
+    if (isOurHook(window.deleteStudentAction)) return true;
     const previousHook = window.deleteStudentAction;
     window.deleteStudentAction = createCompleteDeletionHook(previousHook);
     return true;
   }
 
-  // Firebase 및 함수 로드 대기
-  function waitForReady(callback, maxWait = 15000) {
-    const startTime = Date.now();
-    const check = setInterval(() => {
-      if (typeof window.deleteStudentAction === 'function' 
-          && typeof window.completelyDeleteStudent === 'function') {
-        clearInterval(check);
+  // 초기화 완료 감지: '서약서 훅 포함 확인' 로그 대신, 특정 조건이 갖춰질 때까지 대기
+  function waitForAppInit(callback) {
+    let elapsed = 0;
+    const step = 500;
+    const maxWait = 30000;  // 최대 30초
+
+    const timer = setInterval(() => {
+      elapsed += step;
+
+      const ready = typeof window.deleteStudentAction === 'function'
+                 && typeof window.completelyDeleteStudent === 'function'
+                 && typeof firebase !== 'undefined'
+                 && firebase.auth
+                 && firebase.auth().currentUser;  // 로그인 완료까지 대기
+
+      if (ready && elapsed >= 6000) {
+        // 함수 로드 + Firebase 인증 완료 + 최소 6초 경과 (앱 초기화 훅 완료 대기)
+        clearInterval(timer);
         callback();
-      } else if (Date.now() - startTime > maxWait) {
-        clearInterval(check);
-        console.warn('⚠️ 완전 파기 훅 대기 시간 초과');
+      } else if (elapsed >= maxWait) {
+        clearInterval(timer);
+        console.warn('⚠️ 앱 초기화 대기 시간 초과 (30초). 훅 미적용.');
       }
-    }, 200);
+    }, step);
   }
 
-  waitForReady(() => {
-    // 1차 적용
-    applyHook();
-    console.log('✅ 완전 파기 훅 1차 적용 (자기 방어형)');
+  waitForAppInit(() => {
+    const applied = applyHookIfNeeded();
+    if (applied && isOurHook(window.deleteStudentAction)) {
+      console.log('✅ 완전 파기 훅 적용 완료 (지연 적용형, 앱 초기화 후)');
+    } else {
+      console.warn('⚠️ 완전 파기 훅 적용 실패');
+    }
 
-    // 감시 모드: 10초 동안 200ms 마다 확인, 덮어써지면 재적용
-    let checkCount = 0;
+    // 방어 감시: 이후 20초 동안 5초 간격으로 확인 (다른 훅이 추가로 덮어쓸 가능성 대비)
+    let watchCount = 0;
     let reappliedCount = 0;
-    const MAX_CHECKS = 50;  // 200ms × 50 = 10초
-
     const guardian = setInterval(() => {
-      checkCount++;
-
+      watchCount++;
       if (!isOurHook(window.deleteStudentAction)) {
-        applyHook();
+        applyHookIfNeeded();
         reappliedCount++;
-        console.log(`🛡️ 완전 파기 훅 재적용 (${reappliedCount}회, ${checkCount * 200}ms 경과)`);
+        console.log(`🛡️ 완전 파기 훅 재적용 (${reappliedCount}회)`);
       }
-
-      if (checkCount >= MAX_CHECKS) {
+      if (watchCount >= 4) {
         clearInterval(guardian);
-        const finalStatus = isOurHook(window.deleteStudentAction);
-        console.log(`🛡️ 훅 감시 종료: ${finalStatus ? '✅ 정상' : '❌ 실패'} (총 재적용 ${reappliedCount}회)`);
+        console.log(`🛡️ 훅 감시 종료 (재적용 ${reappliedCount}회)`);
       }
-    }, 200);
+    }, 5000);
   });
 })();
 </script>
