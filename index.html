@@ -21856,15 +21856,74 @@ function fixDepartmentCounts(){
     
     window._completelyDeleteStudent_original = window.completelyDeleteStudent;
     
-    window.completelyDeleteStudent = async function(student, options = {}) {
-      console.log('🎯 [훅] completelyDeleteStudent 호출됨');
+    window.completelyDeleteStudent = async function(name, dept = null, options = {}) {
+  console.log('🎯 [훅] completelyDeleteStudent 호출됨:', { name, dept });
+  
+  // 인자 안전성 처리 (문자열이 아닌 객체가 들어와도 대응)
+  let studentName = name;
+  let studentDept = dept;
+  if (name && typeof name === 'object') {
+    studentName = name.name || name.이름 || '(이름 없음)';
+    studentDept = name.dept || name.department || dept;
+  }
+  if (!studentName || typeof studentName !== 'string') {
+    console.error('❌ 잘못된 학생 이름:', name);
+    return { success: false, error: 'invalid-name' };
+  }
+  
+  let reason = options.reason || null;
+  
+  if (!reason && !options.skipReasonPrompt) {
+    reason = await window._askDeletionReason(studentName);
+    
+    if (!reason) {
+      console.log('❌ 사용자가 파기를 취소함');
+      return { success: false, cancelled: true };
+    }
+  }
+  
+  const startTime = Date.now();
+  console.log('🗑️ 파기 실행 중... 사유:', reason);
+  
+  let result;
+  let originalError = null;
+  try {
+    // 원본 함수 시그니처: (name, dept, options)
+    result = await window._completelyDeleteStudent_original(studentName, studentDept, options);
+  } catch (e) {
+    originalError = e;
+    console.warn('  ⚠️ 원본 함수 오류:', e.message);
+  }
+  
+  let logId = result?.logId || null;
+  
+  if (!logId && reason) {
+    console.log('🔍 logId 미반환 → 최신 로그 검색 중...');
+    await new Promise(r => setTimeout(r, 800));
+    logId = await window._findRecentDeletionLog(startTime);
+  }
+  
+  if (reason && logId) {
+    const updateRes = await window._updateDeletionReason(logId, reason);
+    if (updateRes.success) {
+      console.log('✅ 파기 로그에 사유 기록 완료:', logId);
+      if (!result) result = {};
+      result.logId = logId;
+      result.reason = reason;
+    } else {
+      console.warn('⚠️ 사유 기록 실패:', updateRes.error);
+    }
+  } else if (reason && !logId) {
+    console.warn('⚠️ logId를 찾지 못해 사유 저장 스킵');
+  }
+  
+  if (originalError && !result) {
+    return { success: false, error: originalError.message, cancelled: false };
+  }
+  
+  return result || { success: false };
+};
       
-      let reason = options.reason || null;
-      
-      if (!reason && !options.skipReasonPrompt) {
-        const studentName = student?.name || student?.이름 || '(이름 없음)';
-        reason = await window._askDeletionReason(studentName);
-        
         if (!reason) {
           console.log('❌ 사용자가 파기를 취소함');
           return { success: false, cancelled: true };
