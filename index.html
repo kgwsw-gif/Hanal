@@ -548,18 +548,37 @@ storage=firebase.storage();
 db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
 console.log('Firebase OK');
 
-// === 익명 인증 자동 로그인 (보안 강화) ===
+// === 인증 상태 관리 (익명 로그인 + 관리자 자동 진입) ===
 firebase.auth().onAuthStateChanged(function(user){
     if(!user){
+        // 로그인 세션 없음 → 익명 로그인
         firebase.auth().signInAnonymously().then(function(){
             console.log('익명 인증 완료');
         }).catch(function(err){
             console.error('익명 인증 실패:', err);
         });
+    } else if(user.isAnonymous){
+        console.log('인증됨: 익명');
     } else {
-        console.log('인증됨:', user.isAnonymous ? '익명' : '관리자');
+        // 실명 로그인 세션 발견 → 관리자 자동 진입
+        console.log('인증됨: 관리자 (' + user.email + ')');
+        if(!isAdminLoggedIn){
+            isSuperAdmin = (user.email === 'super@hwaseong.com' || user.email === 'super1@hwaseong.com');
+            isAdminLoggedIn = true;
+            currentMode = 'admin';
+            if(typeof saveLoginLog === 'function'){
+                saveLoginLog(isSuperAdmin ? '슈퍼관리자(자동)' : '일반관리자(자동)', true);
+            }
+            if(typeof render === 'function') render();
+            if(typeof showToast === 'function'){
+                showToast(isSuperAdmin ? '슈퍼관리자 자동 로그인' : '관리자 자동 로그인', 'success');
+            }
+            setTimeout(function(){
+                if(typeof _verifyStudentIntegrity==='function') _verifyStudentIntegrity();
+            }, 3000);
+        }
         // === 3개월 이상 된 로그 자동 삭제 (개인정보처리방침 준수) ===
-        cleanupOldLogs();
+        if(typeof cleanupOldLogs === 'function') cleanupOldLogs();
     }
 });
 
