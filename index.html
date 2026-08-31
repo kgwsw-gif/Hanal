@@ -23064,7 +23064,80 @@ function fixDepartmentCounts(){
           '※ 보안 정책상 비밀번호 조회는 불가능합니다. 분실 시 아래에서 초기화하세요.' +
         '</div>' +
       '</div>';
-    document.getElementById('pwResetArea').style.display = 'block';
+        document.getElementById('pwResetArea').style.display = 'block';
+  };
+  
+  // ========== [학과대표 보안 최소 조치] ==========
+  // A) showLeaderLogin: localStorage 비번 평문 저장 제거
+  // B) changeLeaderPassword: 임시 안내 (Firestore-상수 불일치 예방)
+  window._preHashShowLeaderLogin = window.showLeaderLogin;
+  window.showLeaderLogin = function() {
+    if (isAdminLoggedIn) { showAdminDeptSelect(); return; }
+    if (isLeaderLoggedIn) { currentMode = 'leader'; render(); return; }
+    
+    var savedDept = localStorage.getItem('saved_leader_dept') || '';
+    var savedRemember = !!savedDept;
+    
+    var opts = departments.filter(function(d){
+      return d !== '여성재취업(바리스타)과정' && DEPARTMENT_LEADERS[d];
+    }).map(function(d){
+      var ln = DEPARTMENT_LEADERS[d].name;
+      var masked = ln.length <= 2 ? ln[0] + '*' : ln[0] + '*' + ln.substring(2);
+      return { value: d, label: d + ' (' + masked + ')' };
+    });
+    
+    openInputModal('학과대표 로그인', [
+      {label:'학과 선택', type:'select', options:[{value:'',label:'선택하세요'}].concat(opts), value:savedDept},
+      {label:'비밀번호',  type:'password', placeholder:'••••••••', value:''},
+      {label:'',         type:'checkbox', checkLabel:'학과 기억하기', checked:savedRemember}
+    ], function() {
+      var dept = document.getElementById('modalInput0').value;
+      var pw = document.getElementById('modalInput1').value;
+      var remember = document.getElementById('modalInput2').checked;
+      
+      if (!dept) { showToast('학과 선택 필요', 'warning'); return; }
+      
+      if (remember) {
+        localStorage.setItem('saved_leader_dept', dept);
+      } else {
+        localStorage.removeItem('saved_leader_dept');
+      }
+      localStorage.removeItem('saved_leader_pw');
+      
+      if (DEPARTMENT_LEADERS[dept] && pw === DEPARTMENT_LEADERS[dept].password) {
+        isLeaderLoggedIn = true;
+        leaderDepartment = dept;
+        currentMode = 'leader';
+        closeModal();
+        render();
+        showToast(DEPARTMENT_LEADERS[dept].name + '님 환영합니다', 'success');
+        setTimeout(function(){
+          if (typeof checkAndShowUnreadOnLogin === 'function') {
+            checkAndShowUnreadOnLogin('leader');
+          }
+        }, 1500);
+      } else {
+        showToast('비밀번호 오류', 'error');
+      }
+    });
+  };
+  
+  window._origChangeLeaderPassword = window.changeLeaderPassword;
+  window.changeLeaderPassword = function() {
+    if (!leaderDepartment || !DEPARTMENT_LEADERS[leaderDepartment]) {
+      showToast('학과대표 정보 없음', 'error');
+      return;
+    }
+    
+    openConfirmModal(
+      '비밀번호 변경 안내',
+      '학과대표 비밀번호 변경 기능은 현재 <b>보안 시스템 개편 중</b>입니다.<br><br>' +
+      '비밀번호 변경이 필요하시면 <b>사감실(031-350-3133)</b>로<br>' +
+      '문의해 주시기 바랍니다.<br><br>' +
+      '<span style="font-size:0.9em;color:#6b7280;">(향후 학생 계정과 동일한 안전한 방식으로 개편 예정)</span>',
+      function() { closeModal(); },
+      '확인'
+    );
   };
   
   // ========== [3편+4편] 세션 시작 함수 ==========
