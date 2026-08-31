@@ -23067,14 +23067,17 @@ function fixDepartmentCounts(){
         document.getElementById('pwResetArea').style.display = 'block';
   };
   
-  // ========== [학과대표 보안 최소 조치] ==========
-  // A) showLeaderLogin: localStorage 비번 평문 저장 제거
-  // B) changeLeaderPassword: 임시 안내 (Firestore-상수 불일치 예방)
+    // ========== [학과대표 비밀번호 해싱 마이그레이션] ==========
+  // - Firestore departmentLeaders 우선 조회 + 이중경로 검증
+  // - 평문(레거시) 로그인 시 자동 해싱 마이그레이션
+  // - 1111 등 금지 비밀번호 감지 시 강제 변경 UI
+  // - localStorage 평문 비번 저장 완전 제거 (학과명만 저장)
   window._preHashShowLeaderLogin = window.showLeaderLogin;
   window.showLeaderLogin = function() {
     if (isAdminLoggedIn) { showAdminDeptSelect(); return; }
     if (isLeaderLoggedIn) { currentMode = 'leader'; render(); return; }
     
+    var BANNED_LEADER_PW = ['1111', '0000', '1234', '9999', '1212', '7777', '2222'];
     var savedDept = localStorage.getItem('saved_leader_dept') || '';
     var savedRemember = !!savedDept;
     
@@ -23086,17 +23089,90 @@ function fixDepartmentCounts(){
       return { value: d, label: d + ' (' + masked + ')' };
     });
     
+    function isHashedPw(stored) {
+      if (window._pwCrypto && typeof window._pwCrypto.isHashed === 'function') {
+        return window._pwCrypto.isHashed(stored);
+      }
+      return typeof stored === 'string' && stored.indexOf('sha256$') === 0;
+    }
+    
+    function showForceChangeLeaderModal(dept, leaderName, currentPw) {
+      return new Promise(function(resolve, reject) {
+        openInputModal(
+          '🔒 비밀번호 변경 필수 (' + dept + ' ' + leaderName + ')',
+          [
+            { label: '새 비밀번호 (4자리 이상)', type: 'password', placeholder: '새 비밀번호', value: '' },
+            { label: '새 비밀번호 확인', type: 'password', placeholder: '한번 더 입력', value: '' }
+          ],
+          async function() {
+            var newPw = document.getElementById('modalInput0').value.trim();
+            var confirmPw = document.getElementById('modalInput1').value.trim();
+            
+            if (!newPw || !confirmPw) { showToast('모든 항목을 입력하세요', 'error'); return; }
+            if (newPw.length < 4) { showToast('새 비밀번호는 4자리 이상이어야 합니다', 'error'); return; }
+            if (newPw !== confirmPw) { showToast('새 비밀번호 확인이 일치하지 않습니다', 'error'); return; }
+            if (BANNED_LEADER_PW.indexOf(newPw) !== -1) { showToast('사용할 수 없는 비밀번호입니다', 'error'); return; }
+            if (newPw === currentPw) { showToast('기존 비밀번호와 동일합니다', 'error'); return; }
+            
+            try {
+              var newHashed = await window._pwCrypto.hash(newPw);
+              await db.collection('departmentLeaders').doc(dept).update({
+                password: newHashed,
+                passwordHashed: true,
+                mustChangePassword: false,
+                updatedAt: new Date().toISOString()
+              });
+              
+              if (window._origCloseModalLeaderForce) {
+                window.closeModal = window._origCloseModalLeaderForce;
+                delete window._origCloseModalLeaderForce;
+              }
+              closeModal();
+              showToast('비밀번호가 안전하게 변경되었습니다', 'success');
+              resolve(true);
+            } catch(e) {
+              console.error('[학과대표 강제변경 저장 오류]', e);
+              showToast('저장 실패: ' + e.message, 'error');
+            }
+          },
+          '변경'
+        );
+        
+        if (!window._origCloseModalLeaderForce) {
+          window._origCloseModalLeaderForce = window.closeModal;
+          window.closeModal = function() {
+            showToast('비밀번호를 변경해야 세션을 시작할 수 있습니다', 'error');
+          };
+        }
+        
+        setTimeout(function() {
+          document.querySelectorAll('#modalContent button').forEach(function(btn) {
+            if (btn.textContent.trim() === '취소') btn.style.display = 'none';
+          });
+        }, 100);
+        setTimeout(function() {
+          document.querySelectorAll('#modalContent button').forEach(function(btn) {
+            if (btn.textContent.trim() === '취소') btn.style.display = 'none';
+          });
+        }, 500);
+      });
+    }
+    
     openInputModal('학과대표 로그인', [
       {label:'학과 선택', type:'select', options:[{value:'',label:'선택하세요'}].concat(opts), value:savedDept},
       {label:'비밀번호',  type:'password', placeholder:'••••••••', value:''},
       {label:'',         type:'checkbox', checkLabel:'학과 기억하기', checked:savedRemember}
-    ], function() {
+    ], async function() {
       var dept = document.getElementById('modalInput0').value;
-      var pw = document.getElementById('modalInput1').value;
+      var pw = document.getElementById('modalInput1').value.trim();
       var remember = document.getElementById('modalInput2').checked;
       
       if (!dept) { showToast('학과 선택 필요', 'warning'); return; }
+      if (!pw) { showToast('비밀번호를 입력하세요', 'error'); return; }
+      if (!DEPARTMENT_LEADERS[dept]) { showToast('학과 정보 없음', 'error'); return; }
+      if (!window._pwCrypto) { showToast('보안 모듈 로드 실패, 새로고침 후 다시 시도', 'error'); return; }
       
+      // 학과 기억하기 (학과명만 저장, 비번은 절대 저장 안 함)
       if (remember) {
         localStorage.setItem('saved_leader_dept', dept);
       } else {
@@ -23104,11 +23180,57 @@ function fixDepartmentCounts(){
       }
       localStorage.removeItem('saved_leader_pw');
       
-      if (DEPARTMENT_LEADERS[dept] && pw === DEPARTMENT_LEADERS[dept].password) {
+      try {
+        var docRef = db.collection('departmentLeaders').doc(dept);
+        var docSnap = await docRef.get();
+        
+        if (!docSnap.exists) { showToast('학과대표 정보가 서버에 없습니다', 'error'); return; }
+        
+        var data = docSnap.data();
+        var stored = data.password || '';
+        var mustChange = data.mustChangePassword === true;
+        
+        var pwOk = isHashedPw(stored)
+          ? await window._pwCrypto.verify(pw, stored)
+          : (pw === stored);
+        
+        if (!pwOk) { showToast('비밀번호 오류', 'error'); return; }
+        
+        // 평문이었으면 자동 해싱 마이그레이션
+        if (!isHashedPw(stored)) {
+          try {
+            var newHashed = await window._pwCrypto.hash(pw);
+            await docRef.update({
+              password: newHashed,
+              passwordHashed: true,
+              migratedAt: new Date().toISOString()
+            });
+            console.log('[학과대표 자동 마이그레이션 완료]', dept);
+          } catch(e) {
+            console.warn('[학과대표 마이그레이션 실패, 로그인은 계속 진행]', e);
+          }
+        }
+        
+        // 강제 변경 판정
+        var isBannedPw = BANNED_LEADER_PW.indexOf(pw) !== -1;
+        var needForceChange = mustChange || isBannedPw;
+        
+        closeModal();
+        
+        if (needForceChange) {
+          console.log('[학과대표 강제 변경 필요]', dept, '사유:', mustChange ? 'mustChangePassword' : '금지 비밀번호');
+          try {
+            await showForceChangeLeaderModal(dept, DEPARTMENT_LEADERS[dept].name, pw);
+          } catch(e) {
+            console.error('[학과대표 강제 변경 실패]', e);
+            return;
+          }
+        }
+        
+        // 세션 시작
         isLeaderLoggedIn = true;
         leaderDepartment = dept;
         currentMode = 'leader';
-        closeModal();
         render();
         showToast(DEPARTMENT_LEADERS[dept].name + '님 환영합니다', 'success');
         setTimeout(function(){
@@ -23116,27 +23238,83 @@ function fixDepartmentCounts(){
             checkAndShowUnreadOnLogin('leader');
           }
         }, 1500);
-      } else {
-        showToast('비밀번호 오류', 'error');
+        
+      } catch(e) {
+        console.error('[학과대표 로그인 오류]', e);
+        showToast('로그인 오류: ' + e.message, 'error');
       }
     });
   };
   
+    // ========== [학과대표 비밀번호 변경 - 해싱 지원] ==========
   window._origChangeLeaderPassword = window.changeLeaderPassword;
   window.changeLeaderPassword = function() {
     if (!leaderDepartment || !DEPARTMENT_LEADERS[leaderDepartment]) {
       showToast('학과대표 정보 없음', 'error');
       return;
     }
+    if (!window._pwCrypto) {
+      showToast('보안 모듈 로드 실패, 새로고침 후 다시 시도', 'error');
+      return;
+    }
     
-    openConfirmModal(
-      '비밀번호 변경 안내',
-      '학과대표 비밀번호 변경 기능은 현재 <b>보안 시스템 개편 중</b>입니다.<br><br>' +
-      '비밀번호 변경이 필요하시면 <b>사감실(031-350-3133)</b>로<br>' +
-      '문의해 주시기 바랍니다.<br><br>' +
-      '<span style="font-size:0.9em;color:#6b7280;">(향후 학생 계정과 동일한 안전한 방식으로 개편 예정)</span>',
-      function() { closeModal(); },
-      '확인'
+    var BANNED_LEADER_PW = ['1111', '0000', '1234', '9999', '1212', '7777', '2222'];
+    var deptName = leaderDepartment;
+    var leaderName = DEPARTMENT_LEADERS[deptName].name;
+    
+    function isHashedPw(stored) {
+      if (typeof window._pwCrypto.isHashed === 'function') {
+        return window._pwCrypto.isHashed(stored);
+      }
+      return typeof stored === 'string' && stored.indexOf('sha256$') === 0;
+    }
+    
+    openInputModal(
+      '비밀번호 변경 (' + deptName + ' ' + leaderName + ')',
+      [
+        { label: '현재 비밀번호', type: 'password', placeholder: '현재 비밀번호', value: '' },
+        { label: '새 비밀번호 (4자리 이상)', type: 'password', placeholder: '새 비밀번호', value: '' },
+        { label: '새 비밀번호 확인', type: 'password', placeholder: '한번 더 입력', value: '' }
+      ],
+      async function() {
+        var curPw = document.getElementById('modalInput0').value.trim();
+        var newPw = document.getElementById('modalInput1').value.trim();
+        var confirmPw = document.getElementById('modalInput2').value.trim();
+        
+        if (!curPw || !newPw || !confirmPw) { showToast('모든 항목을 입력하세요', 'error'); return; }
+        if (newPw.length < 4) { showToast('새 비밀번호는 4자리 이상이어야 합니다', 'error'); return; }
+        if (newPw !== confirmPw) { showToast('새 비밀번호 확인이 일치하지 않습니다', 'error'); return; }
+        if (BANNED_LEADER_PW.indexOf(newPw) !== -1) { showToast('사용할 수 없는 비밀번호입니다', 'error'); return; }
+        if (curPw === newPw) { showToast('현재 비밀번호와 동일합니다', 'error'); return; }
+        
+        try {
+          var docRef = db.collection('departmentLeaders').doc(deptName);
+          var docSnap = await docRef.get();
+          if (!docSnap.exists) { showToast('학과대표 정보가 서버에 없습니다', 'error'); return; }
+          
+          var stored = docSnap.data().password || '';
+          var curOk = isHashedPw(stored)
+            ? await window._pwCrypto.verify(curPw, stored)
+            : (curPw === stored);
+          
+          if (!curOk) { showToast('현재 비밀번호가 틀립니다', 'error'); return; }
+          
+          var newHashed = await window._pwCrypto.hash(newPw);
+          await docRef.update({
+            password: newHashed,
+            passwordHashed: true,
+            mustChangePassword: false,
+            updatedAt: new Date().toISOString()
+          });
+          
+          closeModal();
+          showToast('비밀번호가 안전하게 변경되었습니다', 'success');
+        } catch(e) {
+          console.error('[학과대표 비번 변경 오류]', e);
+          showToast('변경 실패: ' + e.message, 'error');
+        }
+      },
+      '변경'
     );
   };
   
