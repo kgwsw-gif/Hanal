@@ -22735,9 +22735,87 @@ function fixDepartmentCounts(){
 })();
 </script>
 
+<!-- ==================================================================== -->
+<!-- 학과대표 이름 자동 최신화 패치 (2026-08-31 추가)                        -->
+<!-- 목적: leaderMessageThreads 문서에 박제된 leaderName 대신                -->
+<!--       DEPARTMENT_LEADERS 상수의 최신 이름을 화면에 자동 표시            -->
+<!-- 배경: 학과대표가 학기별로 교체되어도 기존 대화방 문서의 leaderName은     -->
+<!--       갱신되지 않아 구 대표 이름이 계속 표시되는 문제 해결              -->
+<!-- ==================================================================== -->
+<script>
+(function(){
+  'use strict';
+  
+  function applyLeaderNamePatch() {
+    // renderLeaderChatList 함수가 로드될 때까지 대기
+    if (typeof window.renderLeaderChatList !== 'function') {
+      setTimeout(applyLeaderNamePatch, 500);
+      return;
+    }
+    
+    // 중복 적용 방지
+    if (window._leaderNamePatchApplied) return;
+    window._leaderNamePatchApplied = true;
+    
+    var _prevRender = window.renderLeaderChatList;
+    
+    window.renderLeaderChatList = function() {
+      var result = _prevRender.apply(this, arguments);
+      
+      // 렌더링 완료 후 DOM 내 대표 이름을 최신값으로 교체
+      setTimeout(function(){
+        try {
+          var body = document.getElementById('leaderChatBody');
+          if (!body || typeof DEPARTMENT_LEADERS === 'undefined') return;
+          
+          var html = body.innerHTML;
+          var changed = false;
+          
+          Object.keys(DEPARTMENT_LEADERS).forEach(function(dept){
+            var currentName = DEPARTMENT_LEADERS[dept] && DEPARTMENT_LEADERS[dept].name;
+            if (!currentName) return;
+            
+            // "학과명 / 이름" 패턴 매칭 후 최신 이름으로 교체
+            var escapedDept = dept.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            var pattern = new RegExp(escapedDept + '\\s*\\/\\s*([가-힣]{2,4})', 'g');
+            
+            html = html.replace(pattern, function(match, oldName){
+              if (oldName !== currentName) {
+                console.log('🔄 학과대표 이름 최신화: ' + dept + ' (' + oldName + ' → ' + currentName + ')');
+                changed = true;
+                return dept + ' / ' + currentName;
+              }
+              return match;
+            });
+          });
+          
+          if (changed) body.innerHTML = html;
+        } catch(e) {
+          console.warn('학과대표 이름 최신화 실패:', e.message);
+        }
+      }, 400);
+      
+      return result;
+    };
+    
+    console.log('✅ 학과대표 이름 자동 최신화 패치 적용됨');
+  }
+  
+  // DOM 로드 상태에 따라 적용 시점 결정
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(applyLeaderNamePatch, 1000);
+  } else {
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(applyLeaderNamePatch, 1000);
+    });
+  }
+})();
+</script>
+
 </div>
 </body>
 </html>
+
 
 
 
