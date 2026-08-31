@@ -23005,8 +23005,66 @@ function fixDepartmentCounts(){
           showToast('초기화 실패: ' + e.message, 'error');
         }
       },
-      '초기화'
+     '초기화'
     );
+  };
+  
+  // ========== [B단계] lookupPassword 재정의 (비밀번호 마스킹) ==========
+  window._origLookupPassword = window.lookupPassword;
+  window.lookupPassword = async function() {
+    var dept = document.getElementById('pwLookupDept').value;
+    var name = document.getElementById('pwLookupName').value;
+    if (!dept || !name) { showToast('학과와 교육생을 선택하세요', 'warning'); return; }
+    
+    var room = window._secureData.getRoomNumber(name);
+    var regDate = window._secureData.getRegisteredDate(name);
+    
+    var statusText = '조회 중...';
+    var statusColor = 'text-gray-500';
+    try {
+      var doc = await db.collection('passwords').doc(name).get();
+      if (!doc.exists) {
+        statusText = '⚠️ 문서 없음';
+        statusColor = 'text-red-600';
+      } else {
+        var d = doc.data();
+        var hashed = typeof d.password === 'string' && d.password.startsWith('sha256$');
+        var mustChange = d.mustChangePassword === true;
+        
+        if (mustChange && hashed) {
+          statusText = '🔄 초기화됨 (학생이 재설정 예정)';
+          statusColor = 'text-amber-600';
+        } else if (hashed) {
+          statusText = '🔒 암호화 저장됨';
+          statusColor = 'text-green-600';
+        } else {
+          statusText = '⚠️ 미암호화 (' + (d.password || '없음') + ')';
+          statusColor = 'text-orange-600';
+        }
+      }
+    } catch(e) {
+      console.error('[lookupPassword]', e);
+      statusText = '❌ 조회 실패';
+      statusColor = 'text-red-600';
+    }
+    
+    document.getElementById('pwLookupResult').innerHTML =
+      '<div class="mt-4 p-4 bg-primary-50 rounded-xl border border-primary-200">' +
+        '<div class="grid grid-cols-2 gap-3">' +
+          '<div><div class="text-xs text-gray-500">이름</div>' +
+            '<div class="font-bold text-gray-800">' + escapeHtml(name) + '</div></div>' +
+          '<div><div class="text-xs text-gray-500">호실</div>' +
+            '<div class="font-bold text-gray-800">' + (room ? room + '호' : '미설정') + '</div></div>' +
+          '<div><div class="text-xs text-gray-500">비밀번호 상태</div>' +
+            '<div class="font-bold ' + statusColor + ' text-sm">' + statusText + '</div></div>' +
+          '<div><div class="text-xs text-gray-500">등록일</div>' +
+            '<div class="font-bold text-gray-800">' + (regDate || '미설정') + '</div></div>' +
+        '</div>' +
+        '<div class="mt-3 pt-3 border-t border-primary-200 text-xs text-gray-500">' +
+          '※ 보안 정책상 비밀번호 조회는 불가능합니다. 분실 시 아래에서 초기화하세요.' +
+        '</div>' +
+      '</div>';
+    document.getElementById('pwResetArea').style.display = 'block';
   };
   
   // ========== [3편+4편] 세션 시작 함수 ==========
