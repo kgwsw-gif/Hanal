@@ -22811,6 +22811,385 @@ function fixDepartmentCounts(){
   }
 })();
 </script>
+<!-- ============================================================ -->
+<!-- 🔐 비밀번호 해싱 마이그레이션 (2026-08-31 적용)                -->
+<!-- SHA-256 + salt 해싱, 이중경로 검증, 자동 마이그레이션,          -->
+<!-- 강제변경 UI, Firestore 우선 조회                              -->
+<!-- ============================================================ -->
+<script>
+(function(){
+  'use strict';
+  
+  // ========== [1편] 해시 유틸 ==========
+  const HASH_PREFIX = 'sha256$';
+  
+  function generateSalt() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return btoa(String.fromCharCode.apply(null, bytes));
+  }
+  
+  async function hashPassword(plaintext, salt) {
+    const enc = new TextEncoder();
+    const data = enc.encode(salt + ':' + plaintext);
+    const hashBuf = await crypto.subtle.digest('SHA-256', data);
+    const hashArr = Array.from(new Uint8Array(hashBuf));
+    return btoa(String.fromCharCode.apply(null, hashArr));
+  }
+  
+  async function toStoredFormat(plaintext) {
+    const salt = generateSalt();
+    const hash = await hashPassword(plaintext, salt);
+    return HASH_PREFIX + salt + '$' + hash;
+  }
+  
+  function isHashed(stored) {
+    return typeof stored === 'string' && stored.startsWith(HASH_PREFIX);
+  }
+  
+  async function verifyPassword(plaintext, stored) {
+    if (!stored) return false;
+    if (isHashed(stored)) {
+      const parts = stored.split('$');
+      if (parts.length !== 3) return false;
+      const salt = parts[1];
+      const expectedHash = parts[2];
+      const actualHash = await hashPassword(plaintext, salt);
+      return actualHash === expectedHash;
+    } else {
+      return plaintext === stored;
+    }
+  }
+  
+  window._pwCrypto = {
+    hash: toStoredFormat,
+    verify: verifyPassword,
+    isHashed: isHashed,
+    HASH_PREFIX: HASH_PREFIX
+  };
+  
+  // ========== 공통 상수 ==========
+  var FORBIDDEN_PASSWORDS = ['1111','0000','1234','9999'];
+  
+  // ========== 공통 함수: Firestore 우선 조회 ==========
+  async function fetchStoredPassword(name) {
+    try {
+      var origName = name.replace(/\(여\)$/, '');
+      var yeoName = origName + '(여)';
+      var rs = await Promise.all([
+        db.collection('passwords').doc(origName).get(),
+        db.collection('passwords').doc(yeoName).get()
+      ]);
+      var found = rs.find(function(d){ return d.exists && d.data().password; });
+      if (found) {
+        return { 
+          pw: found.data().password, 
+          actualName: found.id,
+          mustChangePassword: found.data().mustChangePassword === true,
+          source: 'firestore'
+        };
+      }
+    } catch(e) {
+      console.warn('[fetchStoredPassword] Firestore 실패, 캐시 폴백:', e.message);
+    }
+    
+    var cached = window._secureData.getPassword(name);
+    if (cached) return { pw: cached, actualName: name, source: 'cache' };
+    if (!name.includes('(여)')) {
+      var altName = name + '(여)';
+      var cachedAlt = window._secureData.getPassword(altName);
+      if (cachedAlt) return { pw: cachedAlt, actualName: altName, source: 'cache' };
+    }
+    return { pw: null };
+  }
+  
+  async function autoMigrateToHash(name, plaintext) {
+    try {
+      var hashed = await window._pwCrypto.hash(plaintext);
+      await db.collection('passwords').doc(name).update({
+        password: hashed,
+        passwordHashed: true,
+        updatedAt: new Date().toISOString(),
+        migratedAt: new Date().toISOString()
+      });
+      console.log('[✅ 자동 마이그레이션] ' + name);
+    } catch(e) { console.error('[❌ 자동 마이그레이션 실패]', name, e); }
+  }
+  
+  // ========== [2편] changePassword 재정의 ==========
+  window._origChangePassword = window.changePassword;
+  window.changePassword = function() {
+    var dept = currentStudentDept();
+    var name = currentStudent;
+    
+    openInputModal('비밀번호 변경', [
+      {label:'현재 비밀번호', type:'password', placeholder:'현재 비밀번호', maxLength:20, center:true},
+      {label:'새 비밀번호',   type:'password', placeholder:'4자리 이상 (1111·1234 등 금지)', maxLength:20, center:true},
+      {label:'새 비밀번호 확인', type:'password', placeholder:'새 비밀번호 다시 입력', maxLength:20, center:true}
+    ], async function() {
+      var cur = document.getElementById('modalInput0').value.trim();
+      var np  = document.getElementById('modalInput1').value.trim();
+      var nc  = document.getElementById('modalInput2').value.trim();
+      
+      if (!cur || !np || !nc) { showToast('모든 항목을 입력하세요', 'warning'); return; }
+      
+      var stored = await fetchStoredPassword(name);
+      var isValid = await window._pwCrypto.verify(cur, stored.pw);
+      if (!isValid) { showToast('현재 비밀번호가 틀립니다', 'error'); return; }
+      
+      if (np.length < 4) { showToast('새 비밀번호는 4자리 이상이어야 합니다', 'warning'); return; }
+      if (FORBIDDEN_PASSWORDS.includes(np)) {
+        showToast('너무 단순한 비밀번호입니다 (' + FORBIDDEN_PASSWORDS.join(', ') + ' 금지)', 'warning');
+        return;
+      }
+      if (np !== nc) { showToast('새 비밀번호가 일치하지 않습니다', 'warning'); return; }
+      if (cur === np) { showToast('현재와 동일한 비밀번호입니다', 'warning'); return; }
+      
+      try {
+        var hashedPw = await window._pwCrypto.hash(np);
+        await db.collection('passwords').doc(name).update({
+          password: hashedPw,
+          passwordHashed: true,
+          mustChangePassword: false,
+          updatedAt: new Date().toISOString()
+        });
+        await db.collection('passwordChangeLogs').add({
+          name: name,
+          department: dept,
+          changedAt: new Date().toISOString(),
+          device: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'Mobile' : 'PC'
+        });
+        closeModal();
+        showToast('비밀번호가 안전하게 변경되었습니다', 'success');
+      } catch (e) {
+        console.error('[changePassword]', e);
+        showToast('변경 실패: ' + e.message, 'error');
+      }
+    });
+  };
+  
+  // ========== [2편] resetStudentPassword 재정의 ==========
+  window._origResetStudentPassword = window.resetStudentPassword;
+  window.resetStudentPassword = async function() {
+    var dept  = document.getElementById('pwLookupDept').value;
+    var name  = document.getElementById('pwLookupName').value;
+    var newPw = document.getElementById('pwResetValue').value.trim();
+    
+    if (!dept || !name) { showToast('교육생을 먼저 조회하세요', 'warning'); return; }
+    if (!newPw || newPw.length < 4) { showToast('4자리 이상 비밀번호를 입력하세요', 'warning'); return; }
+    
+    openConfirmModal(
+      '비밀번호 초기화',
+      escapeHtml(name) + '의 비밀번호를<br><b>' + escapeHtml(newPw) + '</b>로 초기화합니다.<br><br>' +
+      '<span style="color:#dc2626;font-size:0.9em;">※ 학생이 이 비밀번호로 로그인하면 즉시 새 비밀번호를 설정하도록 안내됩니다.</span>',
+      async function() {
+        try {
+          var hashedPw = await window._pwCrypto.hash(newPw);
+          await db.collection('passwords').doc(name).update({
+            password: hashedPw,
+            passwordHashed: true,
+            mustChangePassword: true,
+            updatedAt: new Date().toISOString()
+          });
+          await db.collection('passwordChangeLogs').add({
+            name: name,
+            department: dept,
+            changedAt: new Date().toISOString(),
+            device: '관리자 초기화'
+          });
+          showToast(name + ' 비밀번호 초기화 완료 (암호화 저장, 강제변경 대기)', 'success');
+          document.getElementById('pwResetValue').value = '';
+          if (typeof lookupPassword === 'function') lookupPassword();
+        } catch (e) {
+          console.error('[resetStudentPassword]', e);
+          showToast('초기화 실패: ' + e.message, 'error');
+        }
+      },
+      '초기화'
+    );
+  };
+  
+  // ========== [3편+4편] 세션 시작 함수 ==========
+  window._origCloseModal = window.closeModal;
+  
+  function startStudentSession(name) {
+    var found = false;
+    var isGuest = false;
+    for (var i = 0; i < departments.length; i++) {
+      if ((students[departments[i]] || []).includes(name)) { found = true; break; }
+    }
+    if (!found && students['_guest'] && students['_guest'].includes(name)) {
+      found = true; isGuest = true;
+    }
+    if (!found) {
+      var isResigned = resignRequests && resignRequests.some(function(r){
+        return r.status === 'approved' && r.name === name;
+      });
+      if (isResigned) showToast('퇴사한 교육생입니다', 'error');
+      else showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.', 'error');
+      return false;
+    }
+    
+    isGuestLoggedIn = isGuest;
+    currentStudent = name;
+    if (isGuest) {
+      currentMode = 'admin';
+      isAdminLoggedIn = true;
+    } else {
+      currentMode = 'student';
+      try {
+        if (typeof initPushNotification === 'function') initPushNotification();
+      } catch(e) { console.error('푸시 호출 실패:', e); }
+    }
+    window._origCloseModal();
+    render();
+    showToast(isGuest ? name + ' 게스트 로그인 (조회전용)' : name + '님 환영합니다', 'success');
+    if (!isGuest) {
+      setTimeout(function(){
+        if (typeof checkVacationNotice === 'function') checkVacationNotice(false);
+      }, 1500);
+    }
+    return true;
+  }
+  
+  // ========== [4편] 강제변경 모달 ==========
+  function showForceChangeModal(name, currentPlaintext, onSuccess) {
+    window.closeModal = function() {
+      console.log('[강제변경] 닫힘 차단');
+      showToast('⚠️ 비밀번호를 변경해야 로그인이 완료됩니다', 'warning');
+    };
+    
+    openInputModal('🔐 비밀번호 변경 필수 (' + name + ')', [
+      {label:'⚠️ 안내', type:'text', value:'보안 강화를 위해 새 비밀번호를 설정해주세요', maxLength:100},
+      {label:'새 비밀번호',    type:'password', placeholder:'4자리 이상 (1111·1234 등 금지)', maxLength:20, center:true},
+      {label:'새 비밀번호 확인', type:'password', placeholder:'다시 입력', maxLength:20, center:true}
+    ], async function() {
+      var np = document.getElementById('modalInput1').value.trim();
+      var nc = document.getElementById('modalInput2').value.trim();
+      
+      if (!np || np.length < 4) { showToast('4자리 이상 입력하세요', 'warning'); return; }
+      if (FORBIDDEN_PASSWORDS.includes(np)) {
+        showToast('너무 단순한 비밀번호입니다 (' + FORBIDDEN_PASSWORDS.join(', ') + ' 금지)', 'warning');
+        return;
+      }
+      if (np !== nc) { showToast('비밀번호가 일치하지 않습니다', 'warning'); return; }
+      if (np === currentPlaintext) { showToast('현재와 동일합니다', 'warning'); return; }
+      
+      try {
+        var hashed = await window._pwCrypto.hash(np);
+        await db.collection('passwords').doc(name).update({
+          password: hashed,
+          passwordHashed: true,
+          mustChangePassword: false,
+          updatedAt: new Date().toISOString()
+        });
+        await db.collection('passwordChangeLogs').add({
+          name: name,
+          changedAt: new Date().toISOString(),
+          device: '강제변경(로그인)'
+        });
+        
+        window.closeModal = window._origCloseModal;
+        window.closeModal();
+        
+        showToast('비밀번호가 안전하게 변경되었습니다', 'success');
+        setTimeout(function(){ onSuccess(); }, 300);
+      } catch(e) {
+        console.error('[강제변경 저장]', e);
+        showToast('저장 실패: ' + e.message, 'error');
+      }
+    });
+    
+    setTimeout(function(){
+      var buttons = document.querySelectorAll('#modalContent button');
+      buttons.forEach(function(btn){
+        var txt = (btn.textContent || '').trim();
+        if (txt === '취소' || txt === 'Cancel' || txt === '×' || txt === '✕') {
+          btn.style.display = 'none';
+        }
+      });
+    }, 100);
+  }
+  
+  // ========== [3편+4편] showStudentLogin 재정의 ==========
+  window._preHashShowStudentLogin = window.showStudentLogin;
+  window.showStudentLogin = function() {
+    var savedName = localStorage.getItem('saved_student_name') || '';
+    var savedRemember = !!savedName;
+    
+    openInputModal('교육생 로그인 (로그인 실패 시 새로고침)', [
+      {label:'이름',       type:'text',     placeholder:'이름을 입력하세요', value:savedName, autocomplete:'new-password'},
+      {label:'비밀번호',    type:'password', placeholder:'비밀번호 입력', center:true, value:'', autocomplete:'new-password'},
+      {label:'',           type:'checkbox', checkLabel:'이름 기억하기', checked:savedRemember}
+    ], async function() {
+      var name = document.getElementById('modalInput0').value.trim();
+      var bd   = document.getElementById('modalInput1').value.trim();
+      var remember = document.getElementById('modalInput2').checked;
+      
+      if (!name || !bd) { showToast('이름과 비밀번호를 입력하세요', 'warning'); return; }
+      
+      var stored = await fetchStoredPassword(name);
+      if (!stored.pw) {
+        var origName = name.replace(/\(여\)$/, '');
+        var yeoName = origName + '(여)';
+        if (window._loaded) {
+          var _isRes = resignRequests && resignRequests.some(function(r){
+            return r.status === 'approved' && (r.name === origName || r.name === yeoName);
+          });
+          if (_isRes) showToast('퇴사한 교육생입니다', 'error');
+          else showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.', 'error');
+        } else {
+          showToast('📡 데이터 준비 중입니다', 'warning');
+        }
+        return;
+      }
+      
+      if (stored.actualName && stored.actualName !== name) name = stored.actualName;
+      
+      var isValid = await window._pwCrypto.verify(bd, stored.pw);
+      if (!isValid) { showToast('비밀번호 불일치', 'error'); return; }
+      
+      if (!window._pwCrypto.isHashed(stored.pw)) {
+        autoMigrateToHash(name, bd);
+      }
+      
+      if (remember) localStorage.setItem('saved_student_name', name);
+      else localStorage.removeItem('saved_student_name');
+      localStorage.removeItem('saved_student_pw');
+      
+      var totalStudents = 0;
+      for (var k in students) {
+        if (Array.isArray(students[k])) totalStudents += students[k].length;
+      }
+      if (totalStudents === 0 || !departments || departments.length === 0) {
+        showToast('데이터 준비 중입니다', 'warning');
+        return;
+      }
+      
+      var mustChange = (bd === '1111') || stored.mustChangePassword;
+      
+      if (mustChange) {
+        window._origCloseModal();
+        setTimeout(function(){
+          showForceChangeModal(name, bd, function(){
+            startStudentSession(name);
+          });
+        }, 300);
+      } else {
+        startStudentSession(name);
+      }
+    });
+  };
+  
+  console.log('[🔐 비밀번호 해싱 마이그레이션] 로드 완료 (2026-08-31)');
+  console.log('  ✓ SHA-256 + salt 해싱');
+  console.log('  ✓ 이중경로 로그인 (해시/평문 자동 판별)');
+  console.log('  ✓ 자동 마이그레이션');
+  console.log('  ✓ 강제변경 UI (1111 및 mustChangePassword:true 트리거)');
+  console.log('  ✓ Firestore 우선 조회');
+  
+})();
+</script>
 
 </div>
 </body>
