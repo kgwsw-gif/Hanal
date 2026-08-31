@@ -23060,12 +23060,11 @@ function fixDepartmentCounts(){
     };
     
     openInputModal('🔐 비밀번호 변경 필수 (' + name + ')', [
-      {label:'⚠️ 안내', type:'text', value:'보안 강화를 위해 새 비밀번호를 설정해주세요', maxLength:100},
-      {label:'새 비밀번호',    type:'password', placeholder:'4자리 이상 (1111·1234 등 금지)', maxLength:20, center:true},
-      {label:'새 비밀번호 확인', type:'password', placeholder:'다시 입력', maxLength:20, center:true}
-    ], async function() {
-      var np = document.getElementById('modalInput1').value.trim();
-      var nc = document.getElementById('modalInput2').value.trim();
+  {label:'새 비밀번호',    type:'password', placeholder:'4자리 이상 (1111·1234 등 금지)', maxLength:20, center:true},
+  {label:'새 비밀번호 확인', type:'password', placeholder:'다시 입력', maxLength:20, center:true}
+], async function() {
+  var np = document.getElementById('modalInput0').value.trim();
+  var nc = document.getElementById('modalInput1').value.trim();
       
       if (!np || np.length < 4) { showToast('4자리 이상 입력하세요', 'warning'); return; }
       if (FORBIDDEN_PASSWORDS.includes(np)) {
