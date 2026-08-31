@@ -21498,7 +21498,7 @@ function fixDepartmentCounts(){
 <script>
 (function initComplianceReportSystem() {
   // ===== 파기 방법 섹션 실시간 생성 =====
-  window._buildDestructionMethodSection = async function() {
+    window._buildDestructionMethodSection = async function() {
     const db = firebase.firestore();
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30*24*60*60*1000);
@@ -21518,12 +21518,12 @@ function fixDepartmentCounts(){
       });
     } catch(e) { console.warn('파기 로그 조회 실패:', e); }
     
+    // 실제 존재하는 10개 컬렉션 (2026-08-31 정정: applications, rollCalls, penalties 제거; penaltyPoints, deletionLogs 추가)
     const targets = [
       ['비밀번호','passwords'],['방번호','roomNumbers'],['차량번호','vehicleNumbers'],
-      ['사진','photos'],['제출서류','submissions'],['기숙사 서약서','dormitoryAgreements'],
+      ['사진','photos'],['제출서류(잔류·외박 포함)','submissions'],['기숙사 서약서','dormitoryAgreements'],
       ['방 배정 이력','dorm_assignments'],['학생 기본정보','students'],
-      ['입사신청','applications'],
-      ['점호기록','rollCalls'],['벌점기록','penalties']
+      ['벌점기록','penaltyPoints'],['파기 이력','deletionLogs']
     ];
     const rows = targets.map((c,i)=>`<tr><td style="border:1px solid #000;padding:4px 8px;text-align:center;">${i+1}</td><td style="border:1px solid #000;padding:4px 8px;">${c[0]}</td><td style="border:1px solid #000;padding:4px 8px;color:#666;font-family:monospace;font-size:11px;">${c[1]}</td></tr>`).join('');
     
@@ -21539,7 +21539,7 @@ function fixDepartmentCounts(){
       <h4 style="font-size:13px;font-weight:bold;margin:8px 0;">2. 파기 절차</h4>
       <ol style="margin-left:20px;font-size:12px;line-height:1.7;">
         <li><b>1단계 - 사전 확인(DRY-RUN):</b> 파기 대상 건수 확인 후 관리자 승인</li>
-        <li><b>2단계 - 전수 파기 실행:</b> 12개 컬렉션에서 개인정보 삭제</li>
+        <li><b>2단계 - 전수 파기 실행:</b> ${targets.length}개 컬렉션에서 개인정보 삭제 (관리자 수동 실행)</li>
         <li><b>3단계 - 파기 이력 기록:</b> 파기 일시·대상자·건수 자동 기록(수정/삭제 불가)</li>
       </ol>
       <h4 style="font-size:13px;font-weight:bold;margin:8px 0;">3. 파기 대상 컬렉션 (총 ${targets.length}개)</h4>
