@@ -23097,66 +23097,115 @@ function fixDepartmentCounts(){
     }
     
     function showForceChangeLeaderModal(dept, leaderName, currentPw) {
-      return new Promise(function(resolve, reject) {
-        openInputModal(
-          '🔒 비밀번호 변경 필수 (' + dept + ' ' + leaderName + ')',
-          [
-            { label: '새 비밀번호 (4자리 이상)', type: 'password', placeholder: '새 비밀번호', value: '' },
-            { label: '새 비밀번호 확인', type: 'password', placeholder: '한번 더 입력', value: '' }
-          ],
-          async function() {
-            var newPw = document.getElementById('modalInput0').value.trim();
-            var confirmPw = document.getElementById('modalInput1').value.trim();
-            
-            if (!newPw || !confirmPw) { showToast('모든 항목을 입력하세요', 'error'); return; }
-            if (newPw.length < 4) { showToast('새 비밀번호는 4자리 이상이어야 합니다', 'error'); return; }
-            if (newPw !== confirmPw) { showToast('새 비밀번호 확인이 일치하지 않습니다', 'error'); return; }
-            if (BANNED_LEADER_PW.indexOf(newPw) !== -1) { showToast('사용할 수 없는 비밀번호입니다', 'error'); return; }
-            if (newPw === currentPw) { showToast('기존 비밀번호와 동일합니다', 'error'); return; }
-            
-            try {
-              var newHashed = await window._pwCrypto.hash(newPw);
-              await db.collection('departmentLeaders').doc(dept).update({
-                password: newHashed,
-                passwordHashed: true,
-                mustChangePassword: false,
-                updatedAt: new Date().toISOString()
-              });
-              
-              if (window._origCloseModalLeaderForce) {
-                window.closeModal = window._origCloseModalLeaderForce;
-                delete window._origCloseModalLeaderForce;
-              }
-              closeModal();
-              showToast('비밀번호가 안전하게 변경되었습니다', 'success');
-              resolve(true);
-            } catch(e) {
-              console.error('[학과대표 강제변경 저장 오류]', e);
-              showToast('저장 실패: ' + e.message, 'error');
-            }
-          },
-          '변경'
-        );
-        
-        if (!window._origCloseModalLeaderForce) {
-          window._origCloseModalLeaderForce = window.closeModal;
-          window.closeModal = function() {
-            showToast('비밀번호를 변경해야 세션을 시작할 수 있습니다', 'error');
-          };
-        }
-        
-        setTimeout(function() {
-          document.querySelectorAll('#modalContent button').forEach(function(btn) {
-            if (btn.textContent.trim() === '취소') btn.style.display = 'none';
-          });
-        }, 100);
-        setTimeout(function() {
-          document.querySelectorAll('#modalContent button').forEach(function(btn) {
-            if (btn.textContent.trim() === '취소') btn.style.display = 'none';
-          });
-        }, 500);
-      });
+  return new Promise(function(resolve, reject) {
+    // 취소 방지: closeModal 임시 오버라이드
+    if (!window._origCloseModalLeaderForce) {
+      window._origCloseModalLeaderForce = window.closeModal;
+      window.closeModal = function() {
+        showToast('비밀번호 변경을 완료해야 이용할 수 있습니다', 'warning');
+      };
     }
+
+    var submitFn = '_forceLeaderPwSubmit_' + Date.now();
+
+    window[submitFn] = async function() {
+      var newPw = document.getElementById('forceLeaderNewPw').value.trim();
+      var confirmPw = document.getElementById('forceLeaderConfirmPw').value.trim();
+
+      if (!newPw || !confirmPw) { showToast('모든 항목을 입력하세요', 'error'); return; }
+      if (newPw.length < 4) { showToast('새 비밀번호는 4자리 이상이어야 합니다', 'error'); return; }
+      if (newPw !== confirmPw) { showToast('새 비밀번호 확인이 일치하지 않습니다', 'error'); return; }
+      if (BANNED_LEADER_PW.indexOf(newPw) !== -1) { showToast('사용할 수 없는 비밀번호입니다 (1111, 0000, 1234, 9999 등)', 'error'); return; }
+      if (newPw === currentPw) { showToast('기존 비밀번호와 동일합니다', 'error'); return; }
+
+      try {
+        var newHashed = await window._pwCrypto.hash(newPw);
+        await db.collection('departmentLeaders').doc(dept).update({
+          password: newHashed,
+          passwordHashed: true,
+          mustChangePassword: false,
+          updatedAt: new Date().toISOString()
+        });
+
+        // closeModal 원상복구
+        if (window._origCloseModalLeaderForce) {
+          window.closeModal = window._origCloseModalLeaderForce;
+          delete window._origCloseModalLeaderForce;
+        }
+        window.closeModal();
+        delete window[submitFn];
+        showToast('비밀번호가 안전하게 변경되었습니다', 'success');
+        resolve(true);
+      } catch(e) {
+        console.error('[학과대표 강제변경 저장 오류]', e);
+        showToast('저장 실패: ' + e.message, 'error');
+      }
+    };
+
+    // v4 디자인 HTML
+    var html =
+      '<div style="max-width:480px;width:100%;">' +
+        // 헤더 (파란 그라데이션)
+        '<div style="background:linear-gradient(135deg,#4A90E2,#357ABD);color:#fff;padding:24px;border-radius:16px 16px 0 0;">' +
+          '<div style="font-size:22px;font-weight:bold;margin-bottom:6px;">🔒 비밀번호 변경 필수</div>' +
+          '<div style="font-size:13px;opacity:0.9;">' + escapeHtml(dept) + ' ' + escapeHtml(leaderName) + '</div>' +
+        '</div>' +
+
+        // 안내 박스
+        '<div style="padding:20px 24px 0;">' +
+          '<div style="background:#F0F7FF;border-left:4px solid #4A90E2;padding:14px 16px;border-radius:6px;font-size:13px;line-height:1.6;color:#333;">' +
+            '<div style="font-weight:bold;color:#2C5F9E;margin-bottom:8px;">📢 비밀번호 보안 강화 안내</div>' +
+            '기숙사 시스템의 보안이 강화되어, <b>초기 비밀번호(1111)를 사용 중인 학생은 반드시 새 비밀번호로 변경</b>해야 합니다.' +
+            '<ul style="margin:10px 0 0;padding-left:18px;color:#555;">' +
+              '<li>변경된 비밀번호는 암호화되어 저장되므로 <b>관리자도 조회할 수 없습니다</b>.</li>' +
+              '<li>비밀번호 분실 시 <b>사감실에 문의</b>하시면 초기화해 드립니다.</li>' +
+              '<li>사용 금지: 1111, 0000, 1234, 9999 등 단순 조합</li>' +
+            '</ul>' +
+          '</div>' +
+        '</div>' +
+
+        // 입력 영역
+        '<div style="padding:20px 24px;">' +
+          '<style>' +
+            '#modalSystem .forcePwInput{width:100%!important;padding:11px 14px!important;border:1.5px solid #B0C9E8!important;border-radius:6px!important;font-size:14px!important;margin-bottom:14px!important;box-sizing:border-box!important;background-color:#EAF2FB!important;color:#333!important;outline:none!important;transition:border-color 0.2s!important;-webkit-appearance:none!important;}' +
+            '#modalSystem .forcePwInput:focus{border-color:#4A90E2!important;background-color:#EAF2FB!important;}' +
+            '#modalSystem .forcePwInput:-webkit-autofill,#modalSystem .forcePwInput:-webkit-autofill:hover,#modalSystem .forcePwInput:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 30px #EAF2FB inset!important;-webkit-text-fill-color:#333!important;}' +
+          '</style>' +
+
+          '<label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;">새 비밀번호 (4자리 이상)</label>' +
+          '<input type="password" id="forceLeaderNewPw" class="forcePwInput" placeholder="본인만 아는 비밀번호" autocomplete="new-password">' +
+
+          '<label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;">새 비밀번호 확인</label>' +
+          '<input type="password" id="forceLeaderConfirmPw" class="forcePwInput" placeholder="다시 입력" autocomplete="new-password">' +
+
+          '<button onclick="window[\'' + submitFn + '\']()" style="width:100%;padding:12px;background:#4A90E2;color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;">비밀번호 변경</button>' +
+
+          '<div style="text-align:center;font-size:13px;color:#888;margin-top:14px;font-weight:500;">' +
+            '※ 취소할 수 없습니다. 변경 완료 후 이용 가능합니다.' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    openModal(html);
+
+    // Enter 키로 제출
+    setTimeout(function() {
+      var newPwEl = document.getElementById('forceLeaderNewPw');
+      if (newPwEl) newPwEl.focus();
+
+      var modalEl = document.getElementById('modalSystem');
+      if (modalEl) {
+        var enterHandler = function(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (window[submitFn]) window[submitFn]();
+          }
+        };
+        modalEl.addEventListener('keydown', enterHandler);
+      }
+    }, 200);
+  });
+}
     
     openInputModal('학과대표 로그인', [
       {label:'학과 선택', type:'select', options:[{value:'',label:'선택하세요'}].concat(opts), value:savedDept},
@@ -23361,63 +23410,124 @@ function fixDepartmentCounts(){
     return true;
   }
   
-  // ========== [4편] 강제변경 모달 ==========
-  function showForceChangeModal(name, currentPlaintext, onSuccess) {
+  // ========== [4편] 강제변경 모달 (v4 디자인) ==========
+function showForceChangeModal(name, currentPlaintext, onSuccess) {
+  // 취소 방지: closeModal 원본 백업 후 오버라이드
+  if (!window._origCloseModalStudentForce) {
+    window._origCloseModalStudentForce = window.closeModal;
     window.closeModal = function() {
       console.log('[강제변경] 닫힘 차단');
       showToast('⚠️ 비밀번호를 변경해야 로그인이 완료됩니다', 'warning');
     };
-    
-    openInputModal('🔐 비밀번호 변경 필수 (' + name + ')', [
-  {label:'새 비밀번호',    type:'password', placeholder:'4자리 이상 (1111·1234 등 금지)', maxLength:20, center:true},
-  {label:'새 비밀번호 확인', type:'password', placeholder:'다시 입력', maxLength:20, center:true}
-], async function() {
-  var np = document.getElementById('modalInput0').value.trim();
-  var nc = document.getElementById('modalInput1').value.trim();
-      
-      if (!np || np.length < 4) { showToast('4자리 이상 입력하세요', 'warning'); return; }
-      if (FORBIDDEN_PASSWORDS.includes(np)) {
-        showToast('너무 단순한 비밀번호입니다 (' + FORBIDDEN_PASSWORDS.join(', ') + ' 금지)', 'warning');
-        return;
-      }
-      if (np !== nc) { showToast('비밀번호가 일치하지 않습니다', 'warning'); return; }
-      if (np === currentPlaintext) { showToast('현재와 동일합니다', 'warning'); return; }
-      
-      try {
-        var hashed = await window._pwCrypto.hash(np);
-        await db.collection('passwords').doc(name).update({
-          password: hashed,
-          passwordHashed: true,
-          mustChangePassword: false,
-          updatedAt: new Date().toISOString()
-        });
-        await db.collection('passwordChangeLogs').add({
-          name: name,
-          changedAt: new Date().toISOString(),
-          device: '강제변경(로그인)'
-        });
-        
-        window.closeModal = window._origCloseModal;
-        window.closeModal();
-        
-        showToast('비밀번호가 안전하게 변경되었습니다', 'success');
-        setTimeout(function(){ onSuccess(); }, 300);
-      } catch(e) {
-        console.error('[강제변경 저장]', e);
-        showToast('저장 실패: ' + e.message, 'error');
-      }
-    });
-    
-    setTimeout(function(){
-      var buttons = document.querySelectorAll('#modalContent button');
-      buttons.forEach(function(btn){
-        var txt = (btn.textContent || '').trim();
-        if (txt === '취소' || txt === 'Cancel' || txt === '×' || txt === '✕') {
-          btn.style.display = 'none';
-        }
-      });
-    }, 100);
   }
+
+  var submitFn = '_forceStudentPwSubmit_' + Date.now();
+
+  window[submitFn] = async function() {
+    var np = document.getElementById('forceStudentNewPw').value.trim();
+    var nc = document.getElementById('forceStudentConfirmPw').value.trim();
+
+    if (!np || np.length < 4) { showToast('4자리 이상 입력하세요', 'warning'); return; }
+    if (FORBIDDEN_PASSWORDS.includes(np)) {
+      showToast('너무 단순한 비밀번호입니다 (' + FORBIDDEN_PASSWORDS.join(', ') + ' 금지)', 'warning');
+      return;
+    }
+    if (np !== nc) { showToast('비밀번호가 일치하지 않습니다', 'warning'); return; }
+    if (np === currentPlaintext) { showToast('현재와 동일합니다', 'warning'); return; }
+
+    try {
+      var hashed = await window._pwCrypto.hash(np);
+      await db.collection('passwords').doc(name).update({
+        password: hashed,
+        passwordHashed: true,
+        mustChangePassword: false,
+        updatedAt: new Date().toISOString()
+      });
+      await db.collection('passwordChangeLogs').add({
+        name: name,
+        changedAt: new Date().toISOString(),
+        device: '강제변경(로그인)'
+      });
+
+      // closeModal 원상복구
+      if (window._origCloseModalStudentForce) {
+        window.closeModal = window._origCloseModalStudentForce;
+        delete window._origCloseModalStudentForce;
+      }
+      window.closeModal();
+      delete window[submitFn];
+
+      showToast('비밀번호가 안전하게 변경되었습니다', 'success');
+      setTimeout(function(){ onSuccess(); }, 300);
+    } catch(e) {
+      console.error('[강제변경 저장]', e);
+      showToast('저장 실패: ' + e.message, 'error');
+    }
+  };
+
+  // v4 디자인 HTML
+  var html =
+    '<div style="max-width:480px;width:100%;">' +
+      // 헤더 (파란 그라데이션)
+      '<div style="background:linear-gradient(135deg,#4A90E2,#357ABD);color:#fff;padding:24px;border-radius:16px 16px 0 0;">' +
+        '<div style="font-size:22px;font-weight:bold;margin-bottom:6px;">🔒 비밀번호 변경 필수</div>' +
+        '<div style="font-size:13px;opacity:0.9;">' + escapeHtml(name) + '</div>' +
+      '</div>' +
+
+      // 안내 박스
+      '<div style="padding:20px 24px 0;">' +
+        '<div style="background:#F0F7FF;border-left:4px solid #4A90E2;padding:14px 16px;border-radius:6px;font-size:13px;line-height:1.6;color:#333;">' +
+          '<div style="font-weight:bold;color:#2C5F9E;margin-bottom:8px;">📢 비밀번호 보안 강화 안내</div>' +
+          '기숙사 시스템의 보안이 강화되어, <b>초기 비밀번호(1111)를 사용 중인 교육생은 반드시 새 비밀번호로 변경</b>해야 합니다.' +
+          '<ul style="margin:10px 0 0;padding-left:18px;color:#555;">' +
+            '<li>변경된 비밀번호는 암호화되어 저장되므로 <b>관리자도 조회할 수 없습니다</b>.</li>' +
+            '<li>비밀번호 분실 시 <b>사감실에 문의</b>하시면 초기화해 드립니다.</li>' +
+            '<li>사용 금지: 1111, 0000, 1234, 9999 등 단순 조합</li>' +
+          '</ul>' +
+        '</div>' +
+      '</div>' +
+
+      // 입력 영역
+      '<div style="padding:20px 24px;">' +
+        '<style>' +
+          '#modalSystem .forcePwInput{width:100%!important;padding:11px 14px!important;border:1.5px solid #B0C9E8!important;border-radius:6px!important;font-size:14px!important;margin-bottom:14px!important;box-sizing:border-box!important;background-color:#EAF2FB!important;color:#333!important;outline:none!important;transition:border-color 0.2s!important;-webkit-appearance:none!important;}' +
+          '#modalSystem .forcePwInput:focus{border-color:#4A90E2!important;background-color:#EAF2FB!important;}' +
+          '#modalSystem .forcePwInput:-webkit-autofill,#modalSystem .forcePwInput:-webkit-autofill:hover,#modalSystem .forcePwInput:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 30px #EAF2FB inset!important;-webkit-text-fill-color:#333!important;}' +
+        '</style>' +
+
+        '<label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;">새 비밀번호 (4자리 이상)</label>' +
+        '<input type="password" id="forceStudentNewPw" class="forcePwInput" placeholder="본인만 아는 비밀번호" autocomplete="new-password" maxlength="20">' +
+
+        '<label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px;">새 비밀번호 확인</label>' +
+        '<input type="password" id="forceStudentConfirmPw" class="forcePwInput" placeholder="다시 입력" autocomplete="new-password" maxlength="20">' +
+
+        '<button onclick="window[\'' + submitFn + '\']()" style="width:100%;padding:12px;background:#4A90E2;color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px;">비밀번호 변경</button>' +
+
+        '<div style="text-align:center;font-size:13px;color:#888;margin-top:14px;font-weight:500;">' +
+          '※ 취소할 수 없습니다. 변경 완료 후 이용 가능합니다.' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  openModal(html);
+
+  // Enter 키로 제출 및 포커스
+  setTimeout(function() {
+    var newPwEl = document.getElementById('forceStudentNewPw');
+    if (newPwEl) newPwEl.focus();
+
+    var modalEl = document.getElementById('modalSystem');
+    if (modalEl) {
+      var enterHandler = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (window[submitFn]) window[submitFn]();
+        }
+      };
+      modalEl.addEventListener('keydown', enterHandler);
+    }
+  }, 200);
+}
   
   // ========== [3편+4편] showStudentLogin 재정의 ==========
   window._preHashShowStudentLogin = window.showStudentLogin;
