@@ -219,35 +219,49 @@ html.dark .btn-press:active{box-shadow:inset 3px 3px 6px rgba(0,0,0,0.4)!importa
 html.dark .card-interactive{box-shadow:4px 4px 10px rgba(0,0,0,0.3)!important}
 html.dark .card-interactive:hover{box-shadow:6px 6px 14px rgba(0,0,0,0.4)!important}
 html.dark button[onclick*="deleteStudentAction"],html.dark button[onclick*="deleteDepartmentAction"],html.dark button[onclick*="addStudent()"],html.dark button[onclick*="loadResignHistory"]{box-shadow:none!important}
-/* 폴드/태블릿 큰 화면에서 modalSystem 중앙 정렬 (열렸을 때만) */
+/* 폴드/태블릿 큰 화면에서 modalSystem 중앙 정렬 - 안전 버전 */
 @media (min-width: 1024px) {
-  #modalSystem:not(:empty) {
+  #modalSystem.modal-open {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
     padding: 20px !important;
-    pointer-events: auto !important;
   }
-  #modalSystem:empty {
-    display: none !important;
-  }
-  #modalSystem > div {
-    position: static !important;
+  #modalSystem.modal-open > div {
+    position: relative !important;
+    inset: auto !important;
     top: auto !important;
     left: auto !important;
     right: auto !important;
     bottom: auto !important;
     transform: none !important;
     margin: 0 !important;
-    inset: auto !important;
     max-width: 700px !important;
-    min-width: 500px !important;
     max-height: 90vh !important;
     overflow-y: auto !important;
     border-radius: 16px !important;
   }
 }
-    </style>
+</style>
+
+<script>
+// modalSystem 자동 감지: 내용이 있으면 modal-open 클래스 부여
+(function() {
+  const target = document.getElementById('modalSystem');
+  if (!target) return;
+  const observer = new MutationObserver(() => {
+    if (target.children.length > 0 && target.innerHTML.trim() !== '') {
+      target.classList.add('modal-open');
+    } else {
+      target.classList.remove('modal-open');
+    }
+  });
+  observer.observe(target, { childList: true, subtree: false });
+})();
+</script>
+
+<style>
+</style>
 
     <style>
 /* ========== 새 로딩화면 CSS ========== */
