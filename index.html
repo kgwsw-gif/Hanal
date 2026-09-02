@@ -219,22 +219,24 @@ html.dark .btn-press:active{box-shadow:inset 3px 3px 6px rgba(0,0,0,0.4)!importa
 html.dark .card-interactive{box-shadow:4px 4px 10px rgba(0,0,0,0.3)!important}
 html.dark .card-interactive:hover{box-shadow:6px 6px 14px rgba(0,0,0,0.4)!important}
 html.dark button[onclick*="deleteStudentAction"],html.dark button[onclick*="deleteDepartmentAction"],html.dark button[onclick*="addStudent()"],html.dark button[onclick*="loadResignHistory"]{box-shadow:none!important}
-/* 폴드/태블릿 큰 화면에서 모달 중앙 정렬 보정 */
+/* 폴드/태블릿 큰 화면에서 modalSystem 중앙 정렬 보정 */
 @media (min-width: 1024px) {
-  .fixed.inset-0,
-  [class*="modal"],
-  [id*="modal"],
-  [id*="Modal"] {
+  #modalSystem {
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
   }
-  .fixed.inset-0 > div,
-  [class*="modal"] > div,
-  [id*="modal"] > div,
-  [id*="Modal"] > div {
-    margin-left: auto !important;
-    margin-right: auto !important;
+  #modalSystem > div {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    margin: 0 auto !important;
+    max-width: 90vw !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
   }
 }
     </style>
