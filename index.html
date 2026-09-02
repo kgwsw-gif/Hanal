@@ -218,8 +218,28 @@ html.dark .btn-press:hover{box-shadow:6px 6px 14px rgba(0,0,0,0.5)!important}
 html.dark .btn-press:active{box-shadow:inset 3px 3px 6px rgba(0,0,0,0.4)!important}
 html.dark .card-interactive{box-shadow:4px 4px 10px rgba(0,0,0,0.3)!important}
 html.dark .card-interactive:hover{box-shadow:6px 6px 14px rgba(0,0,0,0.4)!important}
-html.dark button[onclick*="deleteStudentAction"],html.dark button[onclick*="deleteDepartmentAction"],html.dark button[onclick*="addStudent()"],html.dark button[onclick*="loadResignHistory"]{box-shadow:none!important}    </style>
-<style>
+html.dark button[onclick*="deleteStudentAction"],html.dark button[onclick*="deleteDepartmentAction"],html.dark button[onclick*="addStudent()"],html.dark button[onclick*="loadResignHistory"]{box-shadow:none!important}
+/* 폴드/태블릿 큰 화면에서 모달 중앙 정렬 보정 */
+@media (min-width: 1024px) {
+  .fixed.inset-0,
+  [class*="modal"],
+  [id*="modal"],
+  [id*="Modal"] {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+  .fixed.inset-0 > div,
+  [class*="modal"] > div,
+  [id*="modal"] > div,
+  [id*="Modal"] > div {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+    </style>
+
+    <style>
 /* ========== 새 로딩화면 CSS ========== */
 #loading.loading-bg{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;overflow:hidden;background:transparent!important;transition:opacity 0.7s cubic-bezier(0.4,0,0.2,1)}
 #loading .mesh-blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.35;will-change:transform}
