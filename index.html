@@ -23761,7 +23761,7 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
   }
 })();
 </script>
-<!-- ===== 기숙사 서약서 PDF 패치 (인라인) ===== -->
+<!-- ===== 기숙사 서약서 PDF 패치 (인라인·자립형) ===== -->
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <script id="pledge-template-b64" type="text/plain">
@@ -23769,40 +23769,47 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
 </script>
 <script>
 (function(){
-  // (1) PDF 템플릿 Base64 — 위 <script type="text/plain">에서 읽음
   const PLEDGE_TEMPLATE_B64 = (document.getElementById("pledge-template-b64")
       .textContent || "").replace(/\s+/g, "");
 
-  // (2) 편집기에서 저장한 좌표 (localStorage 우선, 없으면 내장 기본값)
   const DEFAULT_ADJUST = {
-    // 편집기에서 최종 저장했던 값을 이 자리에 넣어두면 됩니다.
-    // 지금은 localStorage._pledgeAdjust 를 그대로 사용합니다.
+    name:         { x: 170.67, y: 690.67, dx: 0,    dy: 0.5, size: 11,   maxW: 80 },
+    department:   { x: 268.67, y: 690,    dx: -8.5, dy: 3.2, size: 11,   maxW: 55 },
+    subClass:     { x: 340.67, y: 689.33, dx: 3,    dy: 3.1, size: 11,   maxW: 18 },
+    birthDate:    { x: 456.67, y: 689.33, dx: -6.5, dy: 2,   size: 10.5, maxW: 75 },
+    address:      { x: 169.33, y: 658.67, dx: -1.1, dy: 1.3, size: 11,   maxW: 380 },
+    homeTel:      { x: 200,    y: 627.33, dx: -20.5,dy: 2,   size: 10,   maxW: 95 },
+    mobile:       { x: 196.67, y: 596,    dx: -15,  dy: 2,   size: 10,   maxW: 100 },
+    healthGood:   { x: 344,    y: 625.33, dx: -9.5, dy: 8.6, r: 12.5 },
+    healthNormal: { x: 376.67, y: 627.33, dx: -9.5, dy: 6,   r: 12.5 },
+    healthWeak:   { x: 411.33, y: 626.67, dx: -12.5,dy: 6.5, r: 12.5 },
+    disease:      { x: 452,    y: 626.67, dx: -5,   dy: 3,   size: 11,   maxW: 80 },
+    emergency:    { x: 326.67, y: 596,    dx: -1.5, dy: 1.6, size: 13,   maxW: 130 },
+    guardianName: { x: 170.67, y: 566,    dx: 15.5, dy: 3,   size: 11,   maxW: 130 },
+    guardianRel:  { x: 326,    y: 566,    dx: 0,    dy: 0.6, size: 12,   maxW: 130 },
+    dateYear:     { x: 248,    y: 305.33, dx: -2.2, dy: 0.5, size: 15 },
+    dateMonth:    { x: 276.67, y: 305.33, dx: 1.5,  dy: 0.6, size: 15 },
+    dateDay:      { x: 304.67, y: 306,    dx: -1.5, dy: 0.1, size: 15 },
+    signature:    { x: 194,    y: 226,    dx: -3.1, dy: 2.5, size: 14.5, maxW: 80 }
   };
-  function loadAdjust(){
-    try {
-      const s = localStorage.getItem("_pledgeAdjust");
-      if (s) return JSON.parse(s);
-    } catch(e){}
-    return DEFAULT_ADJUST;
-  }
 
-  // (3) 폰트 CDN (Nanum Gothic TTF)
   const FONT_URL = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/nanumgothic/NanumGothic-Regular.ttf";
 
-  // (4) Base64 → Uint8Array
   function b64ToBytes(b64){
     const bin = atob(b64);
-    const len = bin.length;
-    const bytes = new Uint8Array(len);
-    for (let i=0; i<len; i++) bytes[i] = bin.charCodeAt(i);
+    const bytes = new Uint8Array(bin.length);
+    for (let i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return bytes;
   }
+  function num(v, def){
+    const n = Number(v);
+    return isFinite(n) ? n : (def !== undefined ? def : 0);
+  }
 
-  // (5) downloadAgreementPdf 오버라이드
   window.downloadAgreementPdf = async function(data){
     try {
       if (!PLEDGE_TEMPLATE_B64 || PLEDGE_TEMPLATE_B64.length < 1000){
-        alert("서약서 템플릿이 삽입되지 않았습니다. index.html의 PLEDGE_TEMPLATE_PLACEHOLDER 자리를 확인하세요.");
+        alert("서약서 템플릿이 삽입되지 않았습니다. PLEDGE_TEMPLATE_PLACEHOLDER 자리를 확인하세요.");
         return;
       }
       const { PDFDocument, rgb } = PDFLib;
@@ -23813,17 +23820,12 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
       const font = await pdfDoc.embedFont(fontBytes, { subset: false });
 
       const page = pdfDoc.getPages()[0];
-      const ADJUST = loadAdjust();
+      const ADJUST = DEFAULT_ADJUST;
 
-      // 학과/반: '과'/'반' 접미사 제거 후 결합
       const dept = (data.department || "").replace(/과$/, "");
       const sub  = (data.subClass    || "").replace(/반$/, "");
-      const deptFull = sub ? `${dept} ${sub}` : dept;
-
-      // 생년월일
       const bd = data.birthDate || (data.birthYear ? String(data.birthYear) : "");
 
-      // 제출일자
       const today = data.submittedDate ? new Date(data.submittedDate) : new Date();
       const yy = String(today.getFullYear()).slice(2);
       const mm = String(today.getMonth()+1);
@@ -23831,18 +23833,19 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
 
       const fields = {
         name:         data.name || "",
-        department:   deptFull,
+        department:   dept,
+        subClass:     sub,
         birthDate:    bd,
         address:      data.address || "",
         homeTel:      data.homeTel || "",
         mobile:       data.mobile || "",
         emergency:    data.guardianPhone || "",
-        guardianName: (data.guardianName||""),
+        guardianName: data.guardianName || "",
         guardianRel:  data.guardianRelation || "",
-        dateYear:  yy,
-        dateMonth: mm,
-        dateDay:   dd,
-        signature: data.name || ""
+        dateYear:     yy,
+        dateMonth:    mm,
+        dateDay:      dd,
+        signature:    data.name || ""
       };
 
       for (const key in fields){
@@ -23850,29 +23853,44 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
         if (!cfg) continue;
         const txt = String(fields[key] || "");
         if (!txt) continue;
-        page.drawText(txt, {
-          x: cfg.x + (cfg.dx||0),
-          y: cfg.y + (cfg.dy||0),
-          size: cfg.size || 11,
-          font: font,
-          maxWidth: cfg.maxW || undefined
-        });
+        const x = num(cfg.x) + num(cfg.dx);
+        const y = num(cfg.y) + num(cfg.dy);
+        if (!isFinite(x) || !isFinite(y)){
+          console.warn(`[pledge] skip "${key}"`, cfg);
+          continue;
+        }
+        try {
+          page.drawText(txt, {
+            x: x, y: y,
+            size: num(cfg.size, 11),
+            font: font,
+            maxWidth: cfg.maxW ? num(cfg.maxW) : undefined
+          });
+        } catch(err){
+          console.warn(`[pledge] drawText fail "${key}":`, err.message);
+        }
       }
 
-      // 건강여부 원 표시
       const health = data.health || "양호";
       const healthKey = health === "양호" ? "healthGood"
                      : health === "허약" ? "healthWeak"
                      : "healthNormal";
       const hc = ADJUST[healthKey];
       if (hc){
-        page.drawCircle({
-          x: hc.x + (hc.dx||0),
-          y: hc.y + (hc.dy||0),
-          size: hc.r || 13,
-          borderWidth: 1.5,
-          borderColor: rgb(0,0,0)
-        });
+        const cx = num(hc.x) + num(hc.dx);
+        const cy = num(hc.y) + num(hc.dy);
+        const cr = num(hc.r, 13);
+        if (isFinite(cx) && isFinite(cy)){
+          try {
+            page.drawCircle({
+              x: cx, y: cy, size: cr,
+              borderWidth: 1.5,
+              borderColor: rgb(0,0,0)
+            });
+          } catch(err){
+            console.warn("[pledge] drawCircle fail:", err.message);
+          }
+        }
       }
 
       const pdfBytes = await pdfDoc.save();
