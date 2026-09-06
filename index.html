@@ -19920,10 +19920,11 @@ function fixDepartmentCounts(){
       }
     } catch(e){}
 
+        var isAutoOut = (typeof isWeekendOrHoliday === 'function') ? isWeekendOrHoliday(currentDate) : false;
     var a=document.getElementById('rsfCntAll');   if(a) a.textContent=counts.all + retroCount;
     var s=document.getElementById('rsfCntStay');  if(s) s.textContent=counts.stay;
-    var o=document.getElementById('rsfCntOut');   if(o) o.textContent=counts.out + retroCount;
-    var n=document.getElementById('rsfCntNone');  if(n) n.textContent=counts.none;
+    var o=document.getElementById('rsfCntOut');   if(o) o.textContent=counts.out + (isAutoOut ? retroCount : 0);
+    var n=document.getElementById('rsfCntNone');  if(n) n.textContent=counts.none + (isAutoOut ? 0 : retroCount);
 
     // 툴팁 안내 (조회일 이후 퇴사자가 있는 경우만)
     if (a && a.parentElement) {
