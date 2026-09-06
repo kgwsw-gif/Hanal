@@ -19484,7 +19484,9 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
   function getStatusForStudent(name){
     if(!name) return 'none';
     try{
-      var today = (typeof getCurrentDate==='function') ? getCurrentDate() : null;
+      var today = (typeof currentDate !== 'undefined' && currentDate)
+                  ? currentDate
+                  : ((typeof getCurrentDate==='function') ? getCurrentDate() : null);
       if(!today || typeof submissions==='undefined') return 'none';
       var sub = null;
       for(var i=0;i<submissions.length;i++){
