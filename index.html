@@ -23806,14 +23806,39 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
     return isFinite(n) ? n : (def !== undefined ? def : 0);
   }
 
-  window.downloadAgreementPdf = async function(data){
-    try {
-      if (!PLEDGE_TEMPLATE_B64 || PLEDGE_TEMPLATE_B64.length < 1000){
-        alert("서약서 템플릿이 삽입되지 않았습니다. PLEDGE_TEMPLATE_PLACEHOLDER 자리를 확인하세요.");
+  window.downloadAgreementPdf = async function(idOrData){
+  try {
+    // === 학생 데이터 확보 ===
+    let data = idOrData;
+    if (typeof idOrData === "string") {
+      // 1) 캐시에서 먼저 찾기 (id 또는 name 일치)
+      const cache = window._agreementListCache || [];
+      data = cache.find(x => x.id === idOrData || x.name === idOrData);
+
+      // 2) 캐시 miss면 Firestore에서 직접 조회
+      if (!data && typeof firebase !== "undefined" && firebase.firestore) {
+        try {
+          const doc = await firebase.firestore()
+            .collection("dormitoryAgreements").doc(idOrData).get();
+          if (doc.exists) data = { id: doc.id, ...doc.data() };
+        } catch(err){
+          console.warn("[pledge] Firestore 조회 실패:", err);
+        }
+      }
+
+      if (!data) {
+        alert("학생 데이터를 찾을 수 없습니다: " + idOrData);
         return;
       }
-      const { PDFDocument, rgb } = PDFLib;
-      const pdfDoc = await PDFDocument.load(b64ToBytes(PLEDGE_TEMPLATE_B64));
+      console.log("[pledge] 학생 데이터 로드:", data.name, "(id:", data.id, ")");
+    }
+
+    if (!PLEDGE_TEMPLATE_B64 || PLEDGE_TEMPLATE_B64.length < 1000){
+      alert("서약서 템플릿이 삽입되지 않았습니다.");
+      return;
+    }
+    const { PDFDocument, rgb } = PDFLib;
+     const pdfDoc = await PDFDocument.load(b64ToBytes(PLEDGE_TEMPLATE_B64));
       pdfDoc.registerFontkit(fontkit);
 
       const fontBytes = await fetch(FONT_URL).then(r=>r.arrayBuffer());
