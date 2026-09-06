@@ -17281,51 +17281,11 @@ function renderAdminChatEdit(threadId) {
     // 건강 여부
     h += _makeLabel('건강 여부', true);
     h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
-    ['건강', '보통', '허약', '지병'].forEach(function(status) {
+    ['건강', '보통', '허약'].forEach(function(status) {
         var selected = d.health === status;
         h += '<button onclick="window._agreementSetHealth(\'' + status + '\')" style="padding:14px;border:2px solid ' + (selected ? '#10b981' : '#e5e7eb') + ';background:' + (selected ? '#ecfdf5' : 'white') + ';color:' + (selected ? '#047857' : '#6b7280') + ';border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">' + status + '</button>';
     });
-    h += '</div>';
-        if (d.health === '지병') {
-        h += '<div style="margin-top:10px">';
-        h += _makeInput('agrHealthDetail', d.healthDetail || '', '지병명을 입력해 주세요');
-        h += '</div>';
-        
-        // 알레르기 (지병 선택 시에만 표시)
-        h += _makeLabel('알레르기', true);
-        h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
-        ['없음', '있음'].forEach(function(status) {
-            var selected = d.allergyYN === status;
-            var color = status === '없음' ? '#10b981' : '#ef4444';
-            var bg = status === '없음' ? '#ecfdf5' : '#fef2f2';
-            var txt = status === '없음' ? '#047857' : '#b91c1c';
-            h += '<button onclick="window._agreementSetAllergy(\'' + status + '\')" style="padding:14px;border:2px solid ' + (selected ? color : '#e5e7eb') + ';background:' + (selected ? bg : 'white') + ';color:' + (selected ? txt : '#6b7280') + ';border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">' + status + '</button>';
-        });
-        h += '</div>';
-        if (d.allergyYN === '있음') {
-            h += '<div style="margin-top:10px">';
-            h += _makeInput('agrAllergyDetail', d.allergies || '', '예: 갑각류, 견과류, 페니실린 등');
-            h += '</div>';
-        }
-        h += '<div style="margin-bottom:16px"></div>';
-        
-        // 복용약물 (지병 선택 시에만 표시)
-        h += _makeLabel('복용약물', true);
-        h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
-        ['없음', '있음'].forEach(function(status) {
-            var selected = d.medicationYN === status;
-            var color = status === '없음' ? '#10b981' : '#ef4444';
-            var bg = status === '없음' ? '#ecfdf5' : '#fef2f2';
-            var txt = status === '없음' ? '#047857' : '#b91c1c';
-            h += '<button onclick="window._agreementSetMedication(\'' + status + '\')" style="padding:14px;border:2px solid ' + (selected ? color : '#e5e7eb') + ';background:' + (selected ? bg : 'white') + ';color:' + (selected ? txt : '#6b7280') + ';border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">' + status + '</button>';
-        });
-        h += '</div>';
-        if (d.medicationYN === '있음') {
-            h += '<div style="margin-top:10px">';
-            h += _makeInput('agrMedicationDetail', d.medications || '', '예: 고혈압약(아침), 알레르기약 등');
-            h += '</div>';
-        }
-    }
+    h += '</div>';     
     h += '<div style="margin-bottom:16px"></div>';
     
     // 차량번호
