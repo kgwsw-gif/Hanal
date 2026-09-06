@@ -19468,7 +19468,7 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
         if(sub.type==='stay') return 'stay';
         if(sub.type==='out') return 'out';
       }
-      if(isWeekendOrHolidayToday()) return 'out-auto';
+      if(isWeekendOrHoliday(today)) return 'out-auto';
       return 'none';
     }catch(e){
       return 'none';
