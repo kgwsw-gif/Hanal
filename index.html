@@ -19432,14 +19432,25 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
 
 
   // 예비 입사자 여부 확인
-  function isPendingStudent(name, cardEl){
+    function isPendingStudent(name, cardEl){
     if(!name) return false;
+    // 방법 0: 등록일이 조회일보다 이후면, 그 시점엔 예비입사자였음 (과거 이력 정확성)
+    try{
+      var today = (typeof currentDate !== 'undefined' && currentDate)
+                  ? currentDate
+                  : ((typeof getCurrentDate==='function') ? getCurrentDate() : null);
+      if(today && window._secureData && typeof window._secureData.getRegisteredDate==='function'){
+        var regDate = window._secureData.getRegisteredDate(name);
+        if(regDate && regDate > today) return true;
+      }
+    }catch(e){}
     // 방법 1: window._secureData.isPending() 사용
     try{
       if(window._secureData && typeof window._secureData.isPending==='function'){
         if(window._secureData.isPending(name)) return true;
       }
     }catch(e){}
+
     // 방법 2: 카드 안에 "예비" 텍스트가 있으면 예비 학생
     if(cardEl){
       var txt = cardEl.textContent || '';
