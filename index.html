@@ -11534,7 +11534,7 @@ function showPrivacyPolicyModal(){
     var h='<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4"><i class="fas fa-shield-alt text-primary-500 mr-2"></i>개인정보처리방침</h3>';
     h+='<div class="space-y-3 max-h-[70vh] overflow-y-auto">';
     
-    h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>한국폴리텍대학 화성캠퍼스 기숙사(행복관)</div><div class="text-xs text-primary-600 mt-1">시행일: 2026년 3월 2일</div></div>';
+    h+='<div class="p-3 bg-primary-50 border border-primary-200 rounded-xl"><div class="text-sm font-bold text-primary-700"><i class="fas fa-info-circle mr-1"></i>한국폴리텍대학 화성캠퍼스 기숙사(행복관)</div><div class="text-xs text-primary-600 mt-1">시행일: 2026년 8월 17일</div></div>';
     
         h+='<div class="bg-info-50 border border-info-200 rounded-2xl p-4"><div class="text-sm font-bold text-info-700 mb-2"><i class="fas fa-clipboard-list mr-1"></i>1. 수집하는 개인정보</div><div class="space-y-1.5 text-sm text-info-600">';
     ['이름, 학과, 호실 (필수)','비밀번호 (필수)','교육생 사진 (필수, 입사 신청 시 제출한 사진을 활용)','차량번호 (선택, 차량 소유자만)','입사 서약서 정보 (필수: 주소, 연락처, 건강여부, 보호자정보, 서명)','출생년도 (필수, 나이 산출용)'].forEach(function(t){h+='<div class="flex items-start gap-2"><i class="fas fa-check-circle text-info-400 mt-1" style="font-size:10px"></i><span>'+t+'</span></div>'});
@@ -11546,7 +11546,11 @@ h+='</div></div>';
     
     h+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4"><div class="text-sm font-bold text-warning-700 mb-2"><i class="fas fa-clock mr-1"></i>3. 보유 기간</div><div class="text-sm text-warning-600 space-y-1"><div>• <b>개인식별정보</b> (이름·학과·호실·비밀번호·사진·차량번호): 수료 또는 퇴소 시 <b>즉시 파기</b></div><div>• <b>출결 이력</b> (잔류·외박·외출): 수료 또는 퇴소 시 <b>즉시 파기</b></div><div>• <b>로그인 기록·비밀번호 변경 이력</b>: <b>3개월 보관 후 자동 삭제</b> (보안 사고 대응 목적)</div><div>• <b>공지사항·시스템 설정</b>: 개인정보 미포함 (별도 보관)</div></div></div>';
     
-    h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-share-alt mr-1"></i>4. 제3자 제공</div><div class="text-sm text-gray-600">개인정보를 외부에 제공하지 <span class="font-bold">않습니다</span>. (클라우드 저장: Google Firebase)</div></div>';
+    h+='<div class="bg-surface-50 border border-surface-200 rounded-2xl p-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-share-alt mr-1"></i>4. 제3자 제공</div><div class="text-sm text-gray-600 space-y-1.5">'
+      +'<div>• 개인정보를 외부에 제공하지 <span class="font-bold">않습니다</span>. (클라우드 저장: Google Firebase)</div>'
+      +'<div>• 본 앱에서 수집한 개인정보는 <span class="font-bold">앱 내 운영 목적</span>으로만 이용되며, 외부 시스템이나 제3자에게 제공되지 않습니다.</div>'
+      +'<div>• 별도의 <span class="font-bold">개인정보 이용동의서(자필 서명, 보유기간 5년)</span>를 통해 수집·관리되는 개인정보와는 구분하여 운영됩니다.</div>'
+      +'</div></div>';
     
     h+='<div class="bg-success-50 border border-success-200 rounded-2xl p-4"><div class="text-sm font-bold text-success-700 mb-2"><i class="fas fa-lock mr-1"></i>5. 안전조치</div><div class="space-y-1.5 text-sm text-success-600">';
     ['HTTPS 암호화 통신','Firebase 인증 시스템','접근 권한 제한','보안 규칙 적용','사진 무작위 ID 저장'].forEach(function(t){h+='<div class="flex items-start gap-2"><i class="fas fa-shield-alt text-success-400 mt-1" style="font-size:10px"></i><span>'+t+'</span></div>'});
@@ -11561,7 +11565,7 @@ h+='</div></div>';
     h+='<div><span class="font-bold">연락처:</span> <a href="tel:031-350-3133" class="underline">031-350-3133</a></div>';
     h+='</div></div>';
     
-    h+='<div class="text-xs text-gray-500 text-center mt-2">본 방침은 2026년 3월 2일부터 시행됩니다.</div>';
+    h+='<div class="text-xs text-gray-500 text-center mt-2">본 방침은 2026년 8월 17일부터 시행됩니다.</div>';
     
     h+='</div>';
     h+='<button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">닫기</button></div>';
