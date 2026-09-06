@@ -17360,7 +17360,10 @@ function renderAdminChatEdit(threadId) {
     h += '<tr><td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;line-height:1.6">사진, 출생년도, 차량번호, 개인 정보</td><td style="padding:10px;border:1px solid #e5e7eb;font-size:13px;line-height:1.6">기숙사 인원보고 시스템 등록 및 관리</td><td style="padding:10px;border:1px solid #e5e7eb;background:#fef2f2;color:#991b1b;font-weight:700;font-size:13px">퇴사 시 삭제</td></tr>';
     h += '</tbody></table>';
     
-    h += '<div style="font-size:13px;color:#6b7280;margin-top:12px;line-height:1.7">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 미동의 시 앱 이용이 제한되며 사감실을 통한 별도 절차가 필요합니다.</div>';
+     h += '<div style="font-size:13px;color:#6b7280;margin-top:12px;line-height:1.7">';
+    h += '※ 수집된 개인정보는 본 앱 내에서만 사용됩니다.<br>';
+    h += '※ 별도의 개인정보 이용동의서(자필 서명)를 통해 수집·관리되는 개인정보와는 별개로 운영됩니다.<br>';
+    h += '※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 미동의 시 앱 이용이 제한되며 사감실을 통한 별도 절차가 필요합니다.';
     h += '</div>';
     
     // 동의 선택
@@ -20635,7 +20638,12 @@ function fixDepartmentCounts(){
       + '<tr style="background:#f9fafb;"><th style="border:1px solid #d1d5db;padding:7px;width:38%;">수집 항목</th><th style="border:1px solid #d1d5db;padding:7px;width:42%;">이용 목적</th><th style="border:1px solid #d1d5db;padding:7px;width:20%;">보유기간</th></tr>'
       + '<tr><td style="border:1px solid #d1d5db;padding:7px;">사진, 출생년도, 차량번호, 개인 정보</td><td style="border:1px solid #d1d5db;padding:7px;">기숙사 인원보고 시스템 등록 및 관리</td><td style="border:1px solid #d1d5db;padding:7px;text-align:center;color:#b91c1c;font-weight:bold;">퇴사 시 삭제</td></tr>'
       + '</table>'
-      + '<div style="font-size:12px;color:#6b7280;margin-top:7px;line-height:1.6;">※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 미동의 시 앱 이용이 제한되며 사감실을 통한 별도 절차가 필요합니다.</div>'
+      + '<div style="font-size:12px;color:#6b7280;margin-top:7px;line-height:1.6;">'
+      +   '※ 수집된 개인정보는 본 앱 내에서만 사용됩니다.<br>'
+      +   '※ 별도의 개인정보 이용동의서(자필 서명)를 통해 수집·관리되는 개인정보와는 별개로 운영됩니다.<br>'
+      +   '※ 위 개인정보 수집·이용에 동의하지 않을 권리가 있으나, 미동의 시 앱 이용이 제한되며 사감실을 통한 별도 절차가 필요합니다.'
+      + '</div>'
+
       + '<div style="text-align:right;margin-top:12px;font-weight:bold;font-size:13px;">개인정보 수집·이용 동의: ' + yn(data.privacyAgreed) + '</div>'
       + '</div>'
       + '<div style="text-align:center;margin:20px 0;font-size:14px;">'
