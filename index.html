@@ -23806,7 +23806,7 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
     return isFinite(n) ? n : (def !== undefined ? def : 0);
   }
 
-  window.downloadAgreementPdf = async function(idOrData){
+  const _pledgePatchedDownload = async function(idOrData){
   try {
     // === 학생 데이터 확보 ===
     let data = idOrData;
@@ -23947,7 +23947,39 @@ const dd = String(today.getDate());
     }
   };
 
-  console.log("[pledge-patch] downloadAgreementPdf overridden. template bytes:", PLEDGE_TEMPLATE_B64.length);
+    // === 재정의 방지 잠금 + 지연 재적용 ===
+  function _applyPledgePatch(){
+    try {
+      Object.defineProperty(window, 'downloadAgreementPdf', {
+        value: _pledgePatchedDownload,
+        writable: false,
+        configurable: false,
+        enumerable: true
+      });
+      console.log('[pledge-patch] overridden & locked. template bytes:', PLEDGE_TEMPLATE_B64.length);
+    } catch (e) {
+      // 이미 잠겨있거나 defineProperty가 막힌 경우: 일반 대입 시도
+      try {
+        window.downloadAgreementPdf = _pledgePatchedDownload;
+        console.log('[pledge-patch] overridden (fallback):', e.message);
+      } catch(e2) {
+        console.warn('[pledge-patch] cannot override:', e2.message);
+      }
+    }
+  }
+
+  _applyPledgePatch();
+
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      if (window.downloadAgreementPdf !== _pledgePatchedDownload) {
+        _applyPledgePatch();
+        console.log('[pledge-patch] re-applied on load');
+      } else {
+        console.log('[pledge-patch] still active on load ✓');
+      }
+    }, 500);
+  });
 })();
 </script>
 <!-- ===== /기숙사 서약서 PDF 패치 ===== -->
