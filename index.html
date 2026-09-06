@@ -23654,6 +23654,113 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
   
 })();
 </script>
+<!-- ============================================
+     호실현황 상태 필터 옆 날짜 선택기 (요일 포함)
+     - 상단 mainDateInput과 양방향 동기화
+     - render() 재실행 시 자동 복구
+     최종: 2026-09-06
+============================================ -->
+<script>
+(function(){
+  function init(){
+    if (window._rsfDateObserver) {
+      window._rsfDateObserver.disconnect();
+      delete window._rsfDateObserver;
+    }
+    var old = document.getElementById('rsfDateBar');
+    if (old) old.remove();
+    
+    function shiftDate(iso, days){
+      var d = new Date(iso + 'T00:00:00');
+      d.setDate(d.getDate() + days);
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    }
+    
+    function getDayLabel(iso){
+      if(!iso) return '';
+      var d = new Date(iso + 'T00:00:00');
+      var days = ['일','월','화','수','목','금','토'];
+      var idx = d.getDay();
+      var color = idx===0 ? '#e11d48' : (idx===6 ? '#2563eb' : '#374151');
+      return '<span style="color:'+color+';font-weight:600;margin-left:4px">('+days[idx]+')</span>';
+    }
+    
+    function updateDayLabel(){
+      var input = document.getElementById('rsfDateInput');
+      var label = document.getElementById('rsfDayLabel');
+      if (input && label) label.innerHTML = getDayLabel(input.value);
+    }
+    
+    function applyDate(newDate){
+      var m = document.getElementById('mainDateInput');
+      if (!m) return;
+      m.value = newDate;
+      m.dispatchEvent(new Event('change', {bubbles:true}));
+      m.dispatchEvent(new Event('input', {bubbles:true}));
+      if (typeof currentDate !== 'undefined') currentDate = newDate;
+      if (typeof render === 'function') render();
+      var me = document.getElementById('rsfDateInput');
+      if (me) me.value = newDate;
+      updateDayLabel();
+    }
+    
+    function installDateBar(){
+      var toolbar = document.getElementById('rsfToolbar');
+      if (!toolbar) return false;
+      if (document.getElementById('rsfDateBar')) return true;
+      
+      var mainInput = document.getElementById('mainDateInput');
+      var curVal = mainInput ? mainInput.value : (typeof currentDate!=='undefined'?currentDate:'');
+      
+      var bar = document.createElement('span');
+      bar.id = 'rsfDateBar';
+      bar.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:12px;padding-left:12px;border-left:1px solid #ddd';
+      bar.innerHTML = 
+        '<button id="rsfDatePrev" class="rsf-btn" title="이전 날짜" style="padding:4px 8px">◀</button>' +
+        '<input type="date" id="rsfDateInput" value="' + curVal + '" style="padding:4px 6px;border:1px solid #ccc;border-radius:6px;font-size:13px">' +
+        '<span id="rsfDayLabel" style="font-size:13px">'+getDayLabel(curVal)+'</span>' +
+        '<button id="rsfDateNext" class="rsf-btn" title="다음 날짜" style="padding:4px 8px;margin-left:4px">▶</button>' +
+        '<button id="rsfDateToday" class="rsf-btn" title="오늘" style="padding:4px 10px;margin-left:4px;background:#6366f1;color:#fff">오늘</button>';
+      toolbar.appendChild(bar);
+      
+      document.getElementById('rsfDateInput').addEventListener('change', function(e){ applyDate(e.target.value); });
+      document.getElementById('rsfDatePrev').addEventListener('click', function(){
+        var cur = document.getElementById('rsfDateInput').value; if(cur) applyDate(shiftDate(cur,-1));
+      });
+      document.getElementById('rsfDateNext').addEventListener('click', function(){
+        var cur = document.getElementById('rsfDateInput').value; if(cur) applyDate(shiftDate(cur,+1));
+      });
+      document.getElementById('rsfDateToday').addEventListener('click', function(){
+        var today = (typeof getCurrentDate==='function') ? getCurrentDate() : new Date().toISOString().slice(0,10);
+        applyDate(today);
+      });
+      return true;
+    }
+    
+    installDateBar();
+    
+    window._rsfDateObserver = new MutationObserver(function(){
+      if (!document.getElementById('rsfDateBar')) {
+        installDateBar();
+      }
+      var m = document.getElementById('mainDateInput');
+      var me = document.getElementById('rsfDateInput');
+      if (m && me && m.value && m.value !== me.value) {
+        me.value = m.value;
+        updateDayLabel();
+      }
+    });
+    window._rsfDateObserver.observe(document.body, {childList:true, subtree:true});
+  }
+  
+  // DOM 준비 후 실행 (rsfToolbar가 아직 없을 수 있으므로 지연)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 500); });
+  } else {
+    setTimeout(init, 500);
+  }
+})();
+</script>
 
 </div>
 </body>
