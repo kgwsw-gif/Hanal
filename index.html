@@ -21452,7 +21452,7 @@ function fixDepartmentCounts(){
         return originalResult;
       }
 
-      try {
+            try {
         const result = await window.completelyDeleteStudent(
           targetName, targetDept || null, { skipConfirm: true }
         );
@@ -21461,17 +21461,65 @@ function fixDepartmentCounts(){
           if (typeof showToast === 'function') {
             showToast(`개인정보 완전 파기: ${result.totalCount}건 처리`, 'success');
           }
+          // [AccessLogger] 완전 파기 성공 기록
+          try {
+            window.AccessLogger?.log(
+              window.AccessLogger.ACTIONS.DELETE_STUDENT,
+              {
+                studentName: targetName,
+                department: targetDept || null,
+                count: result.totalCount || null,
+                extra: {
+                  via: 'completeDeletionHook',
+                  outcome: 'success',
+                  successCount: result.successCount,
+                  totalCount: result.totalCount
+                }
+              }
+            );
+          } catch(logErr) { console.warn('[AccessLogger] 파기 로그 실패:', logErr); }
         } else if (result.error !== 'user-cancelled') {
           console.warn(`⚠️ 완전 파기 실패: ${result.error}`);
           if (typeof showToast === 'function') {
             showToast(`완전 파기 실패: ${result.error}`, 'warning');
           }
+          // [AccessLogger] 완전 파기 실패 기록
+          try {
+            window.AccessLogger?.log(
+              window.AccessLogger.ACTIONS.DELETE_STUDENT,
+              {
+                studentName: targetName,
+                department: targetDept || null,
+                extra: {
+                  via: 'completeDeletionHook',
+                  outcome: 'failed',
+                  error: String(result.error).substring(0, 200)
+                }
+              }
+            );
+          } catch(logErr) { console.warn('[AccessLogger] 파기 로그 실패:', logErr); }
         }
+        // user-cancelled인 경우는 로깅하지 않음 (사용자 취소는 이벤트 아님)
       } catch(e) {
         console.error('❌ [완전 파기 통합] 예외:', e);
         if (typeof showToast === 'function') {
           showToast('완전 파기 중 오류 (로그 확인)', 'error');
         }
+        // [AccessLogger] 완전 파기 예외 기록
+        try {
+          window.AccessLogger?.log(
+            window.AccessLogger.ACTIONS.DELETE_STUDENT,
+            {
+              studentName: targetName,
+              department: targetDept || null,
+              extra: {
+                via: 'completeDeletionHook',
+                outcome: 'exception',
+                error: String(e).substring(0, 200)
+              }
+            }
+          );
+        } catch(logErr) {}
       }
 
       return originalResult;
@@ -24093,10 +24141,358 @@ const dd = String(today.getDate());
 })();
 </script>
 <!-- ===== /기숙사 서약서 PDF 패치 ===== -->
+<script>
+/* ============================================================
+ * AccessLogger v1.0 — 개인정보보호법 §Ⅴ-5 접속기록 관리
+ * 필수 필드: userId, userEmail, ip, action, target, timestamp
+ * 보관: 일반 1년 / 민감·대량 2년
+ * ============================================================ */
+(function(){
+  'use strict';
+  
+  let _cachedIp = null;
+  let _ipFetchPromise = null;
+  const _pendingLogs = [];
+  let _flushTimer = null;
+  
+  async function _getIp() {
+    if (_cachedIp) return _cachedIp;
+    if (_ipFetchPromise) return _ipFetchPromise;
+    _ipFetchPromise = (async () => {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 3000);
+        const r = await fetch('https://api.ipify.org?format=json', { signal: ctrl.signal });
+        clearTimeout(t);
+        const j = await r.json();
+        _cachedIp = j.ip || 'unknown';
+      } catch (e) {
+        _cachedIp = 'unknown';
+      }
+      return _cachedIp;
+    })();
+    return _ipFetchPromise;
+  }
+  
+  const ACTIONS = Object.freeze({
+    LOGIN:            'LOGIN',
+    LOGOUT:           'LOGOUT',
+    LOGIN_FAIL:       'LOGIN_FAIL',
+    VIEW_STUDENT:     'VIEW_STUDENT',
+    VIEW_LIST:        'VIEW_LIST',
+    VIEW_PHOTO:       'VIEW_PHOTO',
+    VIEW_SENSITIVE:   'VIEW_SENSITIVE',
+    CREATE_STUDENT:   'CREATE_STUDENT',
+    UPDATE_STUDENT:   'UPDATE_STUDENT',
+    UPDATE_ROOM:      'UPDATE_ROOM',
+    UPDATE_REGDATE:   'UPDATE_REGDATE',
+    UPDATE_AGE:       'UPDATE_AGE',
+    UPDATE_NAME:      'UPDATE_NAME',
+    DELETE_STUDENT:   'DELETE_STUDENT',
+    RESIGN_APPROVE:   'RESIGN_APPROVE',
+    RESIGN_EXECUTE:   'RESIGN_EXECUTE',
+    DOWNLOAD_PLEDGE:  'DOWNLOAD_PLEDGE',
+    DOWNLOAD_FINGERPRINT: 'DOWNLOAD_FINGERPRINT',
+    DOWNLOAD_BATCH:   'DOWNLOAD_BATCH',
+    EXPORT_EXCEL:     'EXPORT_EXCEL',
+    EXPORT_ALL:       'EXPORT_ALL',
+    EXPORT_RESIGN:    'EXPORT_RESIGN',
+    EXPORT_LOGS:      'EXPORT_LOGS',
+    PASSWORD_CHANGE:  'PASSWORD_CHANGE',
+    PERMISSION_CHANGE:'PERMISSION_CHANGE',
+    ERROR:            'ERROR'
+  });
+  
+  // 민감·대량 처리 액션 (보관 2년)
+  const SENSITIVE_ACTIONS = new Set([
+    ACTIONS.VIEW_SENSITIVE, ACTIONS.DOWNLOAD_BATCH, ACTIONS.EXPORT_ALL,
+    ACTIONS.EXPORT_EXCEL, ACTIONS.DELETE_STUDENT, ACTIONS.RESIGN_EXECUTE,
+    ACTIONS.DOWNLOAD_FINGERPRINT
+  ]);
+  
+  async function log(action, targetInfo, meta) {
+    try {
+      const user = firebase.auth().currentUser;
+      if (!user) return;
+      
+      targetInfo = targetInfo || {};
+      meta = meta || {};
+      
+      const ip = await _getIp();
+      const isSensitive = SENSITIVE_ACTIONS.has(action);
+      
+      const entry = {
+        userId: user.uid,
+        userEmail: user.email || 'unknown',
+        userName: user.displayName || '',
+        action: action,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        clientTime: new Date().toISOString(),
+        ip: ip,
+        userAgent: (navigator.userAgent || '').substring(0, 200),
+        target: {
+          studentId:   targetInfo.studentId   || null,
+          studentName: targetInfo.studentName || null,
+          department:  targetInfo.department  || null,
+          count: (typeof targetInfo.count === 'number') ? targetInfo.count : null,
+          before: targetInfo.before !== undefined ? String(targetInfo.before).substring(0,100) : null,
+          after:  targetInfo.after  !== undefined ? String(targetInfo.after).substring(0,100)  : null,
+          extra:  targetInfo.extra  || null
+        },
+        meta: meta,
+        isSensitive: isSensitive,
+        retentionDays: isSensitive ? 730 : 365
+      };
+      
+      _pendingLogs.push(entry);
+      _scheduleFlush();
+    } catch (e) {
+      console.warn('[AccessLogger] log() 실패:', e);
+    }
+  }
+  
+  function _scheduleFlush() {
+    if (_pendingLogs.length >= 10) { _flush(); return; }
+    if (_flushTimer) return;
+    _flushTimer = setTimeout(_flush, 500);
+  }
+  
+  async function _flush() {
+    if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+    if (_pendingLogs.length === 0) return;
+    
+    const logs = _pendingLogs.splice(0, _pendingLogs.length);
+    const db = firebase.firestore();
+    try {
+      const batch = db.batch();
+      logs.forEach(entry => {
+        const ref = db.collection('accessLogs').doc();
+        batch.set(ref, entry);
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn('[AccessLogger] 배치 실패, 개별 재시도:', e.message);
+      for (const entry of logs) {
+        try { await db.collection('accessLogs').add(entry); }
+        catch (ee) { console.error('[AccessLogger] 손실:', entry.action, ee.message); }
+      }
+    }
+  }
+  
+  window.addEventListener('beforeunload', () => {
+    if (_pendingLogs.length > 0) _flush();
+  });
+  
+  window.AccessLogger = Object.freeze({
+    log: log,
+    ACTIONS: ACTIONS,
+    flush: _flush,
+    getIp: _getIp,
+    _version: '1.0'
+  });
+  
+  console.log('[AccessLogger v1.0] 초기화 완료');
+})();
+</script>
+<script>
+/* AccessLogger — 기존 함수 자동 훅킹 v1.0 */
+window.addEventListener('load', function(){
+  'use strict';
+  
+  if (!window.AccessLogger) {
+    console.error('[AccessLogger] 모듈 미로드');
+    return;
+  }
+  const A = window.AccessLogger.ACTIONS;
+  const L = window.AccessLogger;
+  
+  // 공용 래퍼: 원본 함수를 감싸서 로그를 남긴다
+  function wrap(fnName, action, argExtractor) {
+    if (typeof window[fnName] !== 'function') {
+      console.warn('[hook] 함수 없음:', fnName);
+      return;
+    }
+    if (window[fnName]._hooked) return;
+    
+    const _orig = window[fnName];
+    window[fnName] = async function(...args) {
+      let result;
+      let error = null;
+      try {
+        result = await _orig.apply(this, args);
+      } catch (e) {
+        error = e;
+      }
+      try {
+        const targetInfo = argExtractor ? (argExtractor(args, result) || {}) : {};
+        if (error) {
+          targetInfo.extra = Object.assign({}, targetInfo.extra || {}, { error: String(error).substring(0,200) });
+        }
+        L.log(action, targetInfo);
+      } catch(e) {
+        console.warn('[hook] 로그 실패:', fnName, e);
+      }
+      if (error) throw error;
+      return result;
+    };
+    window[fnName]._hooked = true;
+    console.log('[hook] 부착:', fnName);
+  }
+  
+  // === 1) 로그인/로그아웃 (기존 함수 확장) ===
+  wrap('saveLoginLog', A.LOGIN, (args) => ({
+    extra: { source: args[0] || null }
+  }));
+  
+  if (typeof window.logout === 'function' && !window.logout._hooked) {
+    const _orig = window.logout;
+    window.logout = async function(...args) {
+      try { await L.log(A.LOGOUT, {}); await L.flush(); } catch(e){}
+      return _orig.apply(this, args);
+    };
+    window.logout._hooked = true;
+    console.log('[hook] 부착: logout');
+  }
+  
+  // === 2) 학생 CRUD ===
+  wrap('addStudent', A.CREATE_STUDENT, (args) => {
+    const s = args[0] || {};
+    return {
+      studentName: s.name || s.studentName || null,
+      department:  s.department || null,
+      extra: { hasPhone: !!s.phone, hasBirthdate: !!(s.birthdate || s.birth) }
+    };
+  });
+  
+  wrap('executeStudentDelete', A.DELETE_STUDENT, (args) => ({
+    studentId: args[0] || null,
+    studentName: args[1] || null,
+    extra: { via: 'executeStudentDelete' }
+  }));
+  
+  wrap('executeResignDelete', A.RESIGN_EXECUTE, (args) => ({
+    studentId: args[0] || null,
+    studentName: args[1] || null,
+    extra: { via: 'executeResignDelete' }
+  }));
+  
+  wrap('approveResign', A.RESIGN_APPROVE, (args) => ({
+    studentId:   args[0] || null,
+    studentName: args[1] || null,
+    department:  args[2] || null
+  }));
+  
+  // === 3) 학생 필드별 수정 (권장안: 각각 훅킹) ===
+  wrap('updateStudentRoom', A.UPDATE_ROOM, (args) => ({
+    studentId: args[0] || null,
+    after: args[1] || null,
+    extra: { field: 'room' }
+  }));
+  
+  wrap('updateStudentRegDate', A.UPDATE_REGDATE, (args) => ({
+    studentId: args[0] || null,
+    after: args[1] || null,
+    extra: { field: 'regDate' }
+  }));
+  
+  wrap('updateStudentAge', A.UPDATE_AGE, (args) => ({
+    studentId: args[0] || null,
+    after: args[1] || null,
+    extra: { field: 'age' }
+  }));
+  
+  wrap('updateStudentName', A.UPDATE_NAME, (args) => ({
+    studentId: args[0] || null,
+    after: args[1] || null,
+    extra: { field: 'name' }
+  }));
+  
+  // === 4) 다운로드 이벤트 ===
+  wrap('downloadFingerprintAgreementPdf', A.DOWNLOAD_FINGERPRINT, (args) => ({
+    studentId: (args[0] && args[0].id) || args[0] || null,
+    studentName: (args[0] && args[0].name) || null
+  }));
+  
+  wrap('downloadAllAgreementsAsZip', A.DOWNLOAD_BATCH, (args) => ({
+    department: args[0] || 'ALL',
+    extra: { format: 'ZIP' }
+  }));
+  
+  wrap('downloadExcel', A.EXPORT_EXCEL, (args) => ({
+    extra: { target: args[0] || 'default' }
+  }));
+  
+  wrap('downloadVehicleExcel', A.EXPORT_EXCEL, () => ({
+    extra: { target: 'vehicle' }
+  }));
+  
+  wrap('downloadPenaltyExcel', A.EXPORT_EXCEL, () => ({
+    extra: { target: 'penalty' }
+  }));
+  
+  wrap('downloadAgreementExcel', A.EXPORT_EXCEL, () => ({
+    extra: { target: 'agreement', sensitive: true }
+  }));
+  
+  wrap('downloadAllData', A.EXPORT_ALL, () => ({
+    extra: { note: '전체 데이터 백업' }
+  }));
+  
+  wrap('downloadResignHistory', A.EXPORT_RESIGN, () => ({}));
+  
+  wrap('downloadLoginLogs', A.EXPORT_LOGS, () => ({}));
+  
+  // === 5) 조회 이벤트 (권장안: 목록도 count로 기록) ===
+  wrap('showStudentSubmitDetail', A.VIEW_STUDENT, (args) => ({
+    studentId: args[0] || null,
+    studentName: args[1] || null
+  }));
+  
+  wrap('viewStudentPhoto', A.VIEW_PHOTO, (args) => ({
+    studentId: (args[0] && args[0].id) || args[0] || null,
+    studentName: (args[0] && args[0].name) || args[1] || null,
+    extra: { note: '사진 열람' }
+  }));
+  
+  wrap('showResignedStudentsModal', A.VIEW_LIST, () => ({
+    extra: { listType: 'resigned' }
+  }));
+  
+  wrap('showRegisteredStudentsModal', A.VIEW_LIST, () => ({
+    extra: { listType: 'registered' }
+  }));
+  
+  // === 6) downloadAgreementPdf (잠금 함수) - 옵션 C: 이벤트 위임 ===
+  // 서약서 개별 다운로드 버튼 클릭을 body 레벨에서 감지
+  document.body.addEventListener('click', function(e){
+    const el = e.target && e.target.closest ? e.target.closest('[onclick*="downloadAgreementPdf"]') : null;
+    if (!el) return;
+    try {
+      const onclickStr = el.getAttribute('onclick') || '';
+      // downloadAgreementPdf('id','name',...) 형태에서 인자 추출 시도
+      const m = onclickStr.match(/downloadAgreementPdf\s*\(\s*['"]?([^'",)]+)['"]?\s*(?:,\s*['"]?([^'",)]+)['"]?)?/);
+      L.log(A.DOWNLOAD_PLEDGE, {
+        studentId: m ? m[1] : null,
+        studentName: m ? m[2] : null,
+        extra: { via: 'click-delegation' }
+      });
+    } catch(err) {}
+  }, true); // capture 단계에서 감지
+    
+  console.log('[AccessLogger] 훅킹 완료');
+});
+</script>
 
 </div>
+<script src="local-photo-viewer.js"></script>
+<script src="local-photo-ui.js"></script>
+<script src="local-photo-sync.js"></script>
+<script src="local-photo-guard.js"></script>
 </body>
 </html>
+
+
+
 
 
 
