@@ -1,23 +1,17 @@
 /**
- * ProspectAdmitFixExt v1.0 — ProspectAdmitFix v1.3 확장
- * 
- * 목적: 학생 삭제 계열 함수들의 UI 즉시 갱신 추가
- * 
- * v1.3이 훅킹하지 않는 학생 삭제 경로를 훅킹:
- *   - executeStudentDelete
- *   - deleteStudentAction
- *   - completelyDeleteStudent
- *   - handleStudentResign
- *   - executeResignDelete
- *   - approveResign
- * 
- * 설치: <script src="prospect-admit-fix-ext.js"></script>
- *       (prospect-admit-fix.js 뒤에 로드)
+ * ProspectAdmitFix v1.4
+ * 예비입사자 등록/취소/입사처리 및 학생 삭제 시 UI 즉시 반영
  */
 (function () {
   'use strict';
-  const VERSION = '1.0';
-  const ADDITIONAL_TARGETS = [
+  const VERSION = '1.4';
+
+  const HOOK_TARGETS = [
+    'submitPendingStudent',
+    'confirmMoveIn',
+    'autoConfirmDueMoveIns',
+    'cancelPendingStudent',
+    'forceDeleteStudent',
     'executeStudentDelete',
     'deleteStudentAction',
     'completelyDeleteStudent',
@@ -26,93 +20,146 @@
     'approveResign'
   ];
 
-  function installExt() {
-    const PAF = window.ProspectAdmitFix;
-    if (!PAF || typeof PAF.rebuildAndRender !== 'function') {
-      console.warn(`[ProspectAdmitFixExt v${VERSION}] ProspectAdmitFix 미로드 — 500ms 후 재시도`);
-      setTimeout(installExt, 500);
-      return;
+  const originalFunctions = {};
+  let _installed = false;
+
+  async function rebuildAndRender() {
+    try {
+      if (typeof window.render === 'function') {
+        window.render();
+      }
+      console.log(`[ProspectAdmitFix v${VERSION}] rebuild 완료`);
+    } catch (e) {
+      console.error(`[ProspectAdmitFix v${VERSION}] rebuild 실패:`, e);
     }
+  }
 
+  function installHooks() {
     const hooked = [];
-    const skipped = [];
+    HOOK_TARGETS.forEach(name => {
+      if (typeof window[name] !== 'function') return;
+      if (window[name]._pafHooked) return;
 
-    ADDITIONAL_TARGETS.forEach(name => {
       const orig = window[name];
-      if (typeof orig !== 'function') {
-        skipped.push(`${name}(없음)`);
-        return;
-      }
-      if (orig._pafExtHooked) {
-        skipped.push(`${name}(중복)`);
-        return;
-      }
+      originalFunctions[name] = orig;
 
       window[name] = async function () {
         const result = await orig.apply(this, arguments);
         setTimeout(() => {
-          PAF.rebuildAndRender().catch(e => 
-            console.error(`[ProspectAdmitFixExt] ${name} 후 rebuild 실패:`, e)
+          rebuildAndRender().catch(e =>
+            console.error(`[ProspectAdmitFix] ${name} 후 rebuild 실패:`, e)
           );
         }, 200);
         return result;
       };
-      window[name]._pafExtHooked = true;
-      window[name]._pafExtOriginal = orig;
+      window[name]._pafHooked = true;
+      window[name]._pafOriginal = orig;
       hooked.push(name);
     });
+    return hooked;
+  }
 
-    // 지연 훅킹 재시도 (아직 정의되지 않은 함수 대비)
-    let retryCount = 0;
-    const retryInterval = setInterval(() => {
-      retryCount++;
-      const beforeCount = hooked.length;
-      ADDITIONAL_TARGETS.forEach(name => {
-        if (typeof window[name] !== 'function') return;
-        if (window[name]._pafExtHooked) return;
-        const orig = window[name];
-        window[name] = async function () {
-          const result = await orig.apply(this, arguments);
+  function installConfirmModalHook() {
+    if (typeof window.openConfirmModal !== 'function') return false;
+    if (window.openConfirmModal._pafHooked) return false;
+
+    const orig = window.openConfirmModal;
+    originalFunctions.openConfirmModal = orig;
+
+    window.openConfirmModal = function (opts) {
+      if (opts && typeof opts.onConfirm === 'function') {
+        const origCb = opts.onConfirm;
+        opts.onConfirm = async function () {
+          const result = await origCb.apply(this, arguments);
           setTimeout(() => {
-            PAF.rebuildAndRender().catch(e => 
-              console.error(`[ProspectAdmitFixExt] ${name} 후 rebuild 실패:`, e)
+            rebuildAndRender().catch(e =>
+              console.error(`[ProspectAdmitFix] openConfirmModal 콜백 후 rebuild 실패:`, e)
             );
           }, 200);
           return result;
         };
-        window[name]._pafExtHooked = true;
-        window[name]._pafExtOriginal = orig;
-        hooked.push(name);
-      });
-      if (hooked.length > beforeCount) {
-        console.log(`[ProspectAdmitFixExt v${VERSION}] 지연 훅킹: ${hooked.length - beforeCount}개 추가 (총 ${hooked.length}개)`);
       }
-      if (retryCount >= 6 || hooked.length === ADDITIONAL_TARGETS.length) {
+      return orig.call(this, opts);
+    };
+    window.openConfirmModal._pafHooked = true;
+    window.openConfirmModal._pafOriginal = orig;
+    return true;
+  }
+
+  function restore() {
+    Object.keys(originalFunctions).forEach(name => {
+      window[name] = originalFunctions[name];
+      delete window[name]._pafHooked;
+    });
+    console.log(`[ProspectAdmitFix v${VERSION}] 원본 복원 완료`);
+  }
+
+  function init() {
+    if (_installed) return;
+
+    const initialHooked = installHooks();
+    const confirmHooked = installConfirmModalHook();
+    const allHooked = [...initialHooked];
+    if (confirmHooked) allHooked.push('openConfirmModal');
+
+    let retryCount = 0;
+    const retryInterval = setInterval(() => {
+      retryCount++;
+      const beforeCount = allHooked.length;
+
+      HOOK_TARGETS.forEach(name => {
+        if (typeof window[name] !== 'function') return;
+        if (window[name]._pafHooked) return;
+
+        const orig = window[name];
+        originalFunctions[name] = orig;
+        window[name] = async function () {
+          const result = await orig.apply(this, arguments);
+          setTimeout(() => rebuildAndRender().catch(e => console.error(e)), 200);
+          return result;
+        };
+        window[name]._pafHooked = true;
+        window[name]._pafOriginal = orig;
+        allHooked.push(name);
+      });
+
+      if (typeof window.openConfirmModal === 'function' && !window.openConfirmModal._pafHooked) {
+        if (installConfirmModalHook()) allHooked.push('openConfirmModal');
+      }
+
+      if (allHooked.length > beforeCount) {
+        console.log(`[ProspectAdmitFix v${VERSION}] 지연 훅킹: ${allHooked.length - beforeCount}개 추가`);
+      }
+
+      const targetCount = HOOK_TARGETS.length + 1;
+      if (retryCount >= 8 || allHooked.length === targetCount) {
         clearInterval(retryInterval);
-        console.log(`✅ [ProspectAdmitFixExt v${VERSION}] 최종 훅킹: ${hooked.length}/${ADDITIONAL_TARGETS.length}개`);
+        console.log(`✅ [ProspectAdmitFix v${VERSION}] 최종 훅킹: ${allHooked.length}/${targetCount}`);
       }
     }, 1000);
 
-    window.ProspectAdmitFixExt = {
+    _installed = true;
+
+    window.ProspectAdmitFix = {
       version: VERSION,
-      _hookedFunctions: hooked,
-      _skipped: skipped,
+      _installed: true,
+      _hookedFunctions: allHooked,
+      rebuildAndRender,
+      restore,
       getStats: () => ({
         version: VERSION,
-        hookedCount: hooked.length,
-        totalCount: ADDITIONAL_TARGETS.length,
-        hooked: [...hooked],
-        skipped: [...skipped]
+        hookedCount: allHooked.length,
+        totalCount: HOOK_TARGETS.length + 1,
+        hooked: [...allHooked]
       })
     };
 
-    console.log(`[ProspectAdmitFixExt v${VERSION}] 초기 훅킹 완료: ${hooked.length}/${ADDITIONAL_TARGETS.length}`);
-    if (skipped.length > 0) console.log(`  건너뜀:`, skipped);
+    console.log(`[ProspectAdmitFix v${VERSION}] 설치 완료 — 훅킹 ${allHooked.length}/${HOOK_TARGETS.length + 1}`);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', installExt);
+    document.addEventListener('DOMContentLoaded', init);
   } else {
-    installExt();
+    init();
   }
 })();
