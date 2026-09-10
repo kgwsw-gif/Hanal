@@ -1,22 +1,14 @@
 /**
- * ProspectAdmitFix v1.3.3
+ * ProspectAdmitFix v1.3.4
  * 
- * v1.3.2 대비 변경사항:
- * - _updateDepartments 훅 추가 (학생 데이터 변경 시 자동 render)
- * - 학생 파기/등록/취소 모두 새로고침 없이 즉시 반영
- * 
- * 훅킹 대상 (6개):
- *   1. submitPendingStudent      - 예비입사자 등록
- *   2. confirmMoveIn             - 입사 확정
- *   3. autoConfirmDueMoveIns     - 자동 입사 확정
- *   4. cancelPendingStudent      - 예비입사자 취소
- *   5. forceDeleteStudent        - 강제 삭제
- *   6. _updateDepartments        - 학생 데이터 동기화 (v1.3.3 신규, render 자동 호출)
+ * v1.3.3 대비 변경사항:
+ * - _updateDepartments 훅에서 render를 여러 시점 호출
+ *   (Firestore 다중 컬렉션 동기화 지연 대응)
  */
 (function () {
   'use strict';
   
-  const VERSION = '1.3.3';
+  const VERSION = '1.3.4';
   const NAMESPACE = 'ProspectAdmitFix';
   
   if (window[NAMESPACE]) {
@@ -24,22 +16,16 @@
     return;
   }
   
-  // ─────────────────────────────────────
-  // 1. rebuildAndRender: 렌더 재실행 유틸
-  // ─────────────────────────────────────
   function rebuildAndRender() {
     try {
       if (typeof window.render === 'function') {
         window.render();
       }
     } catch (e) {
-      console.error(`[${NAMESPACE}] rebuildAndRender 에러:`, e);
+      console.error(`[${NAMESPACE}] render 에러:`, e);
     }
   }
   
-  // ─────────────────────────────────────
-  // 2. 예비인원 계열 훅킹 (기존 5개, delayed render)
-  // ─────────────────────────────────────
   const RENDER_HOOK_TARGETS = [
     'submitPendingStudent',
     'confirmMoveIn',
@@ -53,12 +39,10 @@
   RENDER_HOOK_TARGETS.forEach(fnName => {
     const orig = window[fnName];
     if (typeof orig !== 'function') {
-      console.warn(`[${NAMESPACE}] ${fnName} 함수 없음 (스킵)`);
+      console.warn(`[${NAMESPACE}] ${fnName} 함수 없음`);
       return;
     }
-    if (orig._pafHooked) {
-      return;
-    }
+    if (orig._pafHooked) return;
     
     window[fnName] = async function (...args) {
       try {
@@ -67,7 +51,7 @@
         setTimeout(rebuildAndRender, 500);
         return result;
       } catch (e) {
-        console.error(`[${NAMESPACE}] ${fnName} 실행 에러:`, e);
+        console.error(`[${NAMESPACE}] ${fnName} 에러:`, e);
         throw e;
       }
     };
@@ -77,30 +61,37 @@
   });
   
   // ─────────────────────────────────────
-  // 3. _updateDepartments 훅 (v1.3.3 신규 - 학생 파기 자동 갱신 핵심)
+  // _updateDepartments 훅 - 다중 시점 render (v1.3.4 개선)
   // ─────────────────────────────────────
   const DEPT_SYNC_TARGET = '_updateDepartments';
   
   (function hookUpdateDepartments() {
     const orig = window[DEPT_SYNC_TARGET];
     if (typeof orig !== 'function') {
-      console.warn(`[${NAMESPACE}] ${DEPT_SYNC_TARGET} 함수 없음 (스킵)`);
+      console.warn(`[${NAMESPACE}] ${DEPT_SYNC_TARGET} 함수 없음`);
       return;
     }
-    if (orig._pafHooked) {
-      return;
-    }
+    if (orig._pafHooked) return;
     
     window[DEPT_SYNC_TARGET] = function (...args) {
       const result = orig.apply(this, args);
-      // 학생 데이터가 변경되어 _updateDepartments가 호출되면 즉시 render
+      
+      // 즉시 render (일반 케이스)
       try {
         if (typeof window.render === 'function') {
           window.render();
         }
       } catch (e) {
-        console.error(`[${NAMESPACE}] ${DEPT_SYNC_TARGET} render 에러:`, e);
+        console.error(`[${NAMESPACE}] 즉시 render 에러:`, e);
       }
+      
+      // 지연 render 3회 (다른 컬렉션 동기화 대기)
+      // - 학생 파기 시 passwords, roomNumbers, students 등 여러 컬렉션이
+      //   각기 다른 시점에 onSnapshot 트리거되므로 재시도 필요
+      setTimeout(rebuildAndRender, 300);
+      setTimeout(rebuildAndRender, 800);
+      setTimeout(rebuildAndRender, 1500);
+      
       return result;
     };
     window[DEPT_SYNC_TARGET]._pafHooked = true;
@@ -108,9 +99,6 @@
     hookedNames.push(DEPT_SYNC_TARGET);
   })();
   
-  // ─────────────────────────────────────
-  // 4. 공개 API
-  // ─────────────────────────────────────
   const ALL_TARGETS = [...RENDER_HOOK_TARGETS, DEPT_SYNC_TARGET];
   
   window[NAMESPACE] = {
@@ -138,6 +126,4 @@
   };
   
   console.log(`[${NAMESPACE} v${VERSION}] 설치 완료: ${hookedNames.length}/${ALL_TARGETS.length} 훅킹`);
-  console.log(`  - 렌더 훅: ${RENDER_HOOK_TARGETS.length}개`);
-  console.log(`  - 데이터 동기화 훅: 1개 (${DEPT_SYNC_TARGET})`);
 })();
