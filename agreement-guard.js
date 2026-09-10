@@ -1,18 +1,19 @@
-/* AgreementGuard v1.2 — 신규 동의서 제출 함수 차단 + UI 라벨 조정 + 자동 팝업 차단
+/* AgreementGuard v1.3 — 신규 동의서 제출 차단 + UI 라벨 조정 + 자동 팝업 차단
  * 목적: 서약서 시스템 비활성화(2026-09-08) 후 예방 차단 및 UI 명확화
  *       종이 자필서명 방식으로 전환됨
  *
- * v1.2 변경점 (2026-09-10):
+ * v1.3 변경점 (2026-09-10):
+ *   + _showAgreementCheckOverlay 차단 추가
+ *     (서약서 오버레이 UI를 직접 생성하는 함수 원천 차단)
+ * v1.2 변경점:
  *   + _checkAgreementForStudent 자동 팝업 차단 추가
- *     (비밀번호 변경 후 학생 홈 진입 시 자동으로 뜨던 서약서 팝업 원천 차단)
- *
- * v1.1 변경점: 관리자 UI 라벨 변경
- *   "서약서 제출 관리" → "동의서 관리 (조회/파기 전용)"
+ * v1.1 변경점:
+ *   관리자 UI 라벨 변경 "서약서 제출 관리" → "동의서 관리 (조회/파기 전용)"
  */
 (function () {
   'use strict';
 
-  const VERSION = '1.2';
+  const VERSION = '1.3';
 
   const BLOCKED_FUNCTIONS = [
     '_agreementSubmit',
@@ -25,9 +26,10 @@
     '_agreementForceOpen'
   ];
 
-  // v1.2 신규: 자동 팝업 함수 (반환값 false로 체크 통과)
+  // v1.2 신규 + v1.3 확장: 자동 팝업/오버레이 함수
   const BLOCKED_AUTO_POPUP = [
-    '_checkAgreementForStudent'
+    '_checkAgreementForStudent',
+    '_showAgreementCheckOverlay'  // v1.3 추가: 서약서 오버레이 UI 직접 차단
   ];
 
   const LABEL_CHANGES = [
@@ -63,7 +65,7 @@
   }
 
   // ============================================================
-  // 1-b) 자동 팝업 차단 (v1.2 신규)
+  // 1-b) 자동 팝업/오버레이 차단 (v1.2 신규, v1.3 확장)
   // ============================================================
   const originalPopupFunctions = {};
 
@@ -73,14 +75,34 @@
         originalPopupFunctions[fnName] = window[fnName];
         window[fnName] = async function () {
           console.log(`[AgreementGuard v${VERSION}] 자동 팝업 차단됨: ${fnName}`);
-          // false 반환: 서약서 미제출 상태를 나타내지만, 이후 팝업 표시 로직이 실행되지 않도록
-          // 호출부에서 이 반환값을 그대로 사용하는 구조라 팝업이 안 뜸
+          // 이미 뜬 오버레이가 있으면 제거 (v1.3)
+          const overlay = document.getElementById('agreementOverlay');
+          if (overlay) {
+            overlay.remove();
+            console.log(`  ↳ 잔존 agreementOverlay 제거됨`);
+          }
           return false;
         };
         window[fnName]._agreementPopupGuarded = true;
         window[fnName]._agreementPopupOriginal = originalPopupFunctions[fnName];
       }
     });
+  }
+
+  // ============================================================
+  // 1-c) DOM 감시 차단 (v1.3 신규 — 이중 방어막)
+  //      _showAgreementCheckOverlay 훅킹을 우회해 직접 DOM을 만드는 경우 대비
+  // ============================================================
+  function installDOMBlocker() {
+    const domObserver = new MutationObserver(() => {
+      const overlay = document.getElementById('agreementOverlay');
+      if (overlay && !overlay.hasAttribute('data-agreement-allowed')) {
+        overlay.remove();
+        console.log(`[AgreementGuard v${VERSION}] agreementOverlay DOM 감지 → 자동 제거`);
+      }
+    });
+    domObserver.observe(document.body, { childList: true, subtree: true });
+    return domObserver;
   }
 
   // ============================================================
@@ -121,7 +143,7 @@
   }
 
   // ============================================================
-  // 3) MutationObserver
+  // 3) MutationObserver (라벨 변경용)
   // ============================================================
   function installObserver() {
     const observer = new MutationObserver((mutations) => {
@@ -185,6 +207,7 @@
   function init() {
     installGuard();
     installPopupGuard();
+    const domObserver = installDOMBlocker();
     const initialFnCount = Object.keys(originalFunctions).length;
     const initialPopupCount = Object.keys(originalPopupFunctions).length;
     const initialLabelCount = relabelHeadings();
@@ -200,12 +223,12 @@
       installPopupGuard();
       const afterFn = Object.keys(originalFunctions).length;
       const afterPopup = Object.keys(originalPopupFunctions).length;
-      
+
       if (afterFn > beforeFn || afterPopup > beforePopup) {
         console.log(`🔄 [AgreementGuard] 지연 훅킹: 제출 ${afterFn}/${BLOCKED_FUNCTIONS.length}, 팝업 ${afterPopup}/${BLOCKED_AUTO_POPUP.length}`);
       }
-      if (retryCount >= 8 || 
-          (afterFn === BLOCKED_FUNCTIONS.length && afterPopup === BLOCKED_AUTO_POPUP.length)) {
+      if (retryCount >= 8 ||
+        (afterFn === BLOCKED_FUNCTIONS.length && afterPopup === BLOCKED_AUTO_POPUP.length)) {
         clearInterval(retryInterval);
         console.log(`✅ [AgreementGuard] 최종: 제출 ${afterFn}/${BLOCKED_FUNCTIONS.length}, 팝업 ${afterPopup}/${BLOCKED_AUTO_POPUP.length}`);
       }
@@ -222,6 +245,7 @@
       restoreLabels,
       _originalFunctions: originalFunctions,
       _originalPopupFunctions: originalPopupFunctions,
+      _domObserver: domObserver,
       getStats: () => ({
         version: VERSION,
         submitBlocked: BLOCKED_FUNCTIONS.filter(fn => window[fn] && window[fn]._agreementGuarded).length,
@@ -234,7 +258,8 @@
 
     console.log(`✅ [AgreementGuard] v${VERSION} 로드 완료`);
     console.log(`   - 신규 제출 차단: ${initialFnCount}/${BLOCKED_FUNCTIONS.length}개`);
-    console.log(`   - 자동 팝업 차단: ${initialPopupCount}/${BLOCKED_AUTO_POPUP.length}개`);
+    console.log(`   - 자동 팝업/오버레이 차단: ${initialPopupCount}/${BLOCKED_AUTO_POPUP.length}개`);
+    console.log(`   - DOM 감시 차단: 활성`);
     console.log(`   - 초기 라벨 변경: ${initialLabelCount}개`);
   }
 
