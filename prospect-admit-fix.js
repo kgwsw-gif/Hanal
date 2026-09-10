@@ -1,23 +1,17 @@
 /**
- * ProspectAdmitFix v1.4
- * 예비입사자 등록/취소/입사처리 및 학생 삭제 시 UI 즉시 반영
+ * ProspectAdmitFix v1.3
+ * 예비입사자 등록/취소/입사처리 시 UI 즉시 반영
  */
 (function () {
   'use strict';
-  const VERSION = '1.4';
+  const VERSION = '1.3';
 
   const HOOK_TARGETS = [
     'submitPendingStudent',
     'confirmMoveIn',
     'autoConfirmDueMoveIns',
     'cancelPendingStudent',
-    'forceDeleteStudent',
-    'executeStudentDelete',
-    'deleteStudentAction',
-    'completelyDeleteStudent',
-    'handleStudentResign',
-    'executeResignDelete',
-    'approveResign'
+    'forceDeleteStudent'
   ];
 
   const originalFunctions = {};
@@ -91,7 +85,6 @@
       window[name] = originalFunctions[name];
       delete window[name]._pafHooked;
     });
-    console.log(`[ProspectAdmitFix v${VERSION}] 원본 복원 완료`);
   }
 
   function init() {
@@ -125,10 +118,6 @@
 
       if (typeof window.openConfirmModal === 'function' && !window.openConfirmModal._pafHooked) {
         if (installConfirmModalHook()) allHooked.push('openConfirmModal');
-      }
-
-      if (allHooked.length > beforeCount) {
-        console.log(`[ProspectAdmitFix v${VERSION}] 지연 훅킹: ${allHooked.length - beforeCount}개 추가`);
       }
 
       const targetCount = HOOK_TARGETS.length + 1;
