@@ -1,14 +1,19 @@
 /**
- * PrivacyPolicyFix v1.8
- * v1.0~v1.7 누적 변경 사항 유지
- * v1.8: 
+ * PrivacyPolicyFix v1.9
+ * v1.0~v1.8 누적 변경 사항 유지
+ * v1.8:
  *   - 상단 헤더에서 시행일 문구 제거 (하단과 중복)
  *   - 하단 시행일 아래로 적용 범위 안내 이동 (옵션 2)
+ * v1.9:
+ *   - 일반 관리자 화면 하단에도 "개인정보처리방침" 카드 버튼 노출
+ *   - 슈퍼관리자와 동일한 스타일/onclick(showPrivacyPolicyModal) 사용
+ *   - isAdminLoggedIn && !isSuperAdmin 조건에서만 삽입
+ *   - MutationObserver로 화면 재렌더링 시 자동 재삽입
  */
 (function() {
   'use strict';
   
-  const VERSION = '1.8';
+  const VERSION = '1.9';
   
   if (window.PrivacyPolicyFix && window.PrivacyPolicyFix.version === VERSION) {
     console.log('[PrivacyPolicyFix] 이미 v' + VERSION + ' 로드됨');
@@ -122,6 +127,82 @@
     console.log('[PrivacyPolicyFix v' + VERSION + '] 개정본 처리방침 표시됨');
   };
   
+  // ============================================================
+  // v1.9 추가: 일반 관리자 하단 "개인정보처리방침" 카드 자동 삽입
+  // ============================================================
+  const ADMIN_CARD_MARKER = 'data-privacy-policy-card-admin';
+  let adminCardInjectedCount = 0;
+  let adminCardObserver = null;
+  
+  function shouldInjectAdminCard() {
+    // 일반 관리자 로그인 상태에서만 (슈퍼관리자는 원본 UI에 이미 있음)
+    return window.isAdminLoggedIn === true && window.isSuperAdmin !== true;
+  }
+  
+  function buildAdminCard() {
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up stagger-5';
+    card.setAttribute(ADMIN_CARD_MARKER, 'true');
+    card.innerHTML = '<button onclick="showPrivacyPolicyModal()" class="w-full py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press border border-surface-200">' +
+      '<i class="fas fa-shield-alt mr-2 text-primary-500"></i>개인정보처리방침' +
+      '</button>';
+    return card;
+  }
+  
+  function injectAdminCard() {
+    if (!shouldInjectAdminCard()) {
+      // 조건 불만족: 기존 삽입된 카드 제거 (super로 전환/로그아웃 시 정리)
+      document.querySelectorAll('[' + ADMIN_CARD_MARKER + ']').forEach(el => el.remove());
+      return false;
+    }
+    
+    // 이미 삽입되어 있으면 skip
+    if (document.querySelector('[' + ADMIN_CARD_MARKER + ']')) return true;
+    
+    const tab = document.getElementById('adminStatusTab');
+    if (!tab) return false;
+    
+    const parent = tab.parentElement;
+    if (!parent) return false;
+    
+    const card = buildAdminCard();
+    parent.appendChild(card);
+    adminCardInjectedCount++;
+    console.log('[PrivacyPolicyFix v' + VERSION + '] 일반관리자 하단 카드 삽입 (' + adminCardInjectedCount + '회)');
+    return true;
+  }
+  
+  function startAdminCardObserver() {
+    if (adminCardObserver) return;
+    
+    adminCardObserver = new MutationObserver(function() {
+      if (shouldInjectAdminCard() && !document.querySelector('[' + ADMIN_CARD_MARKER + ']')) {
+        injectAdminCard();
+      }
+    });
+    
+    adminCardObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    console.log('[PrivacyPolicyFix v' + VERSION + '] MutationObserver 시작');
+  }
+  
+  function bootAdminCard() {
+    // 즉시 + 로그인/렌더링 완료 대기용 재시도
+    injectAdminCard();
+    setTimeout(injectAdminCard, 1000);
+    setTimeout(injectAdminCard, 3000);
+    setTimeout(injectAdminCard, 6000);
+    startAdminCardObserver();
+  }
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootAdminCard);
+  } else {
+    bootAdminCard();
+  }
+  
   window.PrivacyPolicyFix = {
     version: VERSION,
     restore: function() {
@@ -129,6 +210,21 @@
         window.showPrivacyPolicyModal = window.showPrivacyPolicyModal_original;
         console.log('[PrivacyPolicyFix] 원본 복원됨');
       }
+    },
+    // v1.9 추가 API
+    getAdminCardStats: function() {
+      return {
+        version: VERSION,
+        injectedCount: adminCardInjectedCount,
+        currentlyPresent: !!document.querySelector('[' + ADMIN_CARD_MARKER + ']'),
+        shouldInject: shouldInjectAdminCard(),
+        isAdminLoggedIn: window.isAdminLoggedIn,
+        isSuperAdmin: window.isSuperAdmin
+      };
+    },
+    forceInjectAdminCard: injectAdminCard,
+    removeAdminCard: function() {
+      document.querySelectorAll('[' + ADMIN_CARD_MARKER + ']').forEach(el => el.remove());
     }
   };
   
