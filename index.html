@@ -647,22 +647,18 @@ try{
     firebase.initializeApp(firebaseConfig);    db=firebase.firestore();
 storage=firebase.storage();
 db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
-console.log('Firebase OK');
 
 // === 인증 상태 관리 (익명 로그인 + 관리자 자동 진입) ===
 firebase.auth().onAuthStateChanged(function(user){
     if(!user){
         // 로그인 세션 없음 → 익명 로그인
         firebase.auth().signInAnonymously().then(function(){
-            console.log('익명 인증 완료');
         }).catch(function(err){
             console.error('익명 인증 실패:', err);
         });
     } else if(user.isAnonymous){
-        console.log('인증됨: 익명');
     } else {
         // 실명 로그인 세션 발견 → 관리자 자동 진입
-        console.log('인증됨: 관리자 (' + user.email + ')');
         if(!isAdminLoggedIn){
             isSuperAdmin = (user.email === 'super@hwaseong.com' || user.email === 'super1@hwaseong.com');
             isAdminLoggedIn = true;
@@ -717,7 +713,6 @@ async function cleanupOldLogs(){
                 if(count > 0){
                     await batch.commit();
                     totalDeleted += count;
-                    console.log('['+colName+'] '+count+'건 자동 삭제 (90일 경과)');
                 }
             } catch(colErr){
                 console.warn('['+colName+'] 정리 실패:', colErr.message);
@@ -726,9 +721,7 @@ async function cleanupOldLogs(){
         
         localStorage.setItem('lastLogCleanup', today);
         if(totalDeleted > 0){
-            console.log('✅ 로그 자동 정리 완료: 총 '+totalDeleted+'건 삭제');
         } else {
-            console.log('✅ 로그 자동 정리 완료: 삭제 대상 없음');
         }
     } catch(e){
         console.error('로그 자동 정리 오류:', e.message);
@@ -745,15 +738,12 @@ const VAPID_KEY = "BAU8GxbLRqNrIFU6_kkHf4h5W4aDCusfIDyfSOUJnbrZ0SoOVfIyMyKaJZAlc
 async function initPushNotification() {
   try {
     if (!('serviceWorker' in navigator) || !('Notification' in window)) {
-      console.log('푸시 미지원 브라우저');
       return;
     }
     const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-    console.log('SW 등록 OK');
     
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      console.log('알림 권한 거부');
       return;
     }
     
@@ -766,7 +756,6 @@ async function initPushNotification() {
     name: currentStudent,
     updatedAt: new Date().toISOString()
   });
-      console.log('FCM 토큰 저장 완료');
     }
   } catch(e) {
     console.error('푸시 초기화 실패:', e);
@@ -814,7 +803,6 @@ async function sendReminderToUnsubmitted() {
       if (unsubmitted.indexOf(doc.id) >= 0) tokens.push(doc.data().token);
     });
     
-    console.log('미제출자 ' + unsubmitted.length + '명, 푸시 대상 ' + tokens.length + '명');
     
     // 발송 기록 (실제 푸시는 Firestore trigger 또는 다음 단계)
     await db.collection('pushLogs').add({
@@ -925,7 +913,6 @@ async function cleanupResignHistory(name,opts){
         });
         if(n>0){
             await batch.commit();
-            console.log('[cleanupResignHistory] '+name+' 쟔여 퇴사이력 '+n+'건 자동 정리');
         }
         return n;
     }catch(e){
@@ -2124,7 +2111,6 @@ function showAssignSettings(){
     return result;
   };
   
-  console.log('✅ 학과별 배정 설정 모달 수정 래퍼 적용됨');
 })();
 
 // 층/호실 모드 전환
@@ -2174,7 +2160,6 @@ function applyAssignSettings(){
 function saveAssignSettings(settings){
   try {
     localStorage.setItem('dormAssignSettings', JSON.stringify(settings));
-    console.log('✅ 배정 설정 저장 완료:', settings);
   } catch(e) {
     console.error('설정 저장 실패:', e);
   }
@@ -2196,7 +2181,6 @@ function toggleFemaleAllSingle(checked){
   window._femaleAllSingleOption = checked;
   try {
     localStorage.setItem('dormFemaleAllSingle', checked ? 'true' : 'false');
-    console.log('✅ 여학생 전원 1인실 옵션:', checked);
   } catch(e){
     console.error('설정 저장 실패:', e);
   }
@@ -2279,7 +2263,6 @@ async function saveDormSettingsToDB(){
     };
     
     await firebase.firestore().collection('dorm_settings').doc(DORM_SETTINGS_DOC).set(data, {merge: true});
-    console.log('✅ 설정 DB 저장 완료');
     return true;
   } catch(e){
     console.error('❌ 설정 저장 실패:', e);
@@ -2292,7 +2275,6 @@ async function loadDormSettingsFromDB(){
   try {
     var doc = await firebase.firestore().collection('dorm_settings').doc(DORM_SETTINGS_DOC).get();
     if(!doc.exists){
-      console.log('ℹ️ DB에 설정 없음 (첫 실행)');
       return null;
     }
     var data = doc.data();
@@ -2306,7 +2288,6 @@ async function loadDormSettingsFromDB(){
     }
     
     var updatedAtStr = data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate().toLocaleString('ko-KR') : String(data.updatedAt)) : '?';
-    console.log('✅ 설정 DB 불러오기 완료 (' + (data.updatedBy || '?') + ' / ' + updatedAtStr + ')');
     return data;
   } catch(e){
     console.error('❌ 설정 불러오기 실패:', e);
@@ -2367,7 +2348,6 @@ async function compareDormSettings(){
       syncDebounceTimer = setTimeout(function(){
         if(firebase.auth().currentUser){
           saveDormSettingsToDB().then(function(){
-            console.log('☁️ 자동 동기화 완료:', key);
             updateDormSyncStatus('synced');
           }).catch(function(e){
             console.warn('⚠️ 자동 동기화 실패:', e.message);
@@ -2378,7 +2358,6 @@ async function compareDormSettings(){
       updateDormSyncStatus('pending');
     }
   };
-  console.log('🔄 배정 설정 자동 동기화 활성화');
 })();
 
 // 동기화 상태 표시 (UI에 뱃지가 있으면 업데이트)
@@ -2406,7 +2385,6 @@ function updateDormSyncStatus(status){
       updateDormSyncStatus('loading');
       loadDormSettingsFromDB().then(function(data){
         if(data){
-          console.log('🔄 페이지 로드 시 설정 동기화 완료');
         }
         updateDormSyncStatus('synced');
       }).catch(function(){
@@ -2414,7 +2392,6 @@ function updateDormSyncStatus(status){
       });
     } else if(tries > 30){
       clearInterval(timer);
-      console.log('ℹ️ 30초 내 로그인 없음 - 자동 동기화 대기 종료');
     }
   }, 1000);
 })();
@@ -2480,7 +2457,6 @@ async function anonymizeStudentInAssignments(studentName){
       await batch.commit();
     }
     
-    console.log('🔒 개인정보 익명화:', studentName, '→', updated + '건 처리');
     return {scanned: snap.size, updated: updated};
   } catch(e){
     console.error('❌ 익명화 실패:', e);
@@ -2498,7 +2474,6 @@ async function purgeAllAssignments(){
     var snap = await db.collection('dorm_assignments').get();
     
     if(snap.empty){
-      console.log('ℹ️ 삭제할 배정 이력 없음');
       return {deleted: 0};
     }
     
@@ -2511,7 +2486,6 @@ async function purgeAllAssignments(){
     });
     await batch.commit();
     
-    console.log('🗑️ 배정 이력 전체 파기 완료:', count + '건');
     return {deleted: count};
   } catch(e){
     console.error('❌ 배정 이력 파기 실패:', e);
@@ -2546,7 +2520,6 @@ async function purgeAllAssignments(){
     
     return result;
   };
-  console.log('🔗 approveResign 파기 훅 활성화');
 })();
 
 // deleteStudentAction 훅 - 서약서 훅 이후에 감싸기 (익명화)
@@ -2565,7 +2538,6 @@ async function purgeAllAssignments(){
     var hasAgreementHook = src.indexOf('_deleteAgreementByStudent') !== -1;
     
     if(!hasAgreementHook && attempt < 20){
-      console.log('[deleteStudentAction 훅] 서약서 훅 대기 중... (' + attempt + '/20)');
       setTimeout(function(){ tryHook(attempt+1); }, 500);
       return;
     }
@@ -2593,7 +2565,6 @@ async function purgeAllAssignments(){
     };
     
     applied = true;
-    console.log('✅ deleteStudentAction 훅 적용 완료 (서약서 훅 포함 확인:', hasAgreementHook, ')');
   }
   
   // 페이지 로드 후 시도 시작
@@ -2660,7 +2631,6 @@ async function saveAssignmentToDB(options){
   
   var db = firebase.firestore();
   var docRef = await db.collection('dorm_assignments').add(payload);
-  console.log('✅ 배정 결과 저장:', docRef.id);
   return docRef.id;
 }
 
@@ -2698,7 +2668,6 @@ async function deleteAssignmentById(id){
   if(!user) throw new Error('로그인이 필요합니다.');
   var db = firebase.firestore();
   await db.collection('dorm_assignments').doc(id).delete();
-  console.log('🗑️ 배정 이력 삭제:', id);
 }
 // ==================== Step D-4: 배정 이력 조회 UI ====================
 
@@ -2835,7 +2804,6 @@ async function handleSaveAssignmentToDB(){
   }
   
   try {
-    console.log('💾 DB 저장 중...');
     var docId = await saveAssignmentToDB({ label: label.trim() });
     
     var stats = window._assignResult;
@@ -2886,14 +2854,12 @@ function runAutoAssignment(){
         s._forcedSingle = true; // 강제 지정 표시
       }
     });
-   console.log('✅ 여학생 ' + femaleCheck.femaleCount + '명 전원 1인실 배정 모드 활성화');
   }
   
   // 🆕 Step A-6-3: 학과별 지정 사전 검증
   if(!window._skipFeasibilityCheck && Object.keys(settings).length > 0){
     var feasibility = checkAssignmentFeasibility(students, settings, rooms);
     if(feasibility.hasIssues){
-      console.log('⚠️ 지정 부족 감지:', feasibility.summary);
       // 여학생 needSingle 강제 부여를 롤백 (팝업 대기 중 원본 유지)
       students.forEach(function(s){
         if(s._forcedSingle){
@@ -2915,7 +2881,6 @@ function runAutoAssignment(){
           }
         },
         function(){
-          console.log('❌ 사용자가 배정을 취소했습니다.');
         }
       );
       return; // 팝업 응답 대기
@@ -3771,13 +3736,10 @@ function showAssignResult(result){
 window.diagRoom=function(roomNum){
     try{
         var rn=String(roomNum||'421');
-        console.log('=== diagRoom('+rn+') ===');
         var entries=window._secureData.getAllRoomEntries?window._secureData.getAllRoomEntries():{};
         var matched=Object.keys(entries).filter(function(n){return String(entries[n].room)===rn});
-        console.log('roomNumbers 기준 '+rn+'호 점유자:',matched);
         matched.forEach(function(n){console.log(' ·',n,entries[n])});
         var rm=buildRoomOccupancyMap(getCurrentDate(),true);
-        console.log('buildRoomOccupancyMap['+rn+']:',rm[rn]||'✗ 비어있음');
         return {entries:matched.map(function(n){return Object.assign({name:n},entries[n])}),roomMap:rm[rn]||[]};
     }catch(e){console.error(e);return null}
 };
@@ -3786,7 +3748,6 @@ window.fixDept=async function(name,dept){
     try{
         await db.collection('roomNumbers').doc(name).set({department:dept,updatedAt:new Date().toISOString()},{merge:true});
         await db.collection('passwords').doc(name).set({department:dept,updatedAt:new Date().toISOString()},{merge:true});
-        console.log('✓ '+name+' 의 학과를 '+dept+'(으)로 설정');
         setTimeout(function(){if(typeof render==='function')render();console.log('✓ 화면 갱신 완료')},800);
     }catch(e){console.error('실패:',e.message)}
 };
@@ -3942,8 +3903,6 @@ function _getReminderNow() {
 // 시뮬레이션 모드 ON (콘솔에서 호출)
 window.testReminder = function(hourMin) {
     if (!hourMin) {
-        console.log('사용법: testReminder("20:40") 또는 testReminder("21:00")');
-        console.log('해제: testReminder(false)');
         return;
     }
     if (hourMin === false) {
@@ -3951,7 +3910,6 @@ window.testReminder = function(hourMin) {
         _reminderState.testTime = null;
         _reminderState.snoozedUntil = 0;
         _reminderState.lastShownAt = 0;
-        console.log('✓ 시뮬레이션 모드 해제');
         return;
     }
     var parts = hourMin.split(':');
@@ -3961,8 +3919,6 @@ window.testReminder = function(hourMin) {
     _reminderState.testTime = h * 60 + m;
     _reminderState.snoozedUntil = 0;
     _reminderState.lastShownAt = 0;
-    console.log('✓ 시뮬레이션 시간 설정:', hourMin);
-    console.log('  → 5초 안에 알림이 뜨면 정상 동작');
     setTimeout(checkSubmissionReminder, 1000);
 };
 
@@ -4447,7 +4403,6 @@ async function submitStatus(dept, name, status) {
             }
         } catch (verifyErr) {
             // 서버에서 직접 읽기 실패 = 네트워크 문제
-            console.log('서버 검증 실패:', verifyErr);
             verified = false;
         }
 
@@ -4532,7 +4487,6 @@ async function checkServerConnection() {
         ]);
         return true;
     } catch (e) {
-        console.log('서버 연결 확인 실패:', e.message);
         return false;
     }
 }
@@ -4621,7 +4575,6 @@ async function logout(){
         if (typeof window[key] === 'function') { window[key](); window[key] = null; }
       } catch(e){}
     });
-    console.log('✅ 로그아웃 전 리스너 정리 완료');
   } catch(e) {
     console.warn('리스너 정리 중 오류(무시 가능):', e);
   }
@@ -5534,7 +5487,6 @@ async function executeResignDelete(reqId){
                 updateProgress(89, '서약서 삭제 완료 ✓ (' + agreeSnap.docs.length + '건)');
             }
         } catch(agreeErr) {
-            console.log('서약서 삭제 실패:', agreeErr.message);
         }
 
         
@@ -6711,7 +6663,6 @@ if(alerts.length > 1) msg += ' 외 ' + (alerts.length - 1) + '건';
     setTimeout(function(){ toast.remove(); }, 500);
   }, 5000);
   
-  console.log('✅ 토스트 표시:', msg);
 }
 
 // 상세 보기
@@ -6735,17 +6686,14 @@ async function loadCourses(){
       if(!c.startDate || !c.endDate) return;
       var realStatus = today < c.startDate ? 'upcoming' : (today > c.endDate ? 'completed' : 'active');
       if(c.status !== realStatus){
-        console.log('🔄 상태 자동 갱신:', c.name, c.status, '→', realStatus);
         c.status = realStatus;
         updates.push(db.collection('courses').doc(c.id).update({status: realStatus}));
       }
     });
     if(updates.length > 0){
       await Promise.all(updates);
-      console.log('✅ ' + updates.length + '개 과정 상태 자동 갱신 완료');
     }
     
-    console.log('교육과정 로드:', courses.length+'개');
   } catch(e){
     console.warn('교육과정 로드 실패:', e.message);
   }
@@ -6992,7 +6940,6 @@ async function executeStudentDelete(dept,name){
             }
             updateProgress(91,'퇴사 이력 보존 완료 ✓');
         } catch(e) {
-            console.log('퇴사 이력 보존 실패:', e.message);
         }
         
         // 서약서 데이터 및 서명 이미지 삭제 (개인정보처리방침 준수)
@@ -7014,7 +6961,6 @@ async function executeStudentDelete(dept,name){
                 updateProgress(89, '서약서 삭제 완료 ✓ (' + agreeSnap.docs.length + '건)');
             }
         } catch(agreeErr) {
-            console.log('서약서 삭제 실패:', agreeErr.message);
         }
   
         updateProgress(92,'메시지 삭제 중...');
@@ -7154,11 +7100,9 @@ async function renameDepartment(oldName, newNameArg){
       try {
         var snap = await db.collection('roomNumbers').where('department','==',oldName).get();
         snap.forEach(function(d){ deptStudents.push(d.id); });
-        console.log('🔍 roomNumbers 스캔으로 학생 발견:', deptStudents.length + '명');
       } catch(e){ console.warn('roomNumbers 스캔 실패:', e.message); }
     }
     
-    console.log('📋 ' + oldName + ' 소속 학생:', deptStudents.length + '명', deptStudents);
 
     
     // 2. 새 학과 목록 만들기 (순서 유지)
@@ -7217,7 +7161,6 @@ async function renameDepartment(oldName, newNameArg){
       courseSnap.forEach(function(doc){
         batch.update(doc.ref, { name: newName, updatedAt: new Date().toISOString() });
       });
-      console.log('📚 courses 업데이트:', courseSnap.size + '건');
     } catch(e){ console.warn('courses 업데이트 실패:', e.message); }
     
     deptStudents.forEach(function(sname){
@@ -7404,7 +7347,6 @@ window._verifyStudentIntegrity = async function(silent){
     if (issues.length === 0 && autoFixed.length === 0) {
          if (!silent) console.log('✅ 학생 데이터 무결성 정상 (' + activeCount + '명 확인)');
     } else if (issues.length === 0) {
-      console.log('✅ 자동 복구 완료 (' + autoFixed.length + '건 처리)');
     } else {
       console.warn('⚠️ 수동 확인 필요 ' + issues.length + '건:');
       issues.forEach(function(i){ console.warn('  ' + i); });
@@ -7778,7 +7720,6 @@ setInterval(async function(){
         var serverCount = snap.docs.filter(function(d){return d.data().status!=='cancelled'}).length;
         var memoryCount = submissions.filter(function(s){return s.date===currentDate && s.status!=='cancelled'}).length;
         if(serverCount !== memoryCount){
-            console.log('리스너 동기화 불일치! 서버:'+serverCount+' 메모리:'+memoryCount);
             submissions = snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
             updateStudentsList();
             render();
@@ -7795,7 +7736,6 @@ document.addEventListener('visibilitychange', async function(){
             var serverCount = snap.docs.filter(function(d){return d.data().status!=='cancelled'}).length;
             var memoryCount = submissions.filter(function(s){return s.date===currentDate && s.status!=='cancelled'}).length;
             if(serverCount !== memoryCount){
-                console.log('탭 복귀 동기화!');
                 submissions = snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});
                 updateStudentsList();
                 render();
@@ -7819,7 +7759,6 @@ document.addEventListener('visibilitychange', async function(){
             var oldStr = JSON.stringify(oldToday.map(function(s){ return {id:s.id, status:s.status, timestamp:s.timestamp}; }).sort(function(a,b){ return a.id.localeCompare(b.id); }));
             var newStr = JSON.stringify(newToday.map(function(s){ return {id:s.id, status:s.status, timestamp:s.timestamp}; }).sort(function(a,b){ return a.id.localeCompare(b.id); }));
             if (oldStr !== newStr) {
-                console.log('[keepalive] submissions 동기화');
                 var otherDays = submissions.filter(function(s){ return s.date !== today; });
                 submissions = otherDays.concat(newToday);
                 if (typeof updateStudentsList === 'function') updateStudentsList();
@@ -8284,7 +8223,7 @@ function renderAdminView(todaySubs,todayOuts,stats){
     var dateInfo=(function(){var d=new Date(currentDate+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[d.getDay()];var h=getHolidayName(currentDate);return h?'('+day+') '+h:'('+day+')'})();
     var dateClass=(function(){var _d=new Date(currentDate+'T00:00:00');var _day=_d.getDay();return formatDateWithDay(currentDate).isHoliday?'text-danger-600':_day===0?'text-danger-600':_day===6?'text-info-600':'text-gray-600'})();
 
-    return'<div class="max-w-5xl mx-auto px-3"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-xl '+(isSuperAdmin?'bg-gradient-to-br from-amber-400 to-orange-500':'bg-primary-500')+' flex items-center justify-center"><i class="fas '+(isSuperAdmin?'fa-crown':'fa-shield-alt')+' text-white text-xl"></i></div><div><div class="font-bold text-gray-900 text-lg">'+(isSuperAdmin?'슈퍼 관리자':'관리자')+'</div><div class="text-sm text-gray-400"><span id="clockDisplay">'+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+'</span></div></div></div><div class="flex items-center gap-1 sm:gap-2 admin-header-buttons flex-shrink-0"><button onclick="showStudentLoginFromAdmin()" class="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-success-50 text-success-600 rounded-xl text-xs sm:text-sm font-bold btn-press border border-success-200" title="교육생"><i class="fas fa-user-graduate"></i><span class="btn-label">교육생</span></button><button onclick="showLeaderLogin()" class="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-info-100 text-info-700 rounded-xl text-xs sm:text-sm font-bold btn-press border border-info-300" title="학과대표"><i class="fas fa-user-tie"></i><span class="btn-label">대표</span></button><button onclick="isOfficeLoggedIn=true;render()" class="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-warning-50 text-warning-700 rounded-xl text-xs sm:text-sm font-bold btn-press border border-warning-300" title="운영사무실"><i class="fas fa-building"></i><span class="btn-label">BTL</span></button><button onclick="logout()" class="flex items-center justify-center px-2.5 sm:px-3 py-2 sm:py-2.5 bg-danger-50 text-danger-600 rounded-xl text-xs sm:text-sm font-bold btn-press border border-danger-300" title="로그아웃"><i class="fas fa-power-off"></i></button></div></div><div class="mt-4 bg-surface-50 rounded-2xl p-3 border border-surface-200"><div class="flex items-center justify-between date-nav-wrap"><div class="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 date-nav-inner"><button onclick="changeDate(-7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-7일"><i class="fas fa-angle-double-left"></i></button><button onclick="changeDate(-1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-1일"><i class="fas fa-chevron-left"></i></button><div class="flex items-center flex-1 justify-center" style="gap:0;margin:0"><input type="date" id="mainDateInput" value="'+currentDate+'" onchange="currentDate=this.value;render()" class="py-2 text-base font-bold border-none outline-none text-right rounded-xl" style="background:transparent!important;backdrop-filter:none!important;max-width:165px;padding-right:0;margin-right:4px"><span class="text-base font-bold whitespace-nowrap '+dateClass+'" >'+dateInfo+'</span></div><button onclick="changeDate(1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+1일"><i class="fas fa-chevron-right"></i></button><button onclick="changeDate(7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+7일"><i class="fas fa-angle-double-right"></i></button></div><button onclick="currentDate=getCurrentDate();render()" class="ml-2 px-5 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press shadow-button flex-shrink-0">오늘</button></div></div></div>'+dateWarn+'<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-5 mb-3 animate-fade-up stagger-1"><div class="grid grid-cols-2 gap-2"><button onclick="switchAdminTab(\'status\')" class="rounded-2xl p-3 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+((adminTab==='status'&&!window._roomStatusOpen)?'bg-primary-50 border border-primary-200':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-chart-bar '+((adminTab==='status'&&!window._roomStatusOpen)?'text-primary-500':'text-gray-500')+' text-2xl mb-1"></i><div class="text-base font-bold '+((adminTab==='status'&&!window._roomStatusOpen)?'text-primary-600':'text-gray-500')+'">현황</div></button><button onclick="switchAdminTab(\'settings\')" class="rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(adminTab==='settings'?'bg-primary-50 border border-primary-200':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-cog '+(adminTab==='settings'?'text-primary-500':'text-gray-500')+' text-2xl mb-1"></i><div class="text-base font-bold '+(adminTab==='settings'?'text-primary-600':'text-gray-500')+'">설정</div></button></div></div><div style="display:'+(adminTab==='status'?'block':'none')+'" id="adminStatusTab">'+renderAdminStatus(todaySubs,todayOuts,stats)+'</div><div style="display:'+(adminTab==='settings'?'block':'none')+'" id="adminSettingsTab">'+renderAdminSettings()+'</div></div>';
+    return'<div class="max-w-5xl mx-auto px-3"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-3"><div class="w-12 h-12 rounded-xl '+(isSuperAdmin?'bg-gradient-to-br from-amber-400 to-orange-500':'bg-primary-500')+' flex items-center justify-center"><i class="fas '+(isSuperAdmin?'fa-crown':'fa-shield-alt')+' text-white text-xl"></i></div><div><div class="font-bold text-gray-900 text-lg">'+(isSuperAdmin?'슈퍼 관리자':'관리자')+'</div><div class="text-sm text-gray-400"><span id="clockDisplay">'+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+'</span></div></div></div><div class="flex items-center gap-1 sm:gap-2 admin-header-buttons flex-shrink-0"><button onclick="showStudentLoginFromAdmin()" class="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-success-50 text-success-600 rounded-xl text-xs sm:text-sm font-bold btn-press border border-success-200" title="교육생"><i class="fas fa-user-graduate"></i><span class="btn-label">교육생</span></button><button onclick="showLeaderLogin()" class="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-info-100 text-info-700 rounded-xl text-xs sm:text-sm font-bold btn-press border border-info-300" title="학과대표"><i class="fas fa-user-tie"></i><span class="btn-label">대표</span></button><button onclick="isOfficeLoggedIn=true;render()" class="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 bg-warning-50 text-warning-700 rounded-xl text-xs sm:text-sm font-bold btn-press border border-warning-300" title="운영사무실"><i class="fas fa-building"></i><span class="btn-label">BTL</span></button><button onclick="logout()" class="flex items-center justify-center px-2.5 sm:px-3 py-2 sm:py-2.5 bg-danger-50 text-danger-600 rounded-xl text-xs sm:text-sm font-bold btn-press border border-danger-300" title="로그아웃"><i class="fas fa-power-off"></i></button></div></div><div class="mt-4 bg-surface-50 rounded-2xl p-3 border border-surface-200"><div class="flex items-center justify-between date-nav-wrap"><div class="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 date-nav-inner"><button onclick="changeDate(-7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-7일"><i class="fas fa-angle-double-left"></i></button><button onclick="changeDate(-1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="-1일"><i class="fas fa-chevron-left"></i></button><div class="flex items-center flex-1 justify-center" style="gap:0;margin:0"><input type="date" id="mainDateInput" value="'+currentDate+'" onchange="currentDate=this.value;render()" class="py-2 text-base font-bold border-none outline-none text-right rounded-xl" style="background:transparent!important;backdrop-filter:none!important;max-width:165px;padding-right:0;margin-right:4px"><span class="text-base font-bold whitespace-nowrap '+dateClass+'" >'+dateInfo+'</span></div><button onclick="changeDate(1)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+1일"><i class="fas fa-chevron-right"></i></button><button onclick="changeDate(7)" class="px-2 py-1.5 text-gray-400 hover:text-gray-600 rounded-lg text-sm btn-press" title="+7일"><i class="fas fa-angle-double-right"></i></button></div><button onclick="currentDate=getCurrentDate();render()" class="ml-2 px-5 py-2.5 bg-primary-500 text-white rounded-xl text-sm font-bold btn-press shadow-button flex-shrink-0">오늘</button></div></div></div>'+dateWarn+'<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-5 mb-3 animate-fade-up stagger-1"><div class="grid grid-cols-2 gap-2"><button onclick="switchAdminTab(\'status\')" class="rounded-2xl p-3 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+((adminTab==='status'&&!window._roomStatusOpen)?'bg-primary-50 border border-primary-200':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-chart-bar '+((adminTab==='status'&&!window._roomStatusOpen)?'text-primary-500':'text-gray-500')+' text-2xl mb-1"></i><div class="text-lg font-bold '+((adminTab==='status'&&!window._roomStatusOpen)?'text-primary-600':'text-gray-500')+'">현황</div></button><button onclick="switchAdminTab(\'settings\')" class="rounded-2xl p-4 text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(adminTab==='settings'?'bg-primary-50 border border-primary-200':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-cog '+(adminTab==='settings'?'text-primary-500':'text-gray-500')+' text-2xl mb-1"></i><div class="text-lg font-bold '+(adminTab==='settings'?'text-primary-600':'text-gray-500')+'">설정</div></button></div></div><div style="display:'+(adminTab==='status'?'block':'none')+'" id="adminStatusTab">'+renderAdminStatus(todaySubs,todayOuts,stats)+'</div><div style="display:'+(adminTab==='settings'?'block':'none')+'" id="adminSettingsTab">'+renderAdminSettings()+'</div></div>';
 }
 
 // ============ 관리자 현황 ============
@@ -9242,7 +9181,7 @@ function renderFloorPlan(){
         var accessRejectedAdmin=todayAccessAdmin.filter(function(r){return r.status==='rejected'});
         var accessReturnedAdmin=todayAccessAdmin.filter(function(r){return r.status==='returned'});
         if(todayAccessAdmin.length>0){
-            accessHtml+='<div class="bg-white rounded-2xl shadow-card border border-teal-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="window._adminAccessOpen=!window._adminAccessOpen;render()"><h2 class="text-xl font-bold text-teal-700"><i class="fas fa-door-open"></i> 기숙사 출입 신청 ('+todayAccessAdmin.length+'건)</h2><i class="fas '+(window._adminAccessOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>';
+            accessHtml+='<div class="bg-white rounded-2xl shadow-card border border-teal-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="window._adminAccessOpen=!window._adminAccessOpen;render()"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-door-open text-teal-700"></i> 기숙사 출입 신청 ('+todayAccessAdmin.length+'건)</h2><i class="fas '+(window._adminAccessOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>';
             if(window._adminAccessOpen){
                 accessHtml+='<div class="bg-warning-50 border border-warning-200 rounded-2xl p-4 mb-4 mt-4"><div class="text-sm font-bold text-warning-700 mb-2"><i class="fas fa-edit mr-1"></i>출입 안내 메시지 편집 (교육생에게 표시됨)</div><textarea id="adminAccessNoticeInput" class="w-full px-4 py-3 bg-white border border-warning-200 rounded-xl text-sm resize-none mb-2" rows="2" placeholder="교육생에게 표시할 안내 메시지를 입력하세요..." style="font-size:14px">'+escapeHtml(accessNotice)+'</textarea><button onclick="saveAccessNoticeFromAdmin()" class="w-full py-2.5 bg-warning-500 text-white rounded-xl text-sm font-bold btn-press"><i class="fas fa-save mr-1"></i>저장</button></div>';
 
@@ -9317,9 +9256,9 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
       +'<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-stats-hub\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-chart-line text-primary-500"></i> 조회·통계</h2><i id="secIcon-sec-stats-hub" class="fas '+(_hubOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'
       +'<div id="sec-stats-hub" style="display:'+(_hubOpen?'block':'none')+'">'
       +'<div class="grid grid-cols-3 gap-2 mb-4 mt-4">'
-      +'<button onclick="window._statsHubTab=(window._statsHubTab===\'course\'?null:\'course\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_sTab==='course'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-graduation-cap '+(_sTab==='course'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(_sTab==='course'?'text-primary-600':'text-gray-500')+'">교육과정</div></button>'
-      +'<button onclick="window._statsHubTab=(window._statsHubTab===\'history\'?null:\'history\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_sTab==='history'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-history '+(_sTab==='history'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(_sTab==='history'?'text-primary-600':'text-gray-500')+'">날짜별 조회</div></button>'
-      +'<button onclick="window._statsHubTab=(window._statsHubTab===\'period\'?null:\'period\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_sTab==='period'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-chart-pie '+(_sTab==='period'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(_sTab==='period'?'text-primary-600':'text-gray-500')+'">기간별 통계</div></button>'
+      +'<button onclick="window._statsHubTab=(window._statsHubTab===\'course\'?null:\'course\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_sTab==='course'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-graduation-cap '+(_sTab==='course'?'text-indigo-600':'text-indigo-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(_sTab==='course'?'text-primary-600':'text-gray-500')+'">교육과정</div></button>'
+      +'<button onclick="window._statsHubTab=(window._statsHubTab===\'history\'?null:\'history\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_sTab==='history'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-history '+(_sTab==='history'?'text-cyan-600':'text-cyan-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(_sTab==='history'?'text-primary-600':'text-gray-500')+'">날짜별 조회</div></button>'
+      +'<button onclick="window._statsHubTab=(window._statsHubTab===\'period\'?null:\'period\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_sTab==='period'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-chart-pie '+(_sTab==='period'?'text-emerald-600':'text-emerald-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(_sTab==='period'?'text-primary-600':'text-gray-500')+'">기간별 통계</div></button>'
       +'</div>'
       +'<div style="display:'+(_sTab==='course'?'block':'none')+'">'+_courseHtml+'</div>'
       +'<div style="display:'+(_sTab==='history'?'block':'none')+'">'+_historyBox+'</div>'
@@ -9328,12 +9267,12 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
       +_downloadBox
       +'</div></div>';
   })()+
-    accessHtml+'<div class="rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up" style="background:rgba(255,255,255,0.3);backdrop-filter:blur(10px)">'+(allFem.length>0?'<div class="bg-white rounded-2xl shadow-card border border-pink-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'female\')"><h2 class="text-xl font-bold text-pink-700"><i class="fas fa-female"></i> 여자교육생 ('+allFem.length+'명)</h2><i class="fas '+(adminSectionOpen.female?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.female?'<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"><div class="bg-success-50 rounded-2xl p-5 border border-success-100"><div class="font-bold text-success-700 text-base mb-3">현재 '+femStay.length+'명</div>'+(femStay.length>0?'<div class="space-y-1.5">'+femStay.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a.name)||'999')-parseInt(window._secureData.getRoomNumber(b.name)||'999')}).map(function(s){return'<div class="bg-white px-4 py-2.5 rounded-xl text-sm flex items-center min-h-[52px]"><span class="font-medium cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><span class="text-gray-600 ml-2 text-xs">['+escapeHtml(s.dept)+']</span></div>'}).join('')+'</div>':'<div class="text-sm text-gray-600 text-center py-3">없음</div>')+'</div><div class="bg-warning-50 rounded-2xl p-5 border border-warning-100"><div class="font-bold text-warning-700 text-base mb-3">외박 '+femOut.length+'명</div>'+(femOut.length>0?'<div class="space-y-1.5">'+femOut.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a.name)||'999')-parseInt(window._secureData.getRoomNumber(b.name)||'999')}).map(function(s){return'<div class="bg-white px-4 py-2.5 rounded-xl text-sm flex items-center min-h-[52px]"><span class="font-medium cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><span class="text-gray-600 ml-2 text-xs">['+escapeHtml(s.dept)+']</span></div>'}).join('')+'</div>':'<div class="text-sm text-gray-600 text-center py-3">없음</div>')+'</div><div class="bg-danger-50 rounded-2xl p-5 border border-danger-100"><div class="font-bold text-danger-700 text-base mb-3">미제출 '+femNot.length+'명</div>'+(femNot.length>0?'<div class="space-y-1.5">'+femNot.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a.name)||'999')-parseInt(window._secureData.getRoomNumber(b.name)||'999')}).map(function(s){return'<div class="bg-white px-4 py-2.5 rounded-xl text-sm flex items-center min-h-[52px]"><span class="font-medium text-danger-700 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><span class="text-gray-600 ml-2 text-xs">['+escapeHtml(s.dept)+']</span></div>'}).join('')+'</div>':'<div class="text-sm text-gray-600 text-center py-3">전원 완료</div>')+'</div></div>':'')+'</div>':'')+
-    '<div id="staySection">'+(stayList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-success-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'stay\')"><h2 class="text-xl font-bold text-success-700"><i class="fas fa-check-circle"></i> 현재 ('+stayList.length+'명)</h2><i class="fas '+(adminSectionOpen.stay?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.stay?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('stay')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(stayList,'stay').map(function(s){return'<div class="bg-success-50 border border-success-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-success-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-success-600 opacity-70">'+escapeHtml(s.department)+(staySortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
-    '<div id="outSection">'+(outList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'out\')"><h2 class="text-xl font-bold text-warning-700"><i class="fas fa-moon"></i> 외박 ('+outList.length+'명)</h2><i class="fas '+(adminSectionOpen.out?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.out?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('out')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(outList,'out').map(function(s){return'<div class="bg-warning-50 border border-warning-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-warning-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-warning-600 opacity-70">'+escapeHtml(s.department)+(outSortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
-    '<div id="outingSection" style="display:'+(menuControlSettings.showOutingRequest!==false?'block':'none')+'">'+(pureOut.length>0?'<div class="bg-white rounded-2xl shadow-card border border-info-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'outing\')"><h2 class="text-xl font-bold text-info-700"><i class="fas fa-walking"></i> 외출 ('+pureOut.length+'명)</h2><i class="fas '+(adminSectionOpen.outing?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.outing?renderSortToggle()+'<div class="space-y-2 mt-3">'+sortByMode(pureOut).map(function(o){return'<div class="bg-info-50 border border-info-100 rounded-xl px-4 py-2.5"><div class="flex items-center justify-between mb-1"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-info-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(o.name)+'\')">'+formatStudentName(o.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(o.department)+']</span></div><button onclick="deleteOuting(\''+safeAttr(o.id)+'\',\''+safeAttr(o.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0" style="font-size:10px"><i class="fas fa-times"></i></button></div><div class="text-xs text-gray-500">'+escapeHtml(o.outingTime)+'~'+escapeHtml(o.returnTime)+' | '+escapeHtml(o.reason)+(o.returnConfirmed?' <span class="text-success-600 font-bold">✓복귀 '+escapeHtml(o.returnConfirmedAt||'')+'</span>':'')+'</div></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+'<div id="deptStatusSection" class="animate-fade-up stagger-3 mt-5"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4"><h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-th-list"></i> 학과별 총원 현황</h2>'+'<div class="flex gap-2 mb-3"><button onclick="toggleAllDeptCards(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllDeptCards(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+deptHtml+'<button onclick="scrollToTop()" class="w-full -mt-1 mb-4 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button></div></div>'+
+    accessHtml+'<div class="rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up" style="background:rgba(255,255,255,0.3);backdrop-filter:blur(10px)">'+(allFem.length>0?'<div class="bg-white rounded-2xl shadow-card border border-pink-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'female\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-female text-pink-700"></i> 여자교육생 ('+allFem.length+'명)</h2><i class="fas '+(adminSectionOpen.female?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.female?'<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4"><div class="bg-success-50 rounded-2xl p-5 border border-success-100"><div class="font-bold text-success-700 text-base mb-3">현재 '+femStay.length+'명</div>'+(femStay.length>0?'<div class="space-y-1.5">'+femStay.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a.name)||'999')-parseInt(window._secureData.getRoomNumber(b.name)||'999')}).map(function(s){return'<div class="bg-white px-4 py-2.5 rounded-xl text-sm flex items-center min-h-[52px]"><span class="font-medium cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><span class="text-gray-600 ml-2 text-xs">['+escapeHtml(s.dept)+']</span></div>'}).join('')+'</div>':'<div class="text-sm text-gray-600 text-center py-3">없음</div>')+'</div><div class="bg-warning-50 rounded-2xl p-5 border border-warning-100"><div class="font-bold text-warning-700 text-base mb-3">외박 '+femOut.length+'명</div>'+(femOut.length>0?'<div class="space-y-1.5">'+femOut.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a.name)||'999')-parseInt(window._secureData.getRoomNumber(b.name)||'999')}).map(function(s){return'<div class="bg-white px-4 py-2.5 rounded-xl text-sm flex items-center min-h-[52px]"><span class="font-medium cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><span class="text-gray-600 ml-2 text-xs">['+escapeHtml(s.dept)+']</span></div>'}).join('')+'</div>':'<div class="text-sm text-gray-600 text-center py-3">없음</div>')+'</div><div class="bg-danger-50 rounded-2xl p-5 border border-danger-100"><div class="font-bold text-danger-700 text-base mb-3">미제출 '+femNot.length+'명</div>'+(femNot.length>0?'<div class="space-y-1.5">'+femNot.slice().sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a.name)||'999')-parseInt(window._secureData.getRoomNumber(b.name)||'999')}).map(function(s){return'<div class="bg-white px-4 py-2.5 rounded-xl text-sm flex items-center min-h-[52px]"><span class="font-medium text-danger-700 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><span class="text-gray-600 ml-2 text-xs">['+escapeHtml(s.dept)+']</span></div>'}).join('')+'</div>':'<div class="text-sm text-gray-600 text-center py-3">전원 완료</div>')+'</div></div>':'')+'</div>':'')+
+    '<div id="staySection">'+(stayList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-success-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'stay\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-check-circle text-success-700"></i> 현재 ('+stayList.length+'명)</h2><i class="fas '+(adminSectionOpen.stay?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.stay?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('stay')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(stayList,'stay').map(function(s){return'<div class="bg-success-50 border border-success-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-success-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-success-600 opacity-70">'+escapeHtml(s.department)+(staySortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
+    '<div id="outSection">'+(outList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'out\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-moon text-warning-700"></i> 외박 ('+outList.length+'명)</h2><i class="fas '+(adminSectionOpen.out?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.out?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('out')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(outList,'out').map(function(s){return'<div class="bg-warning-50 border border-warning-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-warning-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-warning-600 opacity-70">'+escapeHtml(s.department)+(outSortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
+    '<div id="outingSection" style="display:'+(menuControlSettings.showOutingRequest!==false?'block':'none')+'">'+(pureOut.length>0?'<div class="bg-white rounded-2xl shadow-card border border-info-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'outing\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-walking text-info-700"></i> 외출 ('+pureOut.length+'명)</h2><i class="fas '+(adminSectionOpen.outing?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.outing?renderSortToggle()+'<div class="space-y-2 mt-3">'+sortByMode(pureOut).map(function(o){return'<div class="bg-info-50 border border-info-100 rounded-xl px-4 py-2.5"><div class="flex items-center justify-between mb-1"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-info-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(o.name)+'\')">'+formatStudentName(o.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(o.department)+']</span></div><button onclick="deleteOuting(\''+safeAttr(o.id)+'\',\''+safeAttr(o.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0" style="font-size:10px"><i class="fas fa-times"></i></button></div><div class="text-xs text-gray-500">'+escapeHtml(o.outingTime)+'~'+escapeHtml(o.returnTime)+' | '+escapeHtml(o.reason)+(o.returnConfirmed?' <span class="text-success-600 font-bold">✓복귀 '+escapeHtml(o.returnConfirmedAt||'')+'</span>':'')+'</div></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+'<div id="deptStatusSection" class="animate-fade-up stagger-3 mt-5"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4"><h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-th-list"></i> 학과별 총원 현황</h2>'+'<div class="flex gap-2 mb-3"><button onclick="toggleAllDeptCards(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllDeptCards(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+deptHtml+'<button onclick="scrollToTop()" class="w-full -mt-1 mb-4 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button></div></div>'+
     (pR.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){var _isOrphaned=!(students[r.department]||[]).includes(r.name)&&!(window._secureData.getStudentsByDept(r.department)||[]).includes(r.name);return'<div class="'+(_isOrphaned?'bg-red-50 border-red-300':'bg-warning-50 border-warning-200')+' rounded-2xl p-5 border"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span>'+(_isOrphaned?'<span class="ml-2 px-2 py-0.5 bg-danger-100 text-danger-600 text-xs font-bold rounded-full">이미 삭제된 교육생</span>':'')+'</div><div class="flex gap-2"><button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button>'+(_isOrphaned?'<button onclick="autoCleanResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press">자동정리</button>':'')+'</div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
-    '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="rounded-2xl shadow-card border border-danger-200 p-6 mb-5 animate-fade-up" style="background:rgba(255,255,255,0.3);backdrop-filter:blur(10px)"><div class="bg-white rounded-2xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-danger-700"><i class="fas fa-exclamation-triangle"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div></div>':'')+'</div>'
+    '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="rounded-2xl shadow-card border border-danger-200 p-6 mb-5 animate-fade-up" style="background:rgba(255,255,255,0.3);backdrop-filter:blur(10px)"><div class="bg-white rounded-2xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-exclamation-triangle text-danger-700"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div></div>':'')+'</div>'
 +(menuControlSettings.showLotteryEvent!==false?renderLotteryAdmin():'')+'</div>';
 }
 
@@ -9344,10 +9283,10 @@ function renderAdminSettings(){
     function _sd(id,def){if(manageSectionState[id]===true)return'block';if(manageSectionState[id]===false)return'none';return def?'block':'none'}
     function _si(id,def){if(manageSectionState[id]===true)return'fa-chevron-up';if(manageSectionState[id]===false)return'fa-chevron-down';return def?'fa-chevron-up':'fa-chevron-down'}
 
-    // ===== 공지사항 편집 섹션 (운영 관리 허브 > 공지·일정 탭으로 이동) =====
+    // ===== 고정 공지 편집 섹션 (운영 관리 허브 > 공지·일정 탭으로 이동) =====
     var announceSection = '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up">'
     +'<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-announce\')">'
-    +'<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-bullhorn"></i> 공지사항 편집</h2>'
+    +'<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-bullhorn text-sky-600"></i> 고정 공지 편집</h2>'
     +'<i id="secIcon-sec-announce" class="fas '+_si('sec-announce',false)+' text-gray-400"></i></div>'
     +'<div id="sec-announce" style="display:'+_sd('sec-announce',false)+'">'
     +'<textarea id="announcementInput" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-xl text-base resize-none mb-4 mt-4" rows="4" placeholder="공지사항..." style="font-size:16px">'+escapeHtml(announcement)+'</textarea>'
@@ -9357,7 +9296,7 @@ function renderAdminSettings(){
     // ===== 알림 소리 설정 섹션 (독립 카드, 하단 배치) =====
     var soundSection = '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up">'
     +'<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-sound\')">'
-    +'<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-volume-up text-primary-500"></i> 알림 소리 설정</h2>'
+    +'<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-volume-up text-blue-500"></i> 알림 소리 설정</h2>'
     +'<i id="secIcon-sec-sound" class="fas '+_si('sec-sound',false)+' text-gray-400"></i></div>'
     +'<div id="sec-sound" style="display:'+_sd('sec-sound',false)+'">'
     +'<div class="flex items-center justify-between p-4 bg-surface-50 rounded-xl border border-surface-200 mt-4"><span class="font-semibold text-gray-700"><i class="fas '+(soundEnabled?'fa-volume-up text-success-500':'fa-volume-mute text-gray-400')+' mr-2"></i>새 제출 알림 소리</span>'
@@ -9365,10 +9304,10 @@ function renderAdminSettings(){
     +'<p class="text-xs text-gray-400 mt-2">끄면 새 제출/신청 시 알림 소리가 울리지 않습니다.</p>'
     +'</div></div>';
 
-    // ===== 공지(방학) 관리 섹션 =====
+    // ===== 팝업 공지 관리 섹션 =====
     var vacationNoticeSection = '<div id="vacationNoticeAdminPanel" class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-1">'
     +'<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-vacation\')">'
-    +'<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-bullhorn text-gray-500"></i> 공지(방학) 관리</h2>'
+    +'<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-bullhorn text-sky-600"></i> 팝업 공지 관리</h2>'
     +'<i id="secIcon-sec-vacation" class="fas '+_si('sec-vacation',false)+' text-gray-400"></i></div>'
     +'<div id="sec-vacation" style="display:'+_sd('sec-vacation',false)+'">'
     +'<div id="vacationNoticeAdminBody" class="mt-4"><div class="text-center text-gray-400 py-8"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</div></div>'
@@ -9377,20 +9316,20 @@ function renderAdminSettings(){
     // ===== 학과/교육생 관리 섹션 (접기/펼치기 지원) =====
     var manageSection = '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2">'
     +'<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-manage-root\')">'
-    +'<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-users-cog"></i> 학과/교육생 관리</h2>'
+    +'<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-users-cog text-teal-600"></i> 학과/교육생 관리</h2>'
     +'<i id="secIcon-sec-manage-root" class="fas '+_si('sec-manage-root',false)+' text-gray-400"></i></div>'
     +'<div id="sec-manage-root" style="display:'+_sd('sec-manage-root',false)+'">';
 
     // -- 학과 섹션 --
     manageSection += '<div class="mb-4 mt-5">'
     +'<div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-departments\')">'
-    +'<h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-building mr-2"></i>학과</h3>'
+    +'<h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-building mr-2 text-teal-600"></i>학과</h3>'
     +'<i id="secIcon-sec-departments" class="fas '+_si('sec-departments',false)+' text-gray-400"></i></div>'
     +'<div id="sec-departments" style="display:'+_sd('sec-departments',false)+'" class="mt-3">'
 
     +'<div class="grid grid-cols-2 gap-2 mb-5">'
-    +'<button onclick="deptManageTab=(deptManageTab===\'manage\'?null:\'manage\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(deptManageTab==='manage'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-building '+(deptManageTab==='manage'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(deptManageTab==='manage'?'text-primary-600':'text-gray-500')+'">학과 관리</div></button>'
-    +'<button onclick="deptManageTab=(deptManageTab===\'leader\'?null:\'leader\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(deptManageTab==='leader'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-user-tie '+(deptManageTab==='leader'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(deptManageTab==='leader'?'text-primary-600':'text-gray-500')+'">학과대표</div></button>'
+    +'<button onclick="deptManageTab=(deptManageTab===\'manage\'?null:\'manage\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(deptManageTab==='manage'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-building '+(deptManageTab==='manage'?'text-indigo-600':'text-indigo-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(deptManageTab==='manage'?'text-primary-600':'text-gray-500')+'">학과 관리</div></button>'
+    +'<button onclick="deptManageTab=(deptManageTab===\'leader\'?null:\'leader\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(deptManageTab==='leader'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-user-tie '+(deptManageTab==='leader'?'text-pink-600':'text-pink-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(deptManageTab==='leader'?'text-primary-600':'text-gray-500')+'">학과대표</div></button>'
     +'</div>'
 
     +'<div style="display:'+(deptManageTab==='manage'?'block':'none')+'">'
@@ -9415,23 +9354,23 @@ function renderAdminSettings(){
     // -- 교육생 섹션 (탭 방식) --
     manageSection += '<div class="mb-4 mt-4">'
     +'<div class="flex items-center justify-between bg-surface-100 border border-surface-200 rounded-xl px-5 py-3 cursor-pointer select-none" onclick="toggleManageSection(\'sec-students\')">'
-    +'<h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-user-graduate mr-2"></i>교육생</h3>'
+    +'<h3 class="font-bold text-gray-700 text-lg"><i class="fas fa-user-graduate mr-2 text-teal-600"></i>교육생</h3>'
     +'<i id="secIcon-sec-students" class="fas '+_si('sec-students',false)+' text-gray-400"></i></div>'
     +'<div id="sec-students" class="mt-3" style="display:'+_sd('sec-students',false)+'">';
 
     // 탭 버튼 4개
     manageSection += '<div class="grid grid-cols-4 gap-2 mb-5">'
-    +'<button onclick="studentManageTab=(studentManageTab===\'register\'?null:\'register\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='register'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
-    +'<i class="fas fa-user-plus '+(studentManageTab==='register'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i>'
+    +'<button onclick="studentManageTab=(studentManageTab===\'register\'?null:\'register\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='register'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
+    +'<i class="fas fa-user-plus '+(studentManageTab==='register'?'text-blue-600':'text-blue-400')+' text-xl mb-1.5"></i>'
     +'<div class="text-base font-bold '+(studentManageTab==='register'?'text-primary-600':'text-gray-500')+'">등록/관리</div></button>'
-    +'<button onclick="studentManageTab=(studentManageTab===\'edit\'?null:\'edit\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='edit'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
-    +'<i class="fas fa-user-edit '+(studentManageTab==='edit'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i>'
+    +'<button onclick="studentManageTab=(studentManageTab===\'edit\'?null:\'edit\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='edit'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
+    +'<i class="fas fa-user-edit '+(studentManageTab==='edit'?'text-cyan-600':'text-cyan-400')+' text-xl mb-1.5"></i>'
     +'<div class="text-base font-bold '+(studentManageTab==='edit'?'text-primary-600':'text-gray-500')+'">정보수정</div></button>'
-    +'<button onclick="studentManageTab=(studentManageTab===\'security\'?null:\'security\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='security'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
-    +'<i class="fas fa-key '+(studentManageTab==='security'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i>'
+    +'<button onclick="studentManageTab=(studentManageTab===\'security\'?null:\'security\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='security'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
+    +'<i class="fas fa-key '+(studentManageTab==='security'?'text-red-600':'text-red-400')+' text-xl mb-1.5"></i>'
     +'<div class="text-base font-bold '+(studentManageTab==='security'?'text-primary-600':'text-gray-500')+'">조회/보안</div></button>'
-    +'<button onclick="studentManageTab=(studentManageTab===\'extra\'?null:\'extra\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='extra'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
-    +'<i class="fas fa-ellipsis-h '+(studentManageTab==='extra'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i>'
+    +'<button onclick="studentManageTab=(studentManageTab===\'extra\'?null:\'extra\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(studentManageTab==='extra'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'">'
+    +'<i class="fas fa-ellipsis-h '+(studentManageTab==='extra'?'text-fuchsia-600':'text-fuchsia-400')+' text-xl mb-1.5"></i>'
     +'<div class="text-base font-bold '+(studentManageTab==='extra'?'text-primary-600':'text-gray-500')+'">부가기능</div></button>'
     +'</div>';
 
@@ -9513,13 +9452,13 @@ function renderAdminSettings(){
     if(isSuperAdmin){
         superSection += '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-2">';
         superSection += '<div class="flex items-center justify-between cursor-pointer select-none mb-5" onclick="toggleManageSection(\'sec-super\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-crown text-amber-500 mr-2"></i>슈퍼관리자</h2><i id="secIcon-sec-super" class="fas '+_si('sec-super',true)+' text-gray-400 mr-6"></i></div>';
-        superSection += '<div id="sec-super" style="display:'+_sd('sec-super',true)+'">';
+        superSection += '<div id="sec-super" style="display:'+_sd('sec-super',false)+'">';
         superSection += '<div class="grid grid-cols-4 gap-2 mb-5">';
-        superSection += '<button onclick="superAdminTab=(superAdminTab===\'menu\'?null:\'menu\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='menu'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-sliders-h '+(superAdminTab==='menu'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(superAdminTab==='menu'?'text-primary-600':'text-gray-500')+'">메뉴 제어</div></button>';
-        superSection += '<button onclick="superAdminTab=(superAdminTab===\'login\'?null:\'login\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='login'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-shield-alt '+(superAdminTab==='login'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(superAdminTab==='login'?'text-primary-600':'text-gray-500')+'">로그인 기록</div></button>';
-        superSection += '<button onclick="superAdminTab=(superAdminTab===\'danger\'?null:\'danger\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='danger'?'bg-danger-50 border-2 border-danger-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-exclamation-triangle '+(superAdminTab==='danger'?'text-danger-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(superAdminTab==='danger'?'text-danger-600':'text-gray-500')+'">위험</div></button>';
-        superSection += '<button onclick="superAdminTab=(superAdminTab===\'photo\'?null:\'photo\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='photo'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-images '+(superAdminTab==='photo'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(superAdminTab==='photo'?'text-primary-600':'text-gray-500')+'">사진 폴더</div></button>';
-superSection += '<button onclick="window.open(\'https://github.com/kgwsw-gif/Hanal/blob/main/SECURITY_REPORT.md\',\'_blank\')" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200"><i class="fas fa-file-shield text-success-500 text-3xl mb-2"></i><div class="text-base font-bold text-success-600">보안 보고서</div></button>';
+        superSection += '<button onclick="superAdminTab=(superAdminTab===\'menu\'?null:\'menu\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='menu'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-sliders-h '+(superAdminTab==='menu'?'text-amber-600':'text-amber-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(superAdminTab==='menu'?'text-primary-600':'text-gray-500')+'">메뉴 제어</div></button>';
+        superSection += '<button onclick="superAdminTab=(superAdminTab===\'login\'?null:\'login\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='login'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-shield-alt '+(superAdminTab==='login'?'text-lime-600':'text-lime-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(superAdminTab==='login'?'text-primary-600':'text-gray-500')+'">로그인 기록</div></button>';
+        superSection += '<button onclick="superAdminTab=(superAdminTab===\'danger\'?null:\'danger\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='danger'?'bg-danger-50 border-2 border-danger-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-exclamation-triangle '+(superAdminTab==='danger'?'text-red-600':'text-red-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(superAdminTab==='danger'?'text-danger-600':'text-gray-500')+'">위험</div></button>';
+        superSection += '<button onclick="superAdminTab=(superAdminTab===\'photo\'?null:\'photo\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(superAdminTab==='photo'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-images '+(superAdminTab==='photo'?'text-teal-600':'text-teal-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(superAdminTab==='photo'?'text-primary-600':'text-gray-500')+'">사진 폴더</div></button>';
+superSection += '<button onclick="window.open(\'https://github.com/kgwsw-gif/Hanal/blob/main/SECURITY_REPORT.md\',\'_blank\')" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200"><i class="fas fa-file-shield text-amber-600 text-xl mb-1.5"></i><div class="text-base font-bold text-success-600">보안 보고서</div></button>';
         superSection += '</div>';
         superSection += '<div style="display:'+(superAdminTab==='menu'?'block':'none')+'">' + _buildMenuControlHTML() + '</div>';
         superSection += '<div style="display:'+(superAdminTab==='photo'?'block':'none')+'">' + _buildPhotoFolderManagerHTML() + '</div>';
@@ -9554,14 +9493,14 @@ superSection += '<button onclick="window.open(\'https://github.com/kgwsw-gif/Han
     var operationHubSection = ''
       + '<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up stagger-1">'
       +   '<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-ops-hub\')">'
-      +     '<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-cogs text-primary-500"></i> 운영 관리</h2>'
+      +     '<h2 class="text-xl font-bold text-gray-800"><i class="fas fa-cogs text-violet-600"></i> 운영 관리</h2>'
       +     '<i id="secIcon-sec-ops-hub" class="fas '+_si('sec-ops-hub',false)+' text-gray-400"></i>'
       +   '</div>'
       +   '<div id="sec-ops-hub" style="display:'+_sd('sec-ops-hub',false)+'">'
       +   '<div class="grid grid-cols-3 gap-2 mb-4 mt-4">'
-      +     '<button onclick="window._opHubTab=(window._opHubTab===\'notice\'?null:\'notice\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_opTab==='notice'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-bullhorn '+(_opTab==='notice'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(_opTab==='notice'?'text-primary-600':'text-gray-500')+'">공지·일정</div></button>'
-      +     '<button onclick="window._opHubTab=(window._opHubTab===\'submit\'?null:\'submit\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_opTab==='submit'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-file-signature '+(_opTab==='submit'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(_opTab==='submit'?'text-primary-600':'text-gray-500')+'">제출·문서</div></button>'
-      +     '<button onclick="window._opHubTab=(window._opHubTab===\'rule\'?null:\'rule\');render()" class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_opTab==='rule'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-gavel '+(_opTab==='rule'?'text-primary-500':'text-gray-400')+' text-3xl mb-2"></i><div class="text-base font-bold '+(_opTab==='rule'?'text-primary-600':'text-gray-500')+'">운영 규칙</div></button>'
+      +     '<button onclick="window._opHubTab=(window._opHubTab===\'notice\'?null:\'notice\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_opTab==='notice'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-bullhorn '+(_opTab==='notice'?'text-sky-600':'text-sky-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(_opTab==='notice'?'text-primary-600':'text-gray-500')+'">공지·일정</div></button>'
+      +     '<button onclick="window._opHubTab=(window._opHubTab===\'submit\'?null:\'submit\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_opTab==='submit'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-file-signature '+(_opTab==='submit'?'text-emerald-600':'text-emerald-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(_opTab==='submit'?'text-primary-600':'text-gray-500')+'">제출·문서</div></button>'
+      +     '<button onclick="window._opHubTab=(window._opHubTab===\'rule\'?null:\'rule\');render()" class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press '+(_opTab==='rule'?'bg-primary-50 border-2 border-primary-300':'bg-surface-50 border border-surface-200')+'"><i class="fas fa-gavel '+(_opTab==='rule'?'text-orange-600':'text-orange-400')+' text-xl mb-1.5"></i><div class="text-base font-bold '+(_opTab==='rule'?'text-primary-600':'text-gray-500')+'">운영 규칙</div></button>'
       +   '</div>'
       +   '<div style="display:'+(_opTab==='notice'?'block':'none')+'">'
       +     announceSection
@@ -9706,55 +9645,42 @@ function _postRenderWork(){
 function updatePwLookupList(){var dept=document.getElementById('pwLookupDept').value;var sel=document.getElementById('pwLookupName');sel.innerHTML='<option value="">교육생 선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
 async function checkStudentSubmission(name, date){
     if(!date) date = getCurrentDate();
-    console.log('=== 제출 데이터 확인 ===');
-    console.log('이름:', name, '날짜:', date);
     
     // 1. 학과 확인
     var foundDept = null;
     departments.forEach(function(d){
         if((students[d]||[]).includes(name)) foundDept = d;
     });
-    console.log('현재 학과:', foundDept);
     
     // 2. 예상 문서 ID
     if(foundDept){
         var expectedId = date + '_' + foundDept + '_' + name;
-        console.log('예상 문서ID:', expectedId);
         
         // 3. Firestore에서 직접 조회
         try{
             var doc = await db.collection('submissions').doc(expectedId).get();
             if(doc.exists){
-                console.log('Firestore에 존재함:', doc.data());
             } else {
-                console.log('Firestore에 없음! 문서ID:', expectedId);
             }
         }catch(e){
-            console.log('조회 에러:', e.message);
         }
     }
     
     // 4. 해당 이름으로 전체 검색
     try{
         var snap = await db.collection('submissions').where('name','==',name).where('date','==',date).get();
-        console.log('이름으로 검색 결과:', snap.docs.length, '건');
         snap.docs.forEach(function(d){
-            console.log('  문서ID:', d.id, '데이터:', d.data());
         });
     }catch(e){
-        console.log('검색 에러:', e.message);
     }
     
     // 5. 메모리에 있는 submissions 확인
     var memorySubs = submissions.filter(function(s){
         return s.name === name && s.date === date;
     });
-    console.log('메모리 submissions:', memorySubs.length, '건');
     memorySubs.forEach(function(s){
-        console.log('  ', s.id, s.department, s.status, s.timestamp);
     });
     
-    console.log('=== 확인 끝 ===');
 }
 function lookupPassword(){
     var dept=document.getElementById('pwLookupDept').value;
@@ -10891,7 +10817,7 @@ if(!window._penaltyShowCount)window._penaltyShowCount=10;
     if(window._penaltyAdminDept)filtered=filtered.filter(function(p){return p.department===window._penaltyAdminDept});
     var totalScore=activePoints.reduce(function(s,p){return s+(p.score||0)},0);
 
-    var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up"><div class="flex items-center justify-between cursor-pointer select-none" onclick="window._penaltyAdminOpen=!window._penaltyAdminOpen;render()"><h2 class="text-lg font-bold text-gray-800"><i class="fas fa-gavel text-red-500"></i> 벌점 관리</h2>';
+    var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up"><div class="flex items-center justify-between cursor-pointer select-none" onclick="window._penaltyAdminOpen=!window._penaltyAdminOpen;render()"><h2 class="text-lg font-bold text-gray-800"><i class="fas fa-gavel text-orange-600"></i> 벌점 관리</h2>';
     h+='<i class="fas '+(window._penaltyAdminOpen===true?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>';
    h+=''+(window._penaltyAdminOpen===true?'<div class="text-sm text-gray-500 px-2 pb-2">총 '+activePoints.length+'건 · '+totalScore+'점</div>':'');
     if(window._penaltyAdminOpen!==true){h+='</div>';return h;}
@@ -10995,7 +10921,7 @@ h+='</div></div></div>';
         else{h+='<div class="text-center py-8 text-gray-400"><i class="fas fa-inbox text-4xl mb-3"></i><div class="text-base">벌점 내역이 없습니다</div></div>'}
     }
 
-    h+='<button onclick="window._penaltyAdminOpen=false;render()" class="w-full mt-5 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1"></i>닫기</button>';
+    h+='<button onclick="window._penaltyAdminOpen=false;render()" class="w-full mt-5 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1 text-orange-600"></i>닫기</button>';
     h+='<button onclick="downloadPenaltyExcel()" class="w-full mt-5 py-3.5 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press border border-surface-200"><i class="fas fa-download mr-2"></i>벌점 내역 엑셀 다운로드</button>';
     h+='</div>';
     return h;
@@ -11433,7 +11359,7 @@ function renderSubmitRankingAdmin(){
 var h='';
 h+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up">';
 h+='<div class="flex items-center justify-between cursor-pointer select-none" onclick="window._submitRankOpen=!window._submitRankOpen;render()">';
-h+='<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-clipboard-check text-blue-500"></i> 제출 관리</h2>';
+h+='<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-clipboard-check text-emerald-600"></i> 제출 관리</h2>';
 h+='<i class="fas '+(window._submitRankOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i>';
 h+='</div>';
 if(!window._submitRankOpen){h+='</div>';return h;}
@@ -11449,7 +11375,7 @@ if(window._submitRankData){
   h+='<div class="text-center text-gray-400 py-8"><i class="fas fa-chart-bar text-4xl mb-2"></i><div class="text-sm">위 버튼을 눌러 조회하세요</div></div>';
 }
 h+='</div>';
-h+='<button onclick="window._submitRankOpen=false;render()" class="w-full mt-4 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1"></i>닫기</button>';
+h+='<button onclick="window._submitRankOpen=false;render()" class="w-full mt-4 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1 text-emerald-600"></i>닫기</button>';
 h+='</div></div>';
 return h;
 }
@@ -11458,14 +11384,14 @@ function renderAgreementSubmitAdmin(){
 var h='';
 h+='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up">';
 h+='<div class="flex items-center justify-between cursor-pointer select-none" onclick="window._agreementSubmitOpen=!window._agreementSubmitOpen;render()">';
-h+='<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-file-signature text-indigo-500"></i> 동의서 관리 (조회/파기 전용)</h2>';
+h+='<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-file-signature text-emerald-600"></i> 동의서 관리 (조회/파기 전용)</h2>';
 h+='<i class="fas '+(window._agreementSubmitOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i>';
 h+='</div>';
 if(!window._agreementSubmitOpen){h+='</div>';return h;}
 h+='<div class="mt-4">';
 h+='<div class="text-sm text-gray-600 mb-4">종이 서약서 전환 이전에 제출된 디지털 동의서를 조회·다운로드·파기할 수 있습니다. (신규 제출은 받지 않습니다)</div>';
 h+='<button onclick="showAgreementManagePanel()" class="w-full py-3.5 bg-indigo-50 border-2 border-indigo-200 text-indigo-700 rounded-xl font-bold text-base btn-press"><i class="fas fa-clipboard-list mr-1"></i> 제출 목록 조회</button>';
-h+='<button onclick="window._agreementSubmitOpen=false;render()" class="w-full mt-4 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1"></i>닫기</button>';
+h+='<button onclick="window._agreementSubmitOpen=false;render()" class="w-full mt-4 py-3 bg-gray-100 text-gray-500 rounded-2xl font-bold text-sm btn-press border border-gray-200"><i class="fas fa-chevron-up mr-1 text-emerald-600"></i>닫기</button>';
 h+='</div></div>';
 return h;
 }
@@ -11766,7 +11692,6 @@ function showAddPendingStudentModal() {
 // ============ [강력 도구] 특정 이름의 모든 잔재 데이터 강제 삭제 (콘솔에서 호출 가능) ============
 window.forceDeleteStudent = async function(targetName) {
     if (!targetName) { console.error('이름을 입력하세요. 예: forceDeleteStudent("이현우")'); return; }
-    console.log('=== [강제삭제] 시작:', targetName, '===');
         var report = { passwords: false, roomNumbers: false, deptsRemovedFrom: [], resignPreserved: false };
     
     // 학과 정보 미리 조회 (퇴사 이력 보존용)
@@ -11781,14 +11706,12 @@ window.forceDeleteStudent = async function(targetName) {
         if (pSnap.exists) {
             await db.collection('passwords').doc(targetName).delete();
             report.passwords = true;
-            console.log('  ✓ passwords/' + targetName + ' 삭제됨');
         } else { console.log('  - passwords/' + targetName + ' 없음'); }
         // 2) roomNumbers 삭제
         var rSnap = await db.collection('roomNumbers').doc(targetName).get();
         if (rSnap.exists) {
             await db.collection('roomNumbers').doc(targetName).delete();
             report.roomNumbers = true;
-            console.log('  ✓ roomNumbers/' + targetName + ' 삭제됨');
         } else { console.log('  - roomNumbers/' + targetName + ' 없음'); }
         // 3) 모든 학과 students 배열에서 제거
         var allStudentsSnap = await db.collection('students').get();
@@ -11799,7 +11722,6 @@ window.forceDeleteStudent = async function(targetName) {
                 var newArr = arr.filter(function(n) { return n !== targetName; });
                 await db.collection('students').doc(doc.id).set({ students: newArr, updatedAt: new Date().toISOString() });
                 report.deptsRemovedFrom.push(doc.id);
-                console.log('  ✓ students/' + doc.id + ' 에서 제거됨');
             }
         }        // === 퇴사 이력 보존 처리 (개인정보만 파기, 기록은 유지) ===
         try {
@@ -11815,7 +11737,6 @@ window.forceDeleteStudent = async function(targetName) {
                 });
                 await resignBatch.commit();
                 report.resignPreserved = true;
-                console.log('  ✓ resignRequests/' + targetName + ' ' + resignSnap.size + '건 보존 처리됨');
             } else {
                 // 기존 퇴사 기록이 없으면 새 기록 생성
                 var _newDocId = _deptName + '_' + targetName + '_' + Date.now();
@@ -11832,13 +11753,11 @@ window.forceDeleteStudent = async function(targetName) {
                     createdAt: new Date().toISOString()
                 });
                 report.resignPreserved = true;
-                console.log('  ✓ resignRequests 신규 기록 생성');
             }
         } catch(rErr) {
             console.warn('  ⚠ resignRequests 처리 실패:', rErr.message);
         }
         
-        console.log('=== [강제삭제] 완료:', report, '===');
         if (typeof showToast === 'function') showToast(targetName + ' 완전 삭제 완료 - 다시 등록 가능', 'success');
         alert('[완전 삭제 완료]\n\n이름: ' + targetName + '\npasswords 삭제: ' + (report.passwords ? '✓' : '✗없음') + '\nroomNumbers 삭제: ' + (report.roomNumbers ? '✓' : '✗없음') + '\nstudents에서 제거된 학과: ' + (report.deptsRemovedFrom.length ? report.deptsRemovedFrom.join(', ') : '없음') + '\n\n이제 예비 입사자로 다시 등록해보세요.');
         return report;
@@ -11850,7 +11769,6 @@ window.forceDeleteStudent = async function(targetName) {
 // ============ [진단 도구] 특정 이름의 현재 상태 확인 ============
 window.diagnoseStudent = async function(targetName) {
     if (!targetName) { console.error('이름을 입력하세요. 예: diagnoseStudent("이현우")'); return; }
-    console.log('=== [진단] 시작:', targetName, '===');
     try {
         var p = await db.collection('passwords').doc(targetName).get();
         var r = await db.collection('roomNumbers').doc(targetName).get();
@@ -11864,7 +11782,6 @@ window.diagnoseStudent = async function(targetName) {
         msg += 'passwords 문서: ' + (p.exists ? '존재 (' + JSON.stringify(p.data()) + ')' : '없음') + '\n\n';
         msg += 'roomNumbers 문서: ' + (r.exists ? '존재 (' + JSON.stringify(r.data()) + ')' : '없음') + '\n\n';
         msg += 'students 배열 소속: ' + (foundInDepts.length ? foundInDepts.join(', ') : '없음');
-        console.log(msg);
         alert(msg);
         return { passwords: p.exists ? p.data() : null, roomNumbers: r.exists ? r.data() : null, depts: foundInDepts };
     } catch (e) {
@@ -11927,7 +11844,6 @@ async function submitPendingStudent() {
                 return;
             }
             // ★ 강제삭제: forceDeleteStudent를 await로 호출 (각 삭제를 개별 await로 순차 실행)
-            console.log('[예비등록] 고아 강제 정리 시작:', name);
             try {
                 if (orphanCheck.exists) await db.collection('passwords').doc(name).delete();
                 if (orphanRoomCheck.exists) await db.collection('roomNumbers').doc(name).delete();
@@ -11939,10 +11855,8 @@ async function submitPendingStudent() {
                     if (darr.indexOf(name) !== -1) {
                         var fa = darr.filter(function(n) { return n !== name; });
                         await db.collection('students').doc(ddoc.id).set({ students: fa, updatedAt: new Date().toISOString() });
-                        console.log('  ✓ students/' + ddoc.id + ' 에서 ' + name + ' 제거');
                     }
                 }
-                console.log('[예비등록] 고아 정리 완료');
                 // onSnapshot 반영 대기 (충분한 시간)
                 await new Promise(function(r) { setTimeout(r, 800); });
             } catch (cleanupErr) {
@@ -11957,7 +11871,6 @@ async function submitPendingStudent() {
     
     // 입사자 등록 (각 쓰기를 개별로 await - batch 대신 개별 실행으로 실패되는 쓰기 식별 가능)
     try {
-        console.log('[예비등록] 실제 등록 시작:', { name: name, dept: dept, room: room, expDate: expDate });
         var todayDate = getCurrentDate();
         var ageVal = null;
         if (birthYear) {
@@ -11978,7 +11891,6 @@ async function submitPendingStudent() {
         if (room) roomData.room = room;
         if (ageVal) roomData.age = ageVal;
         await db.collection('roomNumbers').doc(name).set(roomData);
-        console.log('  ✓ roomNumbers 쓰기 완료');
         
         // 2) passwords 새로 쓰기
         await db.collection('passwords').doc(name).set({
@@ -11988,7 +11900,6 @@ async function submitPendingStudent() {
             status: 'pending',
             updatedAt: new Date().toISOString()
         });
-        console.log('  ✓ passwords 쓰기 완료');
         
         // ★ 예방 핵심: 재등록 시 잘못된 잔여 퇴사이력 자동 정리 → 호실/통계 오류 재발 차단
         try {
@@ -12009,7 +11920,6 @@ async function submitPendingStudent() {
             return ra - rb;
         });
         await db.collection('students').doc(dept).set({ students: updated, updatedAt: new Date().toISOString() });
-        console.log('  ✓ students[' + dept + '] 쓰기 완료:', updated);
         
         // ★ 핵심: onSnapshot 동기화 지연을 회피하기 위해 클라이언트 students 객체를 직접 갱신
         // (Firestore onSnapshot이 늦게 도착해도 화면은 이미 갱신됨)
@@ -12022,7 +11932,6 @@ async function submitPendingStudent() {
             if (verifySnap.exists) {
                 var serverList = verifySnap.data().students || [];
                 students[dept] = serverList.slice();
-                console.log('  ✓ 클라이언트 캐시 직접 동기화 완료:', serverList.length + '명');
             }
         } catch (verifyErr) {
             console.warn('  ⚠ 검증 조회 실패 (등록은 완료됨):', verifyErr);
@@ -12825,7 +12734,6 @@ window._initAdminMemo = function() {
     }).catch(function(e) {
         statusEl.textContent = '⚠ 로드 실패';
         statusEl.style.color = '#dc2626';
-        console.log('[관리자 메모] 로드 실패:', e);
     });
     
     header.addEventListener('click', function() {
@@ -12856,7 +12764,6 @@ window._initAdminMemo = function() {
             }).catch(function(e) {
                 statusEl.textContent = '⚠ 저장 실패';
                 statusEl.style.color = '#dc2626';
-                console.log('[관리자 메모] 저장 실패:', e);
             });
         }, 1000);
     });
@@ -13258,7 +13165,6 @@ function renderPendingCard(p, isDue, seq) {
         };
         
         window._leaderRenderHookInstalled = true;
-        console.log('✅ 학과대표 render 훅 설치 완료');
     };
     
     installHook();
@@ -13369,7 +13275,6 @@ function renderPendingCard(p, isDue, seq) {
     db.collection('config').doc('departments').onSnapshot(function(){
       if(typeof render === 'function') render();
     });
-      console.log('✅ 실시간 자동 갱신 패치 활성화');
   }
   _waitAndPatch();
 })();
@@ -14184,7 +14089,6 @@ function startGlobalMessageListeners() {
     }
   }
   
-  console.log('✅ 전역 메시지 알림음 리스너 등록 완료');
 }
 
 // 로그인 직후 자동 시작
@@ -14196,7 +14100,6 @@ function startGlobalMessageListeners() {
       setTimeout(startGlobalMessageListeners, 1000);
       return result;
     };
-    console.log('✅ 알림음 자동 시작 hook 등록');
   }
 })();
 // ============================================
@@ -14239,7 +14142,6 @@ function insertSoundToggleBtn(modalId, closeBtnId) {
     }, 50);
     return result;
   };
-  console.log('✅ 관리자 모달 알림음 버튼 hook 등록');
 })();
 
 // 학과대표 모달 open hook
@@ -14253,7 +14155,6 @@ function insertSoundToggleBtn(modalId, closeBtnId) {
     }, 50);
     return result;
   };
-  console.log('✅ 학과대표 모달 알림음 버튼 hook 등록');
 })();
 // ============================================
 // 🔍 STEP 3-B: 대화방 검색 기능
@@ -14359,7 +14260,6 @@ function filterThreads(keyword, body, threadClassName) {
     }, 100);
     return result;
   };
-  console.log('✅ 관리자 모달 검색 hook 등록');
 })();
 
 // 학과대표 모달 검색창 hook
@@ -14384,7 +14284,6 @@ function filterThreads(keyword, body, threadClassName) {
     }, 100);
     return result;
   };
-  console.log('✅ 학과대표 모달 검색 hook 등록');
 })();
 // ============================================
 // 🔴 미읽음 배지 표시 (학과대표 + 관리자 목록)
@@ -14503,7 +14402,6 @@ async function addUnreadBadgesToAdminList() {
     setTimeout(addUnreadBadgesToLeaderList, 200);
     return result;
   };
-  console.log('✅ 학과대표 목록 미읽음 배지 hook 등록');
 })();
 
 // ✅ 관리자 표시명을 '관리자(사감실)'로 통일하는 훅
@@ -14567,7 +14465,6 @@ async function addUnreadBadgesToAdminList() {
     };
   }
   
-  console.log('✅ 관리자 표시명 치환 훅 등록 (관리자 → 관리자(사감실))');
 })();
 
 /* ================================================================
@@ -14881,7 +14778,6 @@ function subscribeLeaderMessages(threadId) {
     }
   }, 2000);
   
-  console.log('✅ 채팅 실시간 갱신 hook 등록 완료');
 })();
 
 
@@ -14917,7 +14813,6 @@ function subscribeLeaderMessages(threadId) {
     };
   }
   
-  console.log('✅ 로그인 hook 등록 완료');
 })();
 
 // ═══════════════════════════════════════════════════════
@@ -17222,7 +17117,6 @@ window._deleteAgreementByStudent = async function(studentName) {
       .get();
     
     if (snap.empty) {
-      console.log('[서약서 파기] 삭제 대상 없음:', studentName);
       return { deleted: 0 };
     }
     
@@ -17230,7 +17124,6 @@ window._deleteAgreementByStudent = async function(studentName) {
     snap.forEach(doc => batch.delete(doc.ref));
     await batch.commit();
     
-    console.log('[서약서 파기] ✅ ' + studentName + ' 서약서 ' + snap.size + '건 삭제 완료 (개인정보 파기)');
     return { deleted: snap.size };
   } catch (err) {
     console.error('[서약서 파기] 실패:', err);
@@ -17268,7 +17161,6 @@ window._deleteAgreementByStudent = async function(studentName) {
       return result;
     };
     window._resignHookInstalled = true;
-    console.log('[서약서] handleStudentResign 훅 설치 완료');
   }
 })();
 
@@ -17299,7 +17191,6 @@ window._deleteAgreementByStudent = async function(studentName) {
       return result;
     };
     window._forceDeleteHookInstalled = true;
-    console.log('[서약서] forceDeleteStudent 훅 설치 완료');
   }
 })();
 
@@ -17324,7 +17215,6 @@ window._deleteAgreementByStudent = async function(studentName) {
       return result;
     };
     window._deleteStudentHookInstalled = true;
-    console.log('[서약서] deleteStudentAction 훅 설치 완료');
   }
 })();
 </script>
@@ -18096,7 +17986,6 @@ function fixDepartmentCounts(){
           if(box && !box.classList.contains('assign-preview-widened')){
             box.classList.remove('md:max-w-md', 'md:max-w-lg', 'md:max-w-xl', 'md:max-w-2xl');
             box.classList.add('md:max-w-3xl', 'md:w-full', 'md:mx-4', 'assign-preview-widened');
-            console.log('✅ 배정 미리보기 모달 폭 확장 (max-w-3xl)');
           }
         }
       }, 30);
@@ -18104,7 +17993,6 @@ function fixDepartmentCounts(){
       return result;
     };
     
-    console.log('✅ showAssignPreview 폭 통일 래퍼 적용됨');
     return true;
   }
   
@@ -18143,7 +18031,6 @@ function fixDepartmentCounts(){
             
             // 마커 클래스 추가
             box.classList.add('assign-result-widened');
-            console.log('✅ 배정 결과 모달 폭 통일 (max-width: 896px)');
           }
         }
       }, 30);
@@ -18151,7 +18038,6 @@ function fixDepartmentCounts(){
       return result;
     };
     
-    console.log('✅ openAssignResultModal 폭 통일 래퍼 적용됨');
     return true;
   }
   
@@ -18182,14 +18068,12 @@ function fixDepartmentCounts(){
       if(ms && !ms.classList.contains('hidden')){
         ms.classList.add('hidden');
         document.body.style.overflow = '';
-        console.log('[applyAssignSettings] 미리보기 모달 사전 정리');
       }
       
       // 원본 실행 (설정 저장 + 학과 설정 모달 제거 + runAutoAssignment 호출)
       return _original.apply(this, arguments);
     };
     
-    console.log('✅ applyAssignSettings 래퍼 적용됨');
     return true;
   }
   
@@ -18237,7 +18121,6 @@ function fixDepartmentCounts(){
       content.innerHTML = html || '';
       modal.classList.remove('hidden');
       document.body.style.overflow = 'hidden';
-      console.log('✅ openAssignResultModal 정상 실행');
     };
     return true;
   }
@@ -18258,7 +18141,6 @@ function fixDepartmentCounts(){
       window._lastPreviewArgs = Array.prototype.slice.call(arguments);
       return _origPreview.apply(this, arguments);
     };
-    console.log('✅ showAssignPreview 캐싱 후킹 완료');
     return true;
   }
   
@@ -18282,7 +18164,6 @@ function fixDepartmentCounts(){
           box.style.maxWidth = '672px';
           box.style.width = '92vw';
           box.style.maxHeight = '85vh';
-          console.log('✅ 배정 결과 모달 폭 통일 (672px / 92vw)');
         }
       }, 10);
       return result;
@@ -18296,15 +18177,12 @@ function fixDepartmentCounts(){
       
       setTimeout(function(){
         if(window._lastPreviewArgs && typeof window.showAssignPreview === 'function'){
-          console.log('↩️ 배정 미리보기로 복귀');
           window.showAssignPreview.apply(window, window._lastPreviewArgs);
         } else {
-          console.log('ℹ️ 미리보기 데이터 없음 - 일반 닫기');
         }
       }, 50);
     };
     
-    console.log('✅ 배정 결과 모달 통합 래퍼 적용 완료');
     return true;
   }
   
@@ -18335,15 +18213,12 @@ function fixDepartmentCounts(){
       // 원본 삭제가 정상 완료된 후 익명화 수행
       if(name){
         try {
-          console.log('🔒 [D-7] 배정 이력 익명화 시작:', name);
           var anonResult = await window.anonymizeStudentInAssignments(name);
           if(anonResult && anonResult.updated > 0){
-            console.log('✅ [D-7] 배정 이력 익명화 완료:', anonResult.updated + '건');
             if(typeof showToast === 'function'){
               showToast('배정 이력 익명화: ' + anonResult.updated + '건', 'info');
             }
           } else {
-            console.log('ℹ️ [D-7] 익명화할 배정 이력 없음');
           }
         } catch(anonErr){
           console.error('❌ [D-7] 배정 이력 익명화 실패 (삭제는 완료됨):', anonErr.message);
@@ -18353,7 +18228,6 @@ function fixDepartmentCounts(){
       return result;
     };
     
-    console.log('✅ [D-7] executeStudentDelete 익명화 훅 정착 완료');
     return true;
   }
   
@@ -18481,7 +18355,6 @@ function fixDepartmentCounts(){
           await batch.commit();
         }
         
-        console.log('🔒 개인정보 익명화 (D-7 수정판):', studentName, '→', updated + '건 처리');
         return {scanned: snap.size, updated: updated};
       } catch(e){
         console.error('❌ 익명화 실패:', e);
@@ -18491,7 +18364,6 @@ function fixDepartmentCounts(){
     
     newFn._d7Fixed = true;
     window.anonymizeStudentInAssignments = newFn;
-    console.log('✅ [D-7] anonymizeStudentInAssignments 실제 구조 대응 오버라이드 완료');
     return true;
   }
   
@@ -18520,7 +18392,6 @@ function fixDepartmentCounts(){
     });
     
     if(hidden > 0){
-      console.log('✅ [B] 미구현 버튼 ' + hidden + '개 숨김 완료');
     }
     return true;
   }
@@ -18537,7 +18408,6 @@ function fixDepartmentCounts(){
       setTimeout(hideButtons, 30);
       return result;
     };
-    console.log('✅ [B] 미구현 버튼 숨김 훅 정착 완료');
     return true;
   }
   
@@ -18670,7 +18540,6 @@ function fixDepartmentCounts(){
     } catch(err) {}
   });
   
-  console.log('✅ 뒤로가기/새로고침 핸들러 설치 완료 (v2)');
 })();
 </script>
 
@@ -19042,7 +18911,6 @@ function fixDepartmentCounts(){
       };
     });
     
-    console.log('✅ PDF 일괄 다운로드 버튼 삽입 완료');
     return true;
   }
   
@@ -19062,7 +18930,6 @@ function fixDepartmentCounts(){
     };
   }
   
-      console.log('✅ 서약서 일괄 PDF 다운로드 모듈 로드 완료');
   })();
 </script>
 
@@ -19123,7 +18990,6 @@ function fixDepartmentCounts(){
       return result;
     };
     window.showDeptFilterModal._positionHooked = true;
-    console.log('✅ 학과 선택 드롭다운 위치 자동 조정 활성화');
     return true;
   }
   
@@ -19221,7 +19087,6 @@ function fixDepartmentCounts(){
         const snapshot = await db.collection('deletionLogs')
           .orderBy('executedAt', 'desc').limit(limit).get();
         if (snapshot.empty) {
-          console.log('📋 파기 로그가 없습니다.');
           return [];
         }
         const logs = [];
@@ -19238,7 +19103,6 @@ function fixDepartmentCounts(){
           });
         });
         console.table(logs);
-        console.log(`📋 총 ${logs.length}건의 파기 로그`);
         return logs;
       } catch (err) {
         console.error('❌ 로그 조회 실패:', err);
@@ -19292,7 +19156,6 @@ function fixDepartmentCounts(){
 
       const db = firebase.firestore();
       const marker = dryRun ? '🔍 [DRY-RUN]' : '🔥 [실제 파기]';
-      console.log(`\n${marker} 학생 완전 파기 시작: ${name}`);
 
       // 학과 자동 감지
       let detectedAuto = false;
@@ -19308,7 +19171,6 @@ function fixDepartmentCounts(){
         }
         dept = detectedDepts[0];
         detectedAuto = true;
-        console.log(`✨ 학과 자동 감지: ${dept}`);
       } else {
         const actual = await window.detectStudentDept(name);
         if (actual.length > 0 && !actual.includes(dept)) {
@@ -19361,17 +19223,13 @@ function fixDepartmentCounts(){
 
       const totalCount = targets.nameBased.length + targets.queryMatched.length + targets.arrayItems.length;
 
-      console.log(`\n📊 파기 대상: 이름기반 ${targets.nameBased.length}건, 쿼리매칭 ${targets.queryMatched.length}건, 명단 ${targets.arrayItems.length}건 (총 ${totalCount}건)`);
-      console.log(`   컬렉션별:`, collectionCounts);
 
       if (totalCount === 0) {
-        console.log('✅ 파기 대상 없음.');
         return { success: true, totalCount: 0, dryRun };
       }
 
       // DRY-RUN 처리
       if (dryRun) {
-        console.log(`\n${marker} 미리보기 완료 (실제 삭제 없음)`);
         const durationMs = Date.now() - startTime;
         if (logDryRun) {
           await window.writeDeletionLog({
@@ -19393,7 +19251,6 @@ function fixDepartmentCounts(){
           `이 작업은 되돌릴 수 없습니다.\n\n계속하시겠습니까?`
         );
         if (!confirmed) {
-          console.log('❌ 사용자가 취소했습니다.');
           return { success: false, error: 'user-cancelled' };
         }
       }
@@ -19444,7 +19301,6 @@ function fixDepartmentCounts(){
       }
 
       const durationMs = Date.now() - startTime;
-      console.log(`\n✅ 파기 완료: ${successCount}/${totalCount}건 (${durationMs}ms)`);
       if (errors.length > 0) console.warn(`⚠️ 실패: ${errors.length}건`, errors);
 
       // 로그 자동 기록
@@ -19460,7 +19316,6 @@ function fixDepartmentCounts(){
       });
 
       if (logResult.success) {
-        console.log(`📋 감사 로그 기록: ${logResult.logId}`);
       }
 
       return {
@@ -19470,7 +19325,6 @@ function fixDepartmentCounts(){
       };
     };
 
-    console.log('🔒 개인정보 완전 파기 시스템 로드 완료');
   });
 })();
 </script>
@@ -19491,7 +19345,6 @@ function fixDepartmentCounts(){
       const targetName = (typeof arguments[1] === 'string') ? arguments[1]
                        : ((typeof arguments[0] === 'string') ? arguments[0] : null);
 
-      console.log(`\n🔥 [완전 파기 통합] 삭제 시작: ${targetName} (${targetDept || '자동감지'})`);
 
       let originalResult;
       try {
@@ -19517,7 +19370,6 @@ function fixDepartmentCounts(){
           { skipConfirm: true, skipReasonPrompt: true, reason: window.__pendingDeleteReason || '관리자 직접 삭제' }
         );
         if (result.success) {
-          console.log(`✅ 완전 파기 완료: ${result.successCount}/${result.totalCount}건`);
           if (typeof showToast === 'function') {
             showToast(`개인정보 완전 파기: ${result.totalCount}건 처리`, 'success');
           }
@@ -19627,7 +19479,6 @@ function fixDepartmentCounts(){
   waitForAppInit(() => {
     const applied = applyHookIfNeeded();
     if (applied && isOurHook(window.executeStudentDelete)) {
-      console.log('✅ 완전 파기 훅 적용 완료 (지연 적용형, 앱 초기화 후)');
     } else {
       console.warn('⚠️ 완전 파기 훅 적용 실패');
     }
@@ -19640,11 +19491,9 @@ function fixDepartmentCounts(){
       if (!isOurHook(window.executeStudentDelete)) {
         applyHookIfNeeded();
         reappliedCount++;
-        console.log(`🛡️ 완전 파기 훅 재적용 (${reappliedCount}회)`);
       }
       if (watchCount >= 4) {
         clearInterval(guardian);
-        console.log(`🛡️ 훅 감시 종료 (재적용 ${reappliedCount}회)`);
       }
     }, 5000);
   });
@@ -19835,7 +19684,6 @@ function fixDepartmentCounts(){
     }, 50);
   };
   
-  console.log('🧾 개인정보보호법 준수 보고서 시스템 로드 완료');
 })();
 </script>
 
@@ -19848,7 +19696,6 @@ function fixDepartmentCounts(){
      ============================================================ -->
 <script>
 (function() {
-  console.log('🔧 개인정보 파기 사유 시스템 로드 시작');
   
   // ============================================================
   // 1. 파기 사유 선택 다이얼로그
@@ -19958,7 +19805,6 @@ function fixDepartmentCounts(){
       await db.collection('deletionLogs').doc(logId).update({
         reason: reason
       });
-      console.log('✅ 파기 사유 저장 성공:', logId, '→', reason);
       return { success: true };
     } catch (e) {
       console.error('❌ 파기 사유 저장 실패:', e.code, e.message);
@@ -19996,7 +19842,6 @@ function fixDepartmentCounts(){
           const executedAt = data.executedAt?.toMillis?.() || 0;
           
           if (executorUid === uid && executedAt >= startTime - 1000) {
-            console.log(`  ✅ 로그 발견 (${attempt}회 시도): ${doc.id}`);
             return doc.id;
           }
         }
@@ -20027,14 +19872,12 @@ function fixDepartmentCounts(){
     
     // 이미 훅이 있으면 skip (중복 방지)
     if (window._completelyDeleteStudent_original) {
-      console.log('  ℹ️ 훅 이미 설치됨. 재설치 skip');
       return;
     }
     
     window._completelyDeleteStudent_original = window.completelyDeleteStudent;
     
     window.completelyDeleteStudent = async function(name, dept = null, options = {}) {
-  console.log('🎯 [훅] completelyDeleteStudent 호출됨:', { name, dept });
   
   // 인자 안전성 처리 (문자열이 아닌 객체가 들어와도 대응)
   let studentName = name;
@@ -20054,13 +19897,11 @@ function fixDepartmentCounts(){
     reason = await window._askDeletionReason(studentName);
     
     if (!reason) {
-      console.log('❌ 사용자가 파기를 취소함');
       return { success: false, cancelled: true };
     }
   }
   
   const startTime = Date.now();
-  console.log('🗑️ 파기 실행 중... 사유:', reason);
   
   let result;
   let originalError = null;
@@ -20075,7 +19916,6 @@ function fixDepartmentCounts(){
   let logId = result?.logId || null;
   
   if (!logId && reason) {
-    console.log('🔍 logId 미반환 → 최신 로그 검색 중...');
     await new Promise(r => setTimeout(r, 800));
     logId = await window._findRecentDeletionLog(startTime);
   }
@@ -20083,7 +19923,6 @@ function fixDepartmentCounts(){
   if (reason && logId) {
     const updateRes = await window._updateDeletionReason(logId, reason);
     if (updateRes.success) {
-      console.log('✅ 파기 로그에 사유 기록 완료:', logId);
       if (!result) result = {};
       result.logId = logId;
       result.reason = reason;
@@ -20101,13 +19940,11 @@ function fixDepartmentCounts(){
   return result || { success: false };
  };
     
-    console.log('✅ completelyDeleteStudent 훅 v2 설치 완료');
   }
   
   // 즉시 설치 시도 (원본 함수가 없으면 500ms 후 재시도)
   installDeletionHook();
   
-  console.log('✅ 개인정보 파기 사유 시스템 로드 완료');
 })();
 </script>
 
@@ -20118,7 +19955,6 @@ function fixDepartmentCounts(){
      ============================================================ -->
 <script>
 (function() {
-  console.log('🔧 준수 보고서 웹 관리 기준 섹션 로드 시작');
   
   // ============================================================
   // 웹 관리 기준 섹션 빌더 (9개 항목)
@@ -20177,7 +20013,6 @@ function fixDepartmentCounts(){
     
     // 중복 훅 방지
     if (window._openPrivacyComplianceReport_originalV2) {
-      console.log('  ℹ️ 훅 이미 설치됨. 재설치 skip');
       return;
     }
     
@@ -20211,20 +20046,16 @@ function fixDepartmentCounts(){
         
         if (buttonDiv && buttonDiv.parentElement === content) {
           buttonDiv.insertAdjacentHTML('beforebegin', html);
-          console.log('✅ 웹 관리 기준 섹션 삽입 완료 (버튼 앞)');
         } else {
           content.insertAdjacentHTML('beforeend', html);
-          console.log('✅ 웹 관리 기준 섹션 삽입 완료 (content 끝)');
         }
       }, 300);
     };
     
-    console.log('✅ openPrivacyComplianceReport 훅 설치 완료');
   }
   
   installReportHook();
   
-  console.log('✅ 준수 보고서 웹 관리 기준 섹션 로드 완료');
 })();
 </script>
 <!-- ============================================================
@@ -20235,7 +20066,6 @@ function fixDepartmentCounts(){
      ============================================================ -->
 <script>
 (function() {
-  console.log('🔧 개인정보 파기 관리대장 시스템 로드 시작');
   
   // ============================================================
   // 유틸: 컬렉션별 파기 건수 요약
@@ -20255,7 +20085,6 @@ function fixDepartmentCounts(){
   // 1. 파기 로그 조회 (필터 + 문서번호 채번)
   // ============================================================
   window._fetchDeletionLedger = async function(filters = {}) {
-    console.log('📋 파기 로그 조회 중...', filters);
     
     try {
       const db = firebase.firestore();
@@ -20331,7 +20160,6 @@ function fixDepartmentCounts(){
       });
       logs.reverse();  // 다시 최신순
       
-      console.log(`  ✅ ${logs.length}건 조회 완료 (DRY-RUN 제외)`);
       return logs;
     } catch (e) {
       console.error('  ❌ 조회 실패:', e);
@@ -20343,7 +20171,6 @@ function fixDepartmentCounts(){
   // 2. 관리대장 모달 열기
   // ============================================================
   window.openDeletionLedger = async function() {
-    console.log('📖 파기 관리대장 열기');
     
     const existing = document.getElementById('deletionLedgerModal');
     if (existing) existing.remove();
@@ -20532,7 +20359,6 @@ function fixDepartmentCounts(){
     a.download = `개인정보파기관리대장_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    console.log('  ✅ CSV 다운로드 완료');
   };
   
   // ============================================================
@@ -20683,7 +20509,6 @@ function fixDepartmentCounts(){
       setTimeout(() => iframe.remove(), 1000);
     }, 300);
     
-    console.log(`  ✅ 인쇄 준비 완료 (${totalPages}페이지, ${logs.length}건)`);
   };
   
   // ============================================================
@@ -20697,14 +20522,13 @@ function fixDepartmentCounts(){
     
     const btnHtml = `
       <button data-privacy-btn="ledger" onclick="window.openDeletionLedger()" 
-        class="py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200">
+        class="py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200">
         <i class="fas fa-clipboard-list text-gray-400 text-3xl mb-2"></i>
         <div class="text-base font-bold text-gray-500">파기 관리대장</div>
       </button>
     `;
     
     complianceBtn.insertAdjacentHTML('afterend', btnHtml);
-    console.log('  ✅ [파기 관리대장] 버튼 삽입 완료');
     return true;
   };
   
@@ -20729,7 +20553,6 @@ function fixDepartmentCounts(){
     setTimeout(() => window._injectLedgerButton(), delay);
   });
   
-  console.log('✅ 개인정보 파기 관리대장 시스템 로드 완료');
 })();
 </script>
 
@@ -20840,15 +20663,15 @@ function fixDepartmentCounts(){
     const btnHistory = document.createElement('button');
     btnHistory.setAttribute('data-privacy-btn', 'history');
     btnHistory.setAttribute('onclick', 'window.openDeletionHistoryModal()');
-    btnHistory.className = 'py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200';
-    btnHistory.innerHTML = `<i class="fas fa-history text-gray-400 text-3xl mb-2"></i><div class="text-base font-bold text-gray-500">파기 이력</div>`;
+    btnHistory.className = 'py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200';
+    btnHistory.innerHTML = `<i class="fas fa-history text-amber-600 text-xl mb-1.5"></i><div class="text-sm font-bold text-gray-500">파기 이력</div>`;
     
     // [준수 보고서] 버튼
     const btnReport = document.createElement('button');
     btnReport.setAttribute('data-privacy-btn', 'report');
     btnReport.setAttribute('onclick', 'window.openPrivacyComplianceReport()');
-    btnReport.className = 'py-5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200';
-    btnReport.innerHTML = `<i class="fas fa-file-shield text-gray-400 text-3xl mb-2"></i><div class="text-base font-bold text-gray-500">준수 보고서</div>`;
+    btnReport.className = 'py-3.5 rounded-2xl text-center cursor-pointer hover:shadow-card-hover transition-all btn-press bg-surface-50 border border-surface-200';
+    btnReport.innerHTML = `<i class="fas fa-file-shield text-amber-600 text-xl mb-1.5"></i><div class="text-sm font-bold text-gray-500">준수 보고서</div>`;
     
     grid.appendChild(btnHistory);
     grid.appendChild(btnReport);
@@ -20889,7 +20712,6 @@ function fixDepartmentCounts(){
   // 수동 재삽입용 전역 함수
   window._injectPrivacyButtons = injectPrivacyButtons;
   
-  console.log('📋 슈퍼관리자 파기 관련 UI 시스템 로드 완료');
 })();
 </script>
 
@@ -20939,7 +20761,6 @@ function fixDepartmentCounts(){
             
             html = html.replace(pattern, function(match, oldName){
               if (oldName !== currentName) {
-                console.log('🔄 학과대표 이름 최신화: ' + dept + ' (' + oldName + ' → ' + currentName + ')');
                 changed = true;
                 return dept + ' / ' + currentName;
               }
@@ -20956,7 +20777,6 @@ function fixDepartmentCounts(){
       return result;
     };
     
-    console.log('✅ 학과대표 이름 자동 최신화 패치 적용됨');
   }
   
   // DOM 로드 상태에 따라 적용 시점 결정
@@ -21070,7 +20890,6 @@ function fixDepartmentCounts(){
         updatedAt: new Date().toISOString(),
         migratedAt: new Date().toISOString()
       });
-      console.log('[✅ 자동 마이그레이션] ' + name);
     } catch(e) { console.error('[❌ 자동 마이그레이션 실패]', name, e); }
   }
   
@@ -21412,7 +21231,6 @@ function fixDepartmentCounts(){
               passwordHashed: true,
               migratedAt: new Date().toISOString()
             });
-            console.log('[학과대표 자동 마이그레이션 완료]', dept);
           } catch(e) {
             console.warn('[학과대표 마이그레이션 실패, 로그인은 계속 진행]', e);
           }
@@ -21425,7 +21243,6 @@ function fixDepartmentCounts(){
         closeModal();
         
         if (needForceChange) {
-          console.log('[학과대표 강제 변경 필요]', dept, '사유:', mustChange ? 'mustChangePassword' : '금지 비밀번호');
           try {
             await showForceChangeLeaderModal(dept, DEPARTMENT_LEADERS[dept].name, pw);
           } catch(e) {
@@ -21574,7 +21391,6 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
   if (!window._origCloseModalStudentForce) {
     window._origCloseModalStudentForce = window.closeModal;
     window.closeModal = function() {
-      console.log('[강제변경] 닫힘 차단');
       showToast('⚠️ 비밀번호를 변경해야 로그인이 완료됩니다', 'warning');
     };
   }
@@ -21757,12 +21573,6 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
     });
   };
   
-  console.log('[🔐 비밀번호 해싱 마이그레이션] 로드 완료 (2026-08-31)');
-  console.log('  ✓ SHA-256 + salt 해싱');
-  console.log('  ✓ 이중경로 로그인 (해시/평문 자동 판별)');
-  console.log('  ✓ 자동 마이그레이션');
-  console.log('  ✓ 강제변경 UI (1111 및 mustChangePassword:true 트리거)');
-  console.log('  ✓ Firestore 우선 조회');
   
 })();
 </script>
@@ -21942,7 +21752,6 @@ JVBERi0xLjQKJaqrrK0KMTAgMCBvYmoKPDwgL1R5cGUgL1BhZ2UKL1BhcmVudCAxIDAgUgovTWVkaWFC
         alert("학생 데이터를 찾을 수 없습니다: " + idOrData);
         return;
       }
-      console.log("[pledge] 학생 데이터 로드:", data.name, "(id:", data.id, ")");
     }
 
     if (!PLEDGE_TEMPLATE_B64 || PLEDGE_TEMPLATE_B64.length < 1000){
@@ -22174,12 +21983,10 @@ const dd = String(today.getDate());
         configurable: false,
         enumerable: true
       });
-      console.log('[pledge-patch] overridden & locked. template bytes:', PLEDGE_TEMPLATE_B64.length);
     } catch (e) {
       // 이미 잠겨있거나 defineProperty가 막힌 경우: 일반 대입 시도
       try {
         window.downloadAgreementPdf = _pledgePatchedDownload;
-        console.log('[pledge-patch] overridden (fallback):', e.message);
       } catch(e2) {
         console.warn('[pledge-patch] cannot override:', e2.message);
       }
@@ -22192,9 +21999,7 @@ const dd = String(today.getDate());
     setTimeout(function(){
       if (window.downloadAgreementPdf !== _pledgePatchedDownload) {
         _applyPledgePatch();
-        console.log('[pledge-patch] re-applied on load');
       } else {
-        console.log('[pledge-patch] still active on load ✓');
       }
     }, 500);
   });
@@ -22351,7 +22156,6 @@ const dd = String(today.getDate());
     _version: '1.0'
   });
   
-  console.log('[AccessLogger v1.0] 초기화 완료');
 })();
 </script>
 <script>
@@ -22396,7 +22200,6 @@ window.addEventListener('load', function(){
       return result;
     };
     window[fnName]._hooked = true;
-    console.log('[hook] 부착:', fnName);
   }
   
   // === 1) 로그인/로그아웃 (기존 함수 확장) ===
@@ -22411,7 +22214,6 @@ window.addEventListener('load', function(){
       return _orig.apply(this, args);
     };
     window.logout._hooked = true;
-    console.log('[hook] 부착: logout');
   }
   
   // === 2) 학생 CRUD ===
@@ -22539,7 +22341,6 @@ window.addEventListener('load', function(){
     } catch(err) {}
   }, true); // capture 단계에서 감지
     
-  console.log('[AccessLogger] 훅킹 완료');
 });
 </script>
 
@@ -22722,10 +22523,10 @@ function openHwpCopyPage(targetDate,kind){
 // 지정된 날짜는 법정 공휴일과 동일하게 동작: 당일·전날 자동 외박, 자동 모드 신청 허용 등
 function renderCustomHolidayAdmin(){
     var dates=Object.keys(CUSTOM_HOLIDAYS).sort();
-    var _holOpen=manageSectionState['sec-custom-holiday']===true; // 기본 접힘 (공지 관리와 동일한 V자 토글)
+    var _holOpen=manageSectionState['sec-custom-holiday']===true; // 기본 접힘 (팝업 공지 관리와 동일한 V자 토글)
     var h='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-5 animate-fade-up">'
     +'<div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleManageSection(\'sec-custom-holiday\')">'
-    +'<h2 class="text-lg font-bold text-danger-600"><i class="fas fa-calendar-plus"></i> 임시공휴일 관리</h2>'
+    +'<h2 class="text-lg font-bold text-gray-800"><i class="fas fa-calendar-plus text-sky-600"></i> 임시공휴일 관리</h2>'
     +'<i id="secIcon-sec-custom-holiday" class="fas '+(_holOpen?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'
     +'<div id="sec-custom-holiday" style="display:'+(_holOpen?'block':'none')+'">'
     +'<p class="text-xs text-gray-500 mb-4 mt-4">임시공휴일로 지정된 날짜는 법정 공휴일과 동일하게 처리됩니다.<br>• 지정일 <b>당일과 전날</b> 자동 외박 처리<br>• 자동 모드에서도 신청 가능<br>• 설정 즉시 모든 기기에 적용됩니다</p>'
@@ -22841,7 +22642,6 @@ async function removeCustomHoliday(date){
     const handle = await window.showDirectoryPicker({ mode: 'read' });
     folderHandle = handle;
     await idbSet(DB_KEY, handle);
-    console.log('[LocalPhoto] 폴더 선택 및 저장 완료:', handle.name);
     return { name: handle.name };
   }
 
@@ -22852,11 +22652,10 @@ async function removeCustomHoliday(date){
       if (!handle) return null;
       const ok = await verifyPermission(handle, 'read');
       if (!ok) {
-        console.warn('[LocalPhoto] 폴더 권한 없음 — 다시 선택 필요');
+        if(!window._lpPermWarned){window._lpPermWarned=1;console.warn('[LocalPhoto] 폴더 권한 없음 — 다시 선택 필요')};
         return null;
       }
       folderHandle = handle;
-      console.log('[LocalPhoto] 저장된 폴더 복원:', handle.name);
       return { name: handle.name };
     } catch (e) {
       console.warn('[LocalPhoto] 폴더 복원 실패:', e);
@@ -22877,7 +22676,6 @@ async function removeCustomHoliday(date){
   async function clearFolder() {
     folderHandle = null;
     await idbDel(DB_KEY);
-    console.log('[LocalPhoto] 저장된 폴더 삭제됨');
   }
 
   // ============ 단일 사진 가져오기 (Blob URL 반환) ============
@@ -22941,7 +22739,6 @@ async function removeCustomHoliday(date){
         console.warn('[LocalPhoto] 파일 읽기 실패:', name, e);
       }
     }
-    console.log(`[LocalPhoto] 전체 스캔 완료: ${count}개 사진`);
     return map;
   }
 
@@ -22964,7 +22761,6 @@ async function removeCustomHoliday(date){
     restoreFolder();
   }
 
-  console.log('[LocalPhotoViewer v2.0] 로드 완료');
 })();
 
 </script>
@@ -23103,7 +22899,6 @@ async function removeCustomHoliday(date){
     isSuperAdminLoggedIn
   };
 
-  console.log('[LocalPhotoUI v1.2] 로드 완료 (슈퍼관리자 로그인 전용)');
 })();
 
 </script>
@@ -23140,7 +22935,6 @@ async function removeCustomHoliday(date){
     try {
       const info = await window.LocalPhotoViewer.getFolderInfo();
       if (!info) {
-        console.log('[LocalPhotoSync] 폴더 미선택 상태 — 동기화 건너뜀');
         return { error: 'no_folder' };
       }
 
@@ -23167,7 +22961,6 @@ async function removeCustomHoliday(date){
 
       lastSyncCount = Object.keys(map).length;
       const elapsed = Math.round(t2 - t1);
-      console.log(`[LocalPhotoSync] ✅ 동기화 완료: ${lastSyncCount}명 (${elapsed}ms)`);
       return { count: lastSyncCount, elapsed };
     } catch (e) {
       console.error('[LocalPhotoSync] 동기화 실패:', e);
@@ -23179,7 +22972,6 @@ async function removeCustomHoliday(date){
 
   // 수동 재스캔 (관리자용)
   async function rescan() {
-    console.log('[LocalPhotoSync] 수동 재스캔 요청');
     return await syncOnce();
   }
 
@@ -23224,7 +23016,6 @@ async function removeCustomHoliday(date){
     scheduleInitialSync();
   }
 
-  console.log('[LocalPhotoSync v1.0] 로드 완료 — 2초 후 자동 동기화 실행');
 })();
 
 </script>
@@ -23244,7 +23035,6 @@ async function removeCustomHoliday(date){
   const VERSION = '1.4';
   
   if (window.PrivacyReportFix && window.PrivacyReportFix.version === VERSION) {
-    console.log('[PrivacyReportFix] 이미 v' + VERSION + ' 로드됨');
     return;
   }
   
@@ -23288,14 +23078,12 @@ async function removeCustomHoliday(date){
     const photoResult = removeRowByKeyword(html, 'photos');
     html = photoResult.html;
     if (photoResult.count > 0) {
-      console.log('✂️ 사진 행 제거: ' + photoResult.count + '개 (' + photoResult.removedSize + '자)');
     }
     
     // ========== 2. 기숙사 서약서 행 제거 ==========
     const agreementResult = removeRowByKeyword(html, 'dormitoryAgreements');
     html = agreementResult.html;
     if (agreementResult.count > 0) {
-      console.log('✂️ 서약서 행 제거: ' + agreementResult.count + '개 (' + agreementResult.removedSize + '자)');
     }
     
     // ========== 3. 행 개수 안전 검증 ==========
@@ -23306,7 +23094,6 @@ async function removeCustomHoliday(date){
       console.error('🚨 행 제거 이상 (예상:' + expectedRemoval + ' 실제:' + actualRemoval + ') → 원본 반환');
       return await window._buildDestructionMethodSection_original.apply(this, args);
     }
-    console.log('✅ 행 개수 검증 통과 (' + originalTrCount + '→' + afterTrCount + ')');
     
     // ========== 4. 용어 치환: 방번호 & 방 배정 이력 → 호실 계열 ==========
     let 치환건수 = 0;
@@ -23318,14 +23105,12 @@ async function removeCustomHoliday(date){
     html = html.replace(방번호패턴, '$1호실번호$2');
     if (before1 !== html) {
       치환건수++;
-      console.log('  ✓ 방번호 → 호실번호');
     } else {
       // 폴백: 셀 태그 없이 단순 문자열 치환
       const before1b = html;
       html = html.replace(/방번호/g, '호실번호');
       if (before1b !== html) {
         치환건수++;
-        console.log('  ✓ 방번호 → 호실번호 (폴백)');
       } else {
         console.warn('  ⚠️ 방번호 매칭 실패');
       }
@@ -23336,10 +23121,8 @@ async function removeCustomHoliday(date){
     html = html.replace(/방 배정 이력/g, '호실 배정 이력');
     if (before2 !== html) {
       치환건수++;
-      console.log('  ✓ 방 배정 이력 → 호실 배정 이력');
     }
     
-    console.log('🔄 용어 치환 총 ' + 치환건수 + '건');
     
     // ========== 5. 항목 수 재조정 ==========
     html = html.replace(/\(총\s*10\s*개\)/g, '(총 8개)');
@@ -23361,9 +23144,7 @@ async function removeCustomHoliday(date){
       }
       return match.replace('>' + num + '<', '>' + newNum + '<');
     });
-    console.log('🔢 순번 재조정 완료 (매핑: 1,2,3,5,7,8,9,10 → 1,2,3,4,5,6,7,8)');
     
-    console.log('📊 최종 변경 크기: ' + (originalLength - html.length) + '자 감소');
     
     return html;
   };
@@ -23373,12 +23154,10 @@ async function removeCustomHoliday(date){
     restore: function() {
       if (window._buildDestructionMethodSection_original) {
         window._buildDestructionMethodSection = window._buildDestructionMethodSection_original;
-        console.log('[PrivacyReportFix] 원본 복원됨');
       }
     }
   };
   
-  console.log('✅ [PrivacyReportFix] v' + VERSION + ' 로드 완료');
 })();
 
 </script>
@@ -23401,7 +23180,6 @@ async function removeCustomHoliday(date){
   const VERSION = '1.10';
   
   if (window.PrivacyPolicyFix && window.PrivacyPolicyFix.version === VERSION) {
-    console.log('[PrivacyPolicyFix] 이미 v' + VERSION + ' 로드됨');
     return;
   }
   
@@ -23509,7 +23287,6 @@ async function removeCustomHoliday(date){
     h += '<button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-sm btn-press">닫기</button></div>';
     
     openModal(h);
-    console.log('[PrivacyPolicyFix v' + VERSION + '] 개정본 처리방침 표시됨');
   };
   
   // ============================================================
@@ -23519,7 +23296,6 @@ async function removeCustomHoliday(date){
     const cards = document.querySelectorAll('[data-privacy-policy-card-admin]');
     if (cards.length > 0) {
       cards.forEach(el => el.remove());
-      console.log('[PrivacyPolicyFix v' + VERSION + '] v1.9 잔여 카드 ' + cards.length + '개 정리');
     }
   }
   
@@ -23544,13 +23320,11 @@ async function removeCustomHoliday(date){
     restore: function() {
       if (window.showPrivacyPolicyModal_original) {
         window.showPrivacyPolicyModal = window.showPrivacyPolicyModal_original;
-        console.log('[PrivacyPolicyFix] 원본 복원됨');
       }
     },
     cleanupV19Cards: cleanupV19Cards
   };
   
-  console.log('✅ [PrivacyPolicyFix] v' + VERSION + ' 로드 완료 (v1.9 카드 정리 모드)');
 })();
 
 </script>
@@ -23570,7 +23344,6 @@ async function removeCustomHoliday(date){
   const NAMESPACE = 'ProspectAdmitFix';
   
   if (window[NAMESPACE]) {
-    console.log(`[${NAMESPACE}] 이미 설치됨 (v${window[NAMESPACE].version})`);
     return;
   }
   
@@ -23683,7 +23456,6 @@ async function removeCustomHoliday(date){
     rebuildAndRender: rebuildAndRender
   };
   
-  console.log(`[${NAMESPACE} v${VERSION}] 설치 완료: ${hookedNames.length}/${ALL_TARGETS.length} 훅킹`);
 })();
 
 </script>
@@ -23755,7 +23527,6 @@ async function removeCustomHoliday(date){
       
       window.LeaderLoginPublicFix._loaded = true;
       window.LeaderLoginPublicFix._lastSync = new Date().toISOString();
-      console.log(`[LeaderLoginPublicFix v${VERSION}] 공개 요약 로드 완료 — ${leaders.length}개 학과`);
     } catch(e) {
       console.error(`[LeaderLoginPublicFix v${VERSION}] 로드 실패:`, e.code, e.message);
     }
@@ -23790,7 +23561,6 @@ async function removeCustomHoliday(date){
           note: '로그인 화면 표시용 공개 요약. 비밀번호·개인정보 없음.'
         });
       
-      console.log(`[LeaderLoginPublicFix v${VERSION}] 요약 문서 재빌드 완료 — ${leaders.length}개 학과`);
     } catch(e) {
       console.error(`[LeaderLoginPublicFix v${VERSION}] 재빌드 실패:`, e.code, e.message);
     }
@@ -23815,7 +23585,6 @@ async function removeCustomHoliday(date){
       hooked.push(fnName);
     });
     
-    console.log(`[LeaderLoginPublicFix v${VERSION}] CRUD 훅킹 완료:`, hooked);
     return hooked;
   }
   
@@ -23842,7 +23611,6 @@ async function removeCustomHoliday(date){
     setTimeout(() => {
       installHooks();
       window.LeaderLoginPublicFix._installed = true;
-      console.log(`[LeaderLoginPublicFix v${VERSION}] 설치 완료`);
     }, 500);
   }
   
@@ -23946,11 +23714,9 @@ async function removeCustomHoliday(date){
       const before = hookedNames.length;
       hookAll();
       if (hookedNames.length > before) {
-        console.log(`[StudentDeleteRefresh v${VERSION}] 지연 훅킹: ${hookedNames.length - before}개 추가`);
       }
       if (retryCount >= 8 || hookedNames.length === TARGETS.length) {
         clearInterval(retryInterval);
-        console.log(`✅ [StudentDeleteRefresh v${VERSION}] 최종 훅킹: ${hookedNames.length}/${TARGETS.length}개`);
       }
     }, 1000);
 
@@ -23959,7 +23725,6 @@ async function removeCustomHoliday(date){
         window[name] = originalFunctions[name];
         delete window[name]._sdrHooked;
       });
-      console.log(`[StudentDeleteRefresh v${VERSION}] 원본 복원 완료`);
     }
 
     window.StudentDeleteRefresh = {
@@ -23975,7 +23740,6 @@ async function removeCustomHoliday(date){
       })
     };
 
-    console.log(`[StudentDeleteRefresh v${VERSION}] 초기 훅킹: ${hookedNames.length}/${TARGETS.length}개`);
   }
 
   if (document.readyState === 'loading') {
@@ -24022,6 +23786,13 @@ async function removeCustomHoliday(date){
     scheduleSync();
   }
   [1500, 3000].forEach(function(ms){ setTimeout(syncSettingsFloatMode, ms); });
+})();
+</script>
+<script>
+(function(){
+  function _show(){var b=document.getElementById('_offlineBanner');if(!b){b=document.createElement('div');b.id='_offlineBanner';b.style.cssText='display:none;position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#dc2626;color:#ffffff;text-align:center;padding:10px 16px;font-size:14px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3)';b.textContent='오프라인 — 네트워크 연결을 확인해 주세요';document.body.appendChild(b);}b.style.display=navigator.onLine?'none':'block';}
+  window.addEventListener('online',_show);window.addEventListener('offline',_show);
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_show);}else{_show();}
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
