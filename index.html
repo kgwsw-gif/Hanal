@@ -7768,7 +7768,7 @@ document.addEventListener('visibilitychange', async function(){
     }, POLL_INTERVAL_MS);
 })();
 
-function render(){
+function render(){if(currentMode==='student'&&typeof currentStudent!=='undefined'&&currentStudent){isAdminLoggedIn=false;isLeaderLoggedIn=false;isSuperAdmin=false;}
     initIntervals();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
     var stats=getStats(),todaySubs,todayOuts;if(isWeekendOrHoliday(currentDate)){var _autoData=getAutoOutSubmissions(currentDate);todaySubs=_autoData.submissions;todayOuts=_autoData.outings}else{todaySubs=submissions.filter(function(s){return s.date===currentDate&&s.status!=='cancelled'});todayOuts=outings.filter(function(o){return o.date===currentDate&&(!o.status||o.status!=='cancelled')})}
     var _pendingAcc=accessRequests.filter(function(r){return r.status==='pending'}).length;var _bannerEl=document.getElementById('accessAlarmBanner');var _countEl=document.getElementById('accessAlarmCount');if(_bannerEl){if(_pendingAcc>0&&(isAdminLoggedIn||isOfficeLoggedIn)){_bannerEl.style.display='block';if(_countEl)_countEl.textContent=_pendingAcc;if(!_accessAlarmInterval)startAccessAlarm()}else{_bannerEl.style.display='none';stopAccessAlarm()}}
@@ -15517,7 +15517,12 @@ var _leaderChatUnreadCount = 0;
 var _leaderChatListener = null;
 
 function addLeaderChatFloatBtn() {
-  // 관리자 또는 학과대표일 때만 표시
+  // 관리자 또는 학과대표일 때만 표시 — 학생 모드에서는 대표 미지정 과정이라도 절대 표시 금지
+  if (typeof currentMode !== 'undefined' && currentMode === 'student') {
+    var exS = document.getElementById('leaderChatFloatBtn');
+    if (exS) exS.remove();
+    return;
+  }
   var user = _getLeaderMsgUser();
   if (!user) {
     var ex = document.getElementById('leaderChatFloatBtn');
