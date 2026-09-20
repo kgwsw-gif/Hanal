@@ -15951,7 +15951,7 @@ function renderLeaderChatRoom(threadId) {
   };
 }
 
-// 메인 화면 우측 하단에 "방학 안내 다시 보기" 버튼 표시/숨김
+// 메인 화면 우측 하단에 "공지사항 다시 보기" 버튼 표시/숨김
 async function addVacationNoticeFloatBtn() {
   if (menuControlSettings && menuControlSettings.showVacationNotice === false) {
     var existingHidden = document.getElementById('vacationNoticeFloatBtn');
@@ -15970,10 +15970,10 @@ async function addVacationNoticeFloatBtn() {
   btn.id = 'vacationNoticeFloatBtn';
   btn.onclick = function(){ reviewVacationNotice(); };
     btn.style.cssText = 'position:fixed;bottom:58px;right:16px;width:140px;height:36px;padding:0;border-radius:9999px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border:none;box-shadow:0 6px 18px rgba(59,130,246,0.4);cursor:pointer;z-index:39;display:none;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:bold;transition:transform 0.2s;';
-  btn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>';
+  btn.innerHTML = '<i class="fas fa-bullhorn"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;">공지사항</span>';
   btn.onmouseover = function(){ this.style.transform = 'scale(1.05)'; };
   btn.onmouseout = function(){ this.style.transform = 'scale(1)'; };
-  btn.title = '방학 안내';
+  btn.title = '공지사항';
   btn.dataset.floatReady = '1';
   document.body.appendChild(btn);
   
@@ -16004,9 +16004,11 @@ async function addVacationNoticeFloatBtn() {
     var count = applicableNotices.length;
     var currentBtn = document.getElementById('vacationNoticeFloatBtn');
         if (currentBtn) {
-      currentBtn.innerHTML = '<i class="fas fa-bullhorn"></i><span>방학 안내</span>' + 
+      var firstTitle = (applicableNotices[0] && applicableNotices[0].title) ? String(applicableNotices[0].title).trim() : '';
+      if (!firstTitle) firstTitle = '공지사항';
+      currentBtn.innerHTML = '<i class="fas fa-bullhorn"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px;">' + escapeHtml(firstTitle) + '</span>' + 
         (count > 1 ? '<span style="background:white;color:#3b82f6;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:2px;">' + count + '</span>' : '');
-      currentBtn.title = '방학 안내 다시 보기 (' + count + '개)';
+      currentBtn.title = '공지사항 다시 보기 (' + count + '개)';
       currentBtn.style.display = 'inline-flex';
       if (typeof alignFloatBtns === 'function') alignFloatBtns();
     }
