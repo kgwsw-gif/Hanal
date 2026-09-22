@@ -9643,7 +9643,8 @@ function _buildMealRequestCardHTML(){
   var html='<div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4 animate-fade-up">';
   html+='<h3 class="font-bold text-gray-800 text-lg mb-1"><i class="fas fa-utensils text-emerald-500 mr-1"></i> 식사 신청</h3>';
   html+='<div class="text-xs text-gray-400 mb-2">총 '+days.length+'일 조사 · 날짜별로 식사 여부를 미리 선택해 주세요</div>';
-  if(st.memo)html+='<div class="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-3 text-sm text-amber-800"><i class="fas fa-bullhorn mr-1"></i> '+escapeHtml(st.memo)+'</div>';
+  var _memo=String(st.memo||'').trim();
+  if(_memo)html+='<div class="p-3 bg-amber-100 border-2 border-amber-300 rounded-xl mb-3 text-sm text-amber-900 font-bold"><i class="fas fa-bullhorn text-amber-600 mr-1"></i> 관리자 메모: '+escapeHtml(_memo)+'</div>';
   days.forEach(function(day){
     var d=day.date,meals=day.meals||[];
     var myR=mealRequests.find(function(r){return r.date===d&&(currentMode==='leader'?(r.department===leaderDepartment&&r.name===user):r.name===currentStudent)});
@@ -9726,7 +9727,10 @@ async function saveMealControlFull(){
     mealControlState=dd;
     var got=(dd.days||[]).map(function(x){return x.date}).join(',');
     var want=days.map(function(x){return x.date}).join(',');
-    if(got===want){showToast('식사 신청 설정 저장 완료 (서버 반영 확인)','success');}
+    var gm=typeof dd.memo==='string'?dd.memo:'';
+    var wm=mo?mo.value.trim():'';
+    if(got===want&&gm===wm){showToast('식사 신청 설정 저장 완료 (서버 반영 확인)','success');}
+    else if(got===want){showToast('저장됐지만 메모 반영이 늦어질 수 있습니다. [식사 설정 진단]에서 메모를 확인해 주세요','warning');}
     else{showToast('서버에 반영되지 않았습니다. 잠시 후 다시 시도해 주세요','warning');}
     render();
   }catch(e2){showToast('저장 실패: '+(e2&&e2.message?e2.message:e2),'error');}
