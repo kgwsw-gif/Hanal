@@ -9661,19 +9661,26 @@ function _buildMealRequestCardHTML(){
   return html;
 }
 async function _saveMealRequest(id,data){
+  var _errs=[];
   try{ await db.collection('mealRequests').doc(id).set(data,{merge:true}); window._mrSavedVia='collection'; return; }
-  catch(e1){
-    try{
-      var snap=await db.collection('settings').doc('mealControl').get();
-      var dd=snap&&snap.exists?(snap.data()||{}):{};
-      var resp=(dd.responses&&typeof dd.responses==='object')?dd.responses:{};
-      resp[id]=data;
-      await db.collection('settings').doc('mealControl').set({responses:resp},{merge:true});
-      window._mrSavedVia='settings';
-    }catch(e2){ throw e1; }
-  }
+  catch(e1){ _errs.push('mealRequests: '+String((e1&&e1.code)||(e1&&e1.message)||e1).slice(0,140)); }
+  try{
+    var snap=await db.collection('settings').doc('mealControl').get();
+    var dd=snap&&snap.exists?(snap.data()||{}):{};
+    var resp=(dd.responses&&typeof dd.responses==='object')?dd.responses:{};
+    resp[id]=data;
+    await db.collection('settings').doc('mealControl').set({responses:resp},{merge:true});
+    window._mrSavedVia='settings'; return;
+  }catch(e2){ _errs.push('mealControl: '+String((e2&&e2.code)||(e2&&e2.message)||e2).slice(0,140)); }
+  try{
+    var _o2={};_o2[id]=data;
+    await db.collection('settings').doc('mealResponses').set(_o2,{merge:true});
+    window._mrSavedVia='settings2'; return;
+  }catch(e3){ _errs.push('mealResponses: '+String((e3&&e3.code)||(e3&&e3.message)||e3).slice(0,140)); }
+  window._mrSaveErrors=_errs;
+  var err=new Error(_errs.join(' | ')); throw err;
 }
-function _mrFallback(){db.collection('settings').doc('mealControl').get().then(function(s){try{var d=s&&s.exists?(s.data()||{}):{};var resp=d.responses||{};var arr=Object.keys(resp).map(function(k){var dd=Object.assign({},resp[k]);if(!dd.id)dd.id=k;return dd});var cur=(typeof mealRequests!=='undefined')?mealRequests:[];var _a=arr.map(function(x){return x.id+':'+JSON.stringify(x.meals||{})}).sort().join('|');var _b=cur.map(function(x){return x.id+':'+JSON.stringify(x.meals||{})}).sort().join('|');if(_a!==_b){mealRequests=arr;if(typeof _loaded!=='undefined'&&_loaded)debouncedRender();}}catch(e){}}).catch(function(e){});}
+function _mrFallback(){db.collection('settings').doc('mealControl').get().then(function(s){var d=s&&s.exists?(s.data()||{}):{};var resp=d.responses||{};return db.collection('settings').doc('mealResponses').get().then(function(s2){try{var d2=s2&&s2.exists?(s2.data()||{}):{};var merged=Object.assign({},d2,resp);var arr=Object.keys(merged).map(function(k){var dd=Object.assign({},merged[k]);if(!dd.id)dd.id=k;return dd});var cur=(typeof mealRequests!=='undefined')?mealRequests:[];var _a=arr.map(function(x){return x.id+':'+JSON.stringify(x.meals||{})}).sort().join('|');var _b=cur.map(function(x){return x.id+':'+JSON.stringify(x.meals||{})}).sort().join('|');if(_a!==_b){mealRequests=arr;if(typeof _loaded!=='undefined'&&_loaded)debouncedRender();}}catch(e){}}).catch(function(e2){});}).catch(function(e){});}
 async function setMealJoin(date,meal,join){
   var _ct=(typeof getCurrentDate==='function')?getCurrentDate():(new Date().toISOString().slice(0,10));if(_ct>='2026-09-24'&&_ct<='2026-09-26'){showToast('기숙사 폐쇄 기간이라 신청할 수 없습니다','warning');return;}
   if(!currentStudent&&currentMode!=='leader'){showToast('로그인이 필요합니다','warning');return;}
@@ -9690,7 +9697,8 @@ async function setMealJoin(date,meal,join){
   try{
     await _saveMealRequest(id,{date:d,department:dept,name:user,meals:meals,updatedAt:new Date().toISOString()});
     showToast(meal+' ('+d+') '+(join?'신청':'미신청')+' 저장 완료','success');
-  }catch(e2){showToast('저장 실패: '+(e2&&e2.message?e2.message:e2),'error');}
+  }catch(e2){showToast('저장 실패: '+(e2&&e2.message?e2.message:e2),'error');
+    try{openModal('<div style="padding:20px;max-width:420px"><h3 style="font-weight:900;font-size:18px;margin-bottom:8px">저장 실패 상세</h3><pre style="white-space:pre-wrap;font-size:12px;background:#f3f4f6;padding:10px;border-radius:8px;user-select:all">'+escapeHtml((e2&&e2.message)||String(e2))+'</pre><p style="font-size:12px;color:#6b7280">위 내용을 전체 캡처해서 알려주세요</p><button onclick="closeModal()" style="margin-top:12px;padding:10px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:bold">확인</button></div>');}catch(e5){}}
 }
 async function saveMealControlFull(){
   var rows=[].slice.call(document.querySelectorAll('#mealDayRows .mealDayRow'));
