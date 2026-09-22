@@ -9567,7 +9567,7 @@ async function saveMenuControl(){
   menuControlSettings.staffRooms=window._staffRooms||['322'];menuControlSettings.repairRooms=window._repairRooms||[];
   try{
     await db.collection('settings').doc('menuControl').set({showOfficeMenu:menuControlSettings.showOfficeMenu,showHvacTab:menuControlSettings.showHvacTab,showLeaderMessage:menuControlSettings.showLeaderMessage,showFacilityRequest:menuControlSettings.showFacilityRequest,showUnsubmittedAlert:menuControlSettings.showUnsubmittedAlert,showOutingRequest:menuControlSettings.showOutingRequest,showAccessRequest:menuControlSettings.showAccessRequest,showLotteryEvent:menuControlSettings.showLotteryEvent,showVehicleNumber:menuControlSettings.showVehicleNumber,showPenaltySystem:menuControlSettings.showPenaltySystem,showDormDocuments:menuControlSettings.showDormDocuments,showMealRequest:menuControlSettings.showMealRequest,staffRooms:menuControlSettings.staffRooms,repairRooms:menuControlSettings.repairRooms,updatedAt:new Date().toISOString()},{merge:true});
-    var snap=await db.collection('settings').doc('menuControl').get();
+    var snap=await db.collection('settings').doc('menuControl').get({source:'server'});
     var dd=snap&&snap.exists?(snap.data()||{}):{};
     var want=menuControlSettings.showMealRequest;
     if(dd.showMealRequest!==undefined)menuControlSettings.showMealRequest=dd.showMealRequest;
@@ -9699,7 +9699,7 @@ async function saveMealControlFull(){
   _save.days=days;_save.memo=mo?mo.value.trim():'';
   try{
     await db.collection('settings').doc('mealControl').set(_save,{merge:true});
-    var snap=await db.collection('settings').doc('mealControl').get();
+    var snap=await db.collection('settings').doc('mealControl').get({source:'server'});
     var dd=snap&&snap.exists?(snap.data()||{}):{};
     if(!Array.isArray(dd.days))dd.days=[];
     if(typeof dd.memo!=='string')dd.memo='';
