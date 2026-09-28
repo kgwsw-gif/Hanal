@@ -6708,7 +6708,7 @@ var found=subs.find(function(s){return s.date===dateStr&&s.department===dept&&s.
 function showManageTab(tab){['students','departments','leaders','passwords','danger','resign'].forEach(function(t){var el=document.getElementById('manage-'+t);if(el)el.style.display='none';var btn=document.getElementById('manage-btn-'+t);if(btn)btn.className='px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap bg-surface-100 text-gray-500 btn-press transition-all'});var el=document.getElementById('manage-'+tab);if(el)el.style.display='block';var btn=document.getElementById('manage-btn-'+tab);if(btn)btn.className='px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap bg-primary-500 text-white btn-press transition-all shadow-button'}
 
 async function addStudent(){var dept=document.getElementById('addStudentDept').value,name=document.getElementById('addStudentName').value.trim(),room=document.getElementById('addStudentRoom').value.trim(),pw=document.getElementById('addStudentPw').value.trim(),birthYear=document.getElementById('addStudentBirthYear')?document.getElementById('addStudentBirthYear').value.trim():'';if(!dept||!name||!pw){showToast('학과,이름,비밀번호 필수','warning');return}if(pw.length<4){showToast('비밀번호는 4자리 이상','warning');return}if(students[dept]&&students[dept].includes(name)){showToast('이미 존재','warning');return}if(room){var _rc=0;departments.forEach(function(d2){(students[d2]||[]).forEach(function(n2){if(window._secureData.getRoomNumber(n2)===room)_rc++})});if(_rc>=2){showToast(room+'호는 이미 2명이 배정되어 있습니다','warning');return}}try{var batch=db.batch();var todayDate=getCurrentDate();var ageVal=null;if(birthYear){var by=parseInt(birthYear);if(by>=1950&&by<=2015){ageVal=new Date().getFullYear()-by}else if(by>=0&&by<=99){var fullYear=by<=30?2000+by:1900+by;ageVal=new Date().getFullYear()-fullYear}}var roomData={department:dept,registeredDate:todayDate,status:'active',updatedAt:new Date().toISOString()};if(room)roomData.room=room;if(ageVal)roomData.age=ageVal;batch.set(db.collection('roomNumbers').doc(name),roomData,{merge:true});
-batch.set(db.collection('passwords').doc(name),{password:pw,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();/* ★ 예방: 재등록 시 잔여 퇴사이력 자동 정리 */try{await cleanupResignHistory(name)}catch(e){}showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value='';if(document.getElementById('addStudentBirthYear'))document.getElementById('addStudentBirthYear').value=''}catch(e){showToast('추가 실패','error')}}
+batch.set(db.collection('passwords').doc(name),{password:pw,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();/* ★ 예방: 재등록 시 잔여 퇴사이력 자동 정리 */try{await cleanupResignHistory(name)}catch(e){}try{var _base=name.replace(/\(여\)$/,''),_opp=name.indexOf('(여)')===-1?_base+'(여)':_base;if(_opp!==name){var _oppDoc=await db.collection('passwords').doc(_opp).get();if(_oppDoc.exists){var _allS=window._secureData.getAllStudents(),_used=false;for(var _dd in _allS){if(Array.isArray(_allS[_dd])&&_allS[_dd].indexOf(_opp)!==-1){_used=true;break}}if(!_used){await db.collection('passwords').doc(_opp).delete();console.log('[addStudent] 고아 비밀번호 문서 정리:',_opp)}}}}catch(_e){}showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value='';if(document.getElementById('addStudentBirthYear'))document.getElementById('addStudentBirthYear').value=''}catch(e){showToast('추가 실패','error')}}
 async function addGuest(){
   var name=prompt('게스트 이름을 입력하세요 (예: 게스트1)');
   if(!name||!name.trim())return;
@@ -21113,7 +21113,18 @@ function fixDepartmentCounts(){
         db.collection('passwords').doc(origName).get(),
         db.collection('passwords').doc(yeoName).get()
       ]);
-      var found = rs.find(function(d){ return d.exists && d.data().password; });
+      var _existing = rs.filter(function(d){ return d.exists && d.data().password; });
+      var found = _existing[0];
+      if (_existing.length > 1) {
+        // ★ 이중 문서 복구: 삭제→재등록 과정에서 '이름'과 '이름(여)' 문서가 동시에 남으면
+        //    오래된 문서가 새 비밀번호를 가려 '비밀번호 불일치'가 발생함.
+        //    실제 명단(students)에 등록된 이름의 문서를 우선 사용.
+        var _all = (window._secureData && window._secureData.getAllStudents) ? window._secureData.getAllStudents() : {};
+        var _isRegistered = function(nm){ for (var dpt in _all) { if (Array.isArray(_all[dpt]) && _all[dpt].indexOf(nm) !== -1) return true; } return false; };
+        var _regDocs = _existing.filter(function(d){ return _isRegistered(d.id); });
+        if (_regDocs.length) found = _regDocs[0];
+        console.warn('[fetchStoredPassword] 이중 비밀번호 문서 감지:', _existing.map(function(d){ return d.id; }).join(' / '), '→ 사용:', found.id);
+      }
       if (found) {
         return { 
           pw: found.data().password, 
