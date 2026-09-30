@@ -1482,7 +1482,11 @@ function doPrintRoomStatus(filter){
     });
   }
   
-  html += '</body></html>';
+  html += '
+<script>/* [SEC-FIX v3.5b] pwApi 기반 로그인·비밀번호 함수 복원 — 구 래퍼(클라이언트 비밀번호 직접 읽기)는 신규 보안규칙과 충돌하여 제거 */
+(function(){var K=window._secKeep||{};['showStudentLogin','verifyAndSubmit','changePassword','changeLeaderPassword','showLeaderLogin','showAdminLogin','showOfficeLogin','checkOfficeLogin','saveOfficePassword','changeNutritionistPassword'].forEach(function(n){if(typeof K[n]==='function')window[n]=K[n]})})();
+</script>
+</body></html>';
   
   var win = window.open('', '_blank', 'width=1200,height=800');
   win.document.write(html);
@@ -21045,6 +21049,10 @@ function fixDepartmentCounts(){
     }
   }
   
+</script><script>/* [SEC-FIX v3.5b] 구 해시 래퍼가 덮어쓰기 전 pwApi 기반 함수 보관 */
+window._secKeep=window._secKeep||{};
+['showStudentLogin','verifyAndSubmit','changePassword','changeLeaderPassword','showLeaderLogin','showAdminLogin','showOfficeLogin','checkOfficeLogin','saveOfficePassword','changeNutritionistPassword'].forEach(function(n){if(typeof window[n]==='function')window._secKeep[n]=window[n]});
+</script><script>
   window._pwCrypto = {
     hash: toStoredFormat,
     verify: verifyPassword,
