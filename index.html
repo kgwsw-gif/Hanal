@@ -548,6 +548,8 @@ box-shadow:inset 3px 0 0 0 #1f2937 !important;
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js"></script>
 <script>
 
 // ========== 새 로딩 애니메이션 ==========
@@ -644,7 +646,11 @@ var firebaseConfig={apiKey:"AIzaSyCrXIaNF3B_HAJmFFW4CF-8O_jKBry7i1I",authDomain:
 var db;
 var storage;
 try{
-    firebase.initializeApp(firebaseConfig);    db=firebase.firestore();
+    firebase.initializeApp(firebaseConfig);
+    /* [SEC-FIX v2.2] App Check — Firebase 콘솔 > App Check > 웹 앱 등록 후 reCAPTCHA v3 사이트 키를 아래에 입력하세요.
+       키 미설정 시 비활성(소프트 롤아웃). 콘솔 '적용(Enforce)' 전환은 클라이언트 배포 확인 후에. */
+    window.__RECAPTCHA_V3_SITE_KEY='REPLACE_WITH_YOUR_RECAPTCHA_V3_SITE_KEY';
+    try{if(window.__RECAPTCHA_V3_SITE_KEY.indexOf('REPLACE_')!==0&&firebase.appCheck){firebase.appCheck().activate(window.__RECAPTCHA_V3_SITE_KEY,true);}}catch(e){console.warn('[SEC-FIX] App Check 활성화 실패:',e);}    db=firebase.firestore();
 storage=firebase.storage();
 db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
 
@@ -658,11 +664,15 @@ firebase.auth().onAuthStateChanged(function(user){
         });
     } else if(user.isAnonymous){
     } else {
-        // 실명 로그인 세션 발견 → 관리자 자동 진입
+        // [SEC-FIX v2.2] 실명 세션 → Custom Claim 확인 후 관리자 자동 진입 (클레임 없는 계정 차단)
+        user.getIdTokenResult().then(function(_idr){
+        var _cl=(_idr&&_idr.claims)||{};
+        if(!(_cl.admin===true||_cl.superAdmin===true)){console.warn('[SEC-FIX] 클레임 없는 실명 세션 — 관리자 진입 차단:',user.email);return;}
         if(!isAdminLoggedIn){
-            isSuperAdmin = (user.email === 'super@hwaseong.com' || user.email === 'super1@hwaseong.com');
+            isSuperAdmin = (_cl.superAdmin===true);
             isAdminLoggedIn = true;
             currentMode = 'admin';
+            setTimeout(function(){window._secReloadAll&&window._secReloadAll()},300);/* [v3.2] */
             if(typeof saveLoginLog === 'function'){
                 saveLoginLog(isSuperAdmin ? '슈퍼관리자(자동)' : '일반관리자(자동)', true);
             }
@@ -674,6 +684,7 @@ firebase.auth().onAuthStateChanged(function(user){
                 if(typeof _verifyStudentIntegrity==='function') _verifyStudentIntegrity();
             }, 3000);
         }
+        });/* [SEC-FIX v2.2] 클레임 확인 then 종료 */
         // === 3개월 이상 된 로그 자동 삭제 (개인정보처리방침 준수) ===
         if(typeof cleanupOldLogs === 'function') cleanupOldLogs();
     }
@@ -830,12 +841,12 @@ var DEPARTMENT_LEADERS={};window._updateDepartments=function(){if(!departments||
 var _pw={},_room={},_stu={},_regDate={},_age={},_status={},_expectedDate={},_deptByName={};
 function setup(){
 if(!db)return;
-db.collection('passwords').onSnapshot(function(s){_pw={};s.forEach(function(d){_pw[d.id]=d.data().password;if(d.data().registeredDate)_regDate[d.id]=d.data().registeredDate;if(d.data().department)_deptByName[d.id]=d.data().department})});
-db.collection('roomNumbers').onSnapshot(function(s){var _oR=_room,_oA=_age,_oS=_status;_room={};_age={};_status={};_expectedDate={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate;if(d.data().department)_deptByName[d.id]=d.data().department});var _chg=window._loaded&&(JSON.stringify(_oR)!==JSON.stringify(_room)||JSON.stringify(_oA)!==JSON.stringify(_age)||JSON.stringify(_oS)!==JSON.stringify(_status));if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}});
-db.collection('students').onSnapshot(function(s){window._studentsLoadError=null;var _ns={};s.forEach(function(d){_ns[d.id]=d.data().students});var _chg=window._loaded&&JSON.stringify(_ns)!==JSON.stringify(_stu);_stu=_ns;window._updateDepartments();if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}},function(err){window._studentsLoadError=String((err&&err.message)||err);window._updateDepartments();});
+/* [SEC-FIX v2.1] passwords 실시간 구독 제거 — 비밀번호는 서버(Cloud Functions)에서만 검증하며 클라이언트로 전송되지 않음 */
+var _secLoad0=function(){try{if(window._secLive__secLoad0)window._secLive__secLoad0()}catch(e){}window._secLive__secLoad0=db.collection('roomNumbers').onSnapshot(function(s){var _oR=_room,_oA=_age,_oS=_status;_room={};_age={};_status={};_expectedDate={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate;if(d.data().department)_deptByName[d.id]=d.data().department});var _chg=window._loaded&&(JSON.stringify(_oR)!==JSON.stringify(_room)||JSON.stringify(_oA)!==JSON.stringify(_age)||JSON.stringify(_oS)!==JSON.stringify(_status));if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}},function(e){console.error('[SEC-FIX v3.3] roomNumbers 실시간 오류:',e&&e.message)})};_secLoad0();(window._secReloaders=window._secReloaders||[]).push(_secLoad0);;
+var _secLoad1=function(){try{if(window._secLive__secLoad1)window._secLive__secLoad1()}catch(e){}window._secLive__secLoad1=db.collection('students').onSnapshot(function(s){window._studentsLoadError=null;var _ns={};s.forEach(function(d){_ns[d.id]=d.data().students});var _chg=window._loaded&&JSON.stringify(_ns)!==JSON.stringify(_stu);_stu=_ns;window._updateDepartments();if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}},function(err){window._studentsLoadError=String((err&&err.message)||err);window._updateDepartments();},function(e){console.error('[SEC-FIX v3.3] students 실시간 오류:',e&&e.message)})};_secLoad1();(window._secReloaders=window._secReloaders||[]).push(_secLoad1);;
 }
 window._secureData={
-getPassword:function(n){return typeof n==='string'?(_pw[n]||null):null},
+getPassword:function(n){return null},/* [SEC-FIX v2.1] 비밀번호는 클라이언트에 없음 — _pwApi 사용 */
 getRoomNumber:function(n){return typeof n==='string'?(_room[n]||null):null},
 getRegisteredDate:function(n){return typeof n==='string'?(_regDate[n]||null):null},
 getAge:function(n){return typeof n==='string'?(_age[n]||null):null},
@@ -3747,7 +3758,7 @@ window.fixDept=async function(name,dept){
     if(!name||!dept){console.log('사용법: fixDept("이현우","산업설비과")');return}
     try{
         await db.collection('roomNumbers').doc(name).set({department:dept,updatedAt:new Date().toISOString()},{merge:true});
-        await db.collection('passwords').doc(name).set({department:dept,updatedAt:new Date().toISOString()},{merge:true});
+        /* [SEC-FIX] passwords는 서버 전용 */
         setTimeout(function(){if(typeof render==='function')render();console.log('✓ 화면 갱신 완료')},800);
     }catch(e){console.error('실패:',e.message)}
 };
@@ -4222,15 +4233,22 @@ function refreshHvacListener() {
         }
     }
     db.collection('config').doc('departments').onSnapshot(function(doc){if(doc.exists&&doc.data().list)departments=doc.data().list;else departments=window._secureData.getDepartments();checkLoaded()});
-    db.collection('students').onSnapshot(function(){updateStudentsList();checkLoaded()});
-    db.collection('departmentLeaders').onSnapshot(function(snap){var nl={};snap.docs.forEach(function(doc){if(doc.data().name&&doc.data().password)nl[doc.id]={name:doc.data().name,password:doc.data().password}});Object.keys(DEPARTMENT_LEADERS).forEach(function(k){delete DEPARTMENT_LEADERS[k]});Object.assign(DEPARTMENT_LEADERS,nl);checkLoaded()});
+    var _secLoad2=function(){try{if(window._secLive__secLoad2)window._secLive__secLoad2()}catch(e){}window._secLive__secLoad2=db.collection('students').onSnapshot(function(){updateStudentsList();checkLoaded()},function(e){console.error('[SEC-FIX v3.3] students 실시간 오류:',e&&e.message)})};_secLoad2();(window._secReloaders=window._secReloaders||[]).push(_secLoad2);;
+    var _secLoad3=function(){try{if(window._secLive__secLoad3)window._secLive__secLoad3()}catch(e){}window._secLive__secLoad3=db.collection('departmentLeaders').onSnapshot(function(snap){var nl={};snap.docs.forEach(function(doc){if(doc.data().name)nl[doc.id]={name:doc.data().name,password:null}});/* [SEC-FIX] 비밀번호 필드 제거 */Object.keys(DEPARTMENT_LEADERS).forEach(function(k){delete DEPARTMENT_LEADERS[k]});Object.assign(DEPARTMENT_LEADERS,nl);checkLoaded()},function(e){console.error('[SEC-FIX v3.3] departmentLeaders 실시간 오류:',e&&e.message)})};_secLoad3();(window._secReloaders=window._secReloaders||[]).push(_secLoad3);;
  loadCourses().then(function(){ setTimeout(function(){ if(typeof isAdminLoggedIn !== 'undefined' && isAdminLoggedIn) showCourseAlertToast(); }, 1000); });
 
 
-    db.collection('submissions').onSnapshot(function(snap){var oldData=JSON.stringify(submissions);submissions=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(submissions);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}updateStudentsList();checkLoaded();if(_loaded&&oldData!==newData)render();});
-    db.collection('mealRequests').onSnapshot(function(snap){mealRequests=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();});
-    db.collection('outings').onSnapshot(function(snap){var oldData=JSON.stringify(outings);outings=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(outings);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}checkLoaded();if(_loaded&&oldData!==newData)render();});
-    db.collection('outingHistory').onSnapshot(function(snap){outingHistory=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()});
+    var _secLoad4=function(){
+  try{if(window._secSubsUnsub){window._secSubsUnsub()}}catch(e){}
+  window._secSubsUnsub=db.collection('submissions').where('date','==',getCurrentDate()).onSnapshot(function(snap){var oldData=JSON.stringify(submissions.filter(function(s){return s.date===getCurrentDate()}));var _td=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(_td);submissions=submissions.filter(function(s){return s.date!==getCurrentDate()}).concat(_td);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}updateStudentsList();checkLoaded();if(_loaded&&oldData!==newData)render();},function(e){console.error('[SEC-FIX v3.2] submissions 실시간 오류:',e&&e.message)});
+  if((typeof isAdminLoggedIn!=='undefined'&&isAdminLoggedIn)||(typeof isLeaderLoggedIn!=='undefined'&&isLeaderLoggedIn)){
+    db.collection('submissions').get().then(function(snap){var oldData=JSON.stringify(submissions);submissions=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(submissions);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}updateStudentsList();checkLoaded();if(_loaded&&oldData!==newData)render();}).catch(function(e){console.error('[SEC-FIX v3.2] submissions 전체 이력 로드 실패:',e&&e.message)});
+  }
+};_secLoad4();(window._secReloaders=window._secReloaders||[]).push(_secLoad4);;
+    var _secLoad5=function(){try{if(window._secLive__secLoad5)window._secLive__secLoad5()}catch(e){}window._secLive__secLoad5=db.collection('mealRequests').onSnapshot(function(snap){mealRequests=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();},function(e){console.error('[SEC-FIX v3.3] mealRequests 실시간 오류:',e&&e.message)})};_secLoad5();(window._secReloaders=window._secReloaders||[]).push(_secLoad5);;
+    var _secLoad6=function(){try{if(window._secLive__secLoad6)window._secLive__secLoad6()}catch(e){}window._secLive__secLoad6=db.collection('outings').where('date','>=',getCurrentDate()).onSnapshot(function(snap){var oldData=JSON.stringify(outings.filter(function(s){return s.date>=getCurrentDate()}));var _td=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var newData=JSON.stringify(_td);outings=outings.filter(function(s){return !(s.date>=getCurrentDate())}).concat(_td);if(_loaded&&oldData!==newData&&oldData!=='[]'&&(isAdminLoggedIn||isLeaderLoggedIn)){playNotifSound();if(navigator.vibrate)navigator.vibrate([100,50,100]);}checkLoaded();if(_loaded&&oldData!==newData)render();},function(e){console.error('[SEC-FIX v3.5] outings 실시간 오류:',e&&e.message)})
+  if((typeof isAdminLoggedIn!=='undefined'&&isAdminLoggedIn)||(typeof isLeaderLoggedIn!=='undefined'&&isLeaderLoggedIn)){db.collection('outings').get().then(function(snap){var _full=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var _ids={};_full.forEach(function(d){_ids[d.id]=1});outings=outings.filter(function(s){return !_ids[s.id]}).concat(_full);if(window._loaded)render();}).catch(function(e){console.error('[SEC-FIX v3.5] outings 전체 이력 로드 실패:',e&&e.message)});}};_secLoad6();(window._secReloaders=window._secReloaders||[]).push(_secLoad6);;
+    var _secLoad7=function(){try{if(window._secLive__secLoad7)window._secLive__secLoad7()}catch(e){}window._secLive__secLoad7=db.collection('outingHistory').onSnapshot(function(snap){outingHistory=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()},function(e){console.error('[SEC-FIX v3.4] outingHistory 실시간 오류:',e&&e.message)})};_secLoad7();(window._secReloaders=window._secReloaders||[]).push(_secLoad7);;
     db.collection('resignRequests').onSnapshot(function(snap){resignRequests=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});updateStudentsList();checkLoaded();
         // ★ 자가진단: orphan 퇴사이력 감지 시 콘솔 경고 (관리자만)
         if(typeof isAdminLoggedIn!=='undefined'&&isAdminLoggedIn&&typeof findOrphanResigns==='function'){
@@ -4250,8 +4268,8 @@ function refreshHvacListener() {
     db.collection('messages').orderBy('createdAt','desc').limit(50).onSnapshot(function(snap){messages=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()});
     refreshHvacListener(); checkLoaded();
     db.collection('facilityRequests').orderBy('createdAt','desc').limit(50).onSnapshot(function(snap){facilityRequests=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(typeof render==='function'&&document.getElementById('app')&&document.getElementById('app').style.display!=='none')debouncedRender()});
-db.collection('penaltyPoints').orderBy('createdAt','desc').limit(300).onSnapshot(function(snap){penaltyPoints=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();checkLoaded()});
-    db.collection('dormDocuments').orderBy('order','asc').onSnapshot(function(snap){dormDocuments=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();checkLoaded()});
+var _secLoad8=function(){try{if(window._secLive__secLoad8)window._secLive__secLoad8()}catch(e){}window._secLive__secLoad8=db.collection('penaltyPoints').orderBy('createdAt','desc').limit(300).onSnapshot(function(snap){penaltyPoints=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();checkLoaded()},function(e){console.error('[SEC-FIX v3.4] penaltyPoints 실시간 오류:',e&&e.message)})};_secLoad8();(window._secReloaders=window._secReloaders||[]).push(_secLoad8);;
+    var _secLoad9=function(){try{if(window._secLive__secLoad9)window._secLive__secLoad9()}catch(e){}window._secLive__secLoad9=db.collection('dormDocuments').orderBy('order','asc').onSnapshot(function(snap){dormDocuments=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(_loaded)debouncedRender();checkLoaded()},function(e){console.error('[SEC-FIX v3.4] dormDocuments 실시간 오류:',e&&e.message)})};_secLoad9();(window._secReloaders=window._secReloaders||[]).push(_secLoad9);;
     loadOfficePassword();
     loadMenuControl();
     // 임시공휴일 실시간 동기화
@@ -4526,19 +4544,19 @@ function showResignModal(dept,name){
 }
 
 // ============ 인증 ============
-function verifyAndSubmit(name,cb){var pw=window._secureData.getPassword(name);if(!pw||pw==='000000'){cb();return}openInputModal('본인 확인',[{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',maxLength:20,center:true}],function(){var v=document.getElementById('modalInput0').value.trim();if(v===pw){closeModal();cb()}else showToast('비밀번호 불일치','error')})}
+function verifyAndSubmit(name,cb){window._pwApi({action:'verifyStudent',name:name}).then(function(res){var d=(res&&res.data)||{};if(d.noCheck){cb();return}openInputModal('본인 확인',[{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',maxLength:20,center:true}],function(){var v=document.getElementById('modalInput0').value.trim();window._pwApi({action:'verifyStudent',name:name,password:v}).then(function(r2){var d2=(r2&&r2.data)||{};if(d2.ok){closeModal();cb()}else showToast('비밀번호 불일치','error')}).catch(function(e){showToast(window._pwApiErr(e),'error')})})}).catch(function(e){showToast(window._pwApiErr(e),'error')})}
 async function getIPAddress(){try{var r=await fetch('https://api.ipify.org?format=json');return(await r.json()).ip}catch(e){return'알 수 없음'}}
 async function saveLoginLog(info,success){var ip=await getIPAddress();try{await db.collection('loginLogs').add({timestamp:new Date().toISOString(),success:success,adminType:info,browser:navigator.userAgent.includes('Chrome')?'Chrome':'Other',device:/Mobile|Android|iPhone/i.test(navigator.userAgent)?'Mobile':'PC',ip:ip})}catch(e){}}
 
-function showAdminLogin(){if(isAdminLoggedIn){currentMode='admin';render();return}var savedEmail=localStorage.getItem('saved_admin_email')||'';openInputModal('관리자 로그인',[{label:'이메일',type:'email',placeholder:'admin@hwaseong.com',value:savedEmail},{label:'비밀번호',type:'password',placeholder:'••••••••',value:''},{label:'',type:'checkbox',checkLabel:'로그인 유지 (다음 방문 시 자동 로그인)',checked:!!savedEmail}],async function(){var email=document.getElementById('modalInput0').value.trim(),pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!email||!pw){showToast('모든 항목 입력','warning');return}localStorage.removeItem('saved_admin_pw');try{if(isAdminLoggedIn){closeModal();currentMode='admin';render();return}var _nId=String((typeof mealControlState!=='undefined'&&mealControlState.nutritionistId)||'nutrition');var _nPw=String((typeof mealControlState!=='undefined'&&mealControlState.nutritionistPassword)||'1234');if(email===_nId&&pw===_nPw){window.isNutritionistLoggedIn=true;currentMode='nutritionist';closeModal();render();showToast('영양사 로그인','success');return;}var persistence=remember?firebase.auth.Auth.Persistence.LOCAL:firebase.auth.Auth.Persistence.SESSION;await firebase.auth().setPersistence(persistence);if(remember){localStorage.setItem('saved_admin_email',email)}else{localStorage.removeItem('saved_admin_email')}await firebase.auth().signInWithEmailAndPassword(email,pw);if(isAdminLoggedIn)return;isSuperAdmin=(email==='super@hwaseong.com'||email==='super1@hwaseong.com');isAdminLoggedIn=true;currentMode='admin';saveLoginLog(isSuperAdmin?'슈퍼관리자':'일반관리자',true);closeModal();render();showToast(isSuperAdmin?'슈퍼관리자 로그인':'관리자 로그인','success');setTimeout(function(){if(typeof _verifyStudentIntegrity==='function')_verifyStudentIntegrity();},3000)
+function showAdminLogin(){if(isAdminLoggedIn){currentMode='admin';render();return}var savedEmail=localStorage.getItem('saved_admin_email')||'';openInputModal('관리자 로그인',[{label:'이메일',type:'email',placeholder:'admin@hwaseong.com',value:savedEmail},{label:'비밀번호',type:'password',placeholder:'••••••••',value:''},{label:'',type:'checkbox',checkLabel:'로그인 유지 (다음 방문 시 자동 로그인)',checked:!!savedEmail}],async function(){var email=document.getElementById('modalInput0').value.trim(),pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!email||!pw){showToast('모든 항목 입력','warning');return}localStorage.removeItem('saved_admin_pw');try{if(isAdminLoggedIn){closeModal();currentMode='admin';render();return}var _nId=String((typeof mealControlState!=='undefined'&&mealControlState.nutritionistId)||'nutrition');if(email===_nId){try{var _nRes=await window._pwApi({action:'verifyNutritionist',password:pw});if(_nRes&&_nRes.data&&_nRes.data.ok){if(_nRes.data.token){await firebase.auth().signInWithCustomToken(_nRes.data.token);}window.isNutritionistLoggedIn=true;currentMode='nutritionist';closeModal();render();showToast('영양사 로그인','success');return;}showToast('비밀번호가 일치하지 않습니다','error');return;}catch(e){showToast(window._pwApiErr(e),'error');return;}}var persistence=remember?firebase.auth.Auth.Persistence.LOCAL:firebase.auth.Auth.Persistence.SESSION;await firebase.auth().setPersistence(persistence);if(remember){localStorage.setItem('saved_admin_email',email)}else{localStorage.removeItem('saved_admin_email')}await firebase.auth().signInWithEmailAndPassword(email,pw);if(isAdminLoggedIn)return;try{var _idr=await firebase.auth().currentUser.getIdTokenResult();var _cl=(_idr&&_idr.claims)||{};window._adminClaim=(_cl.admin===true||_cl.superAdmin===true);isSuperAdmin=(_cl.superAdmin===true);if(!window._adminClaim){console.warn('[SEC-FIX] 관리자 클레임 없음 → grant-admin.js 실행 필요(서버 관리자 기능 제한)');isSuperAdmin=(email==='super@hwaseong.com'||email==='super1@hwaseong.com');}}catch(e){isSuperAdmin=(email==='super@hwaseong.com'||email==='super1@hwaseong.com');}isAdminLoggedIn=true;setTimeout(function(){window._secReloadAll&&window._secReloadAll()},300);/* [v3.2] 관리자 전체 이력 로드 */currentMode='admin';saveLoginLog(isSuperAdmin?'슈퍼관리자':'일반관리자',true);closeModal();render();showToast(isSuperAdmin?'슈퍼관리자 로그인':'관리자 로그인','success');setTimeout(function(){if(typeof _verifyStudentIntegrity==='function')_verifyStudentIntegrity();},3000)
 }catch(error){saveLoginLog(email,false);var msgs={'auth/user-not-found':'계정 없음','auth/wrong-password':'비밀번호 오류','auth/invalid-email':'이메일 형식 오류','auth/invalid-credential':'인증 오류'};showToast(msgs[error.code]||'로그인 실패','error')}})}
 
-function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(isLeaderLoggedIn){currentMode='leader';render();return}var savedDept=localStorage.getItem('saved_leader_dept')||'';var savedLPw=localStorage.getItem('saved_leader_pw')||'';var opts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'&&DEPARTMENT_LEADERS[d]}).map(function(d){var ln=DEPARTMENT_LEADERS[d].name;var masked=ln.length<=2?ln[0]+'*':ln[0]+'*'+ln.substring(2);return{value:d,label:d+' ('+masked+')'}});openInputModal('학과대표 로그인',[{label:'학과 선택',type:'select',options:[{value:'',label:'선택하세요'}].concat(opts),value:savedDept},{label:'비밀번호',type:'password',placeholder:'••••••••',value:savedLPw},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedDept||!!savedLPw}],function(){var dept=document.getElementById('modalInput0').value,pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!dept){showToast('학과 선택 필요','warning');return}if(remember){localStorage.setItem('saved_leader_dept',dept);localStorage.setItem('saved_leader_pw',pw)}else{localStorage.removeItem('saved_leader_dept');localStorage.removeItem('saved_leader_pw')}if(DEPARTMENT_LEADERS[dept]&&pw===DEPARTMENT_LEADERS[dept].password){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(DEPARTMENT_LEADERS[dept].name+'님 환영합니다','success')}else showToast('비밀번호 오류','error')})}
+function showLeaderLogin(){if(isAdminLoggedIn){showAdminDeptSelect();return}if(isLeaderLoggedIn){currentMode='leader';render();return}var savedDept=localStorage.getItem('saved_leader_dept')||'';var opts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'&&DEPARTMENT_LEADERS[d]}).map(function(d){var ln=DEPARTMENT_LEADERS[d].name;var masked=ln.length<=2?ln[0]+'*':ln[0]+'*'+ln.substring(2);return{value:d,label:d+' ('+masked+')'}});openInputModal('학과대표 로그인',[{label:'학과 선택',type:'select',options:[{value:'',label:'선택하세요'}].concat(opts),value:savedDept},{label:'비밀번호',type:'password',placeholder:'••••••••',value:'',},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:!!savedDept}],function(){var dept=document.getElementById('modalInput0').value,pw=document.getElementById('modalInput1').value;var remember=document.getElementById('modalInput2').checked;if(!dept){showToast('학과 선택 필요','warning');return}if(remember){localStorage.setItem('saved_leader_dept',dept)}else{localStorage.removeItem('saved_leader_dept')}/* [SEC-FIX v2.1] 대표 비밀번호는 저장하지 않음 */window._pwApi({action:'verifyLeader',dept:dept,password:pw}).then(function(res){var d=(res&&res.data)||{};if(d.ok){var _after=function(){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast((d.name||dept)+' 대표님 환영합니다','success');setTimeout(function(){window._secReloadAll&&window._secReloadAll()},300);/* [v3.2] */};if(d.token){firebase.auth().signInWithCustomToken(d.token).then(_after).catch(function(e){showToast(window._pwApiErr(e),'error')})}else{_after()}}else showToast('비밀번호 오류','error')}).catch(function(e){showToast(window._pwApiErr(e),'error')})})}
 
 function showAdminDeptSelect(){var depts=departments.filter(function(d){return d!=='여성재취업(바리스타)과정'});openModal('<div class="p-6"><h3 class="text-xl font-bold text-gray-900 mb-4">학과 선택</h3><div class="space-y-2 max-h-[60vh] overflow-y-auto">'+depts.map(function(d){return'<button onclick="selectAdminDept(\''+safeAttr(d)+'\')" class="w-full text-left p-4 bg-surface-50 hover:bg-primary-50 rounded-2xl transition-all btn-press border border-surface-200"><div class="font-bold text-gray-800 text-base">'+escapeHtml(d)+'</div><div class="text-sm text-gray-500 mt-0.5">대표: '+escapeHtml(DEPARTMENT_LEADERS[d]?DEPARTMENT_LEADERS[d].name:'미설정')+' · '+getDeptStudentList(d,getCurrentDate(),false).length+'명</div></button>'}).join('')+'</div><button onclick="closeModal()" class="w-full mt-4 py-3 bg-surface-100 text-gray-600 rounded-2xl font-bold text-sm btn-press">취소</button></div>')}
 function selectAdminDept(dept){isLeaderLoggedIn=true;leaderDepartment=dept;currentMode='leader';closeModal();render();showToast(dept+' 학과대표 모드','success')}
 
-function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedPw=localStorage.getItem('saved_student_pw')||'';var savedRemember=!!savedName||!!savedPw;openInputModal('교육생 로그인 (로그인 실패 시 새로고침)',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,value:savedPw,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(!pw&&!name.includes('(여)')){name+='(여)';pw=window._secureData.getPassword(name)}if(!pw){try{var _origName=name.replace(/\(여\)$/,'');var _yeoName=_origName+'(여)';Promise.all([db.collection('passwords').doc(_origName).get(),db.collection('passwords').doc(_yeoName).get()]).then(function(rs){var found=rs.find(function(d){return d.exists&&d.data().password;});if(found){showToast('데이터 동기화 완료. 다시 로그인해주세요','info');}else{if(window._loaded){var _isRes=resignRequests&&resignRequests.some(function(r){return r.status==='approved'&&(r.name===_origName||r.name===_yeoName);});if(_isRes){showToast('퇴사한 교육생입니다','error');}else{showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error');}}else{showToast('📡 데이터 준비 중입니다. 10초 후 다시 시도해주세요','warning');}}}).catch(function(err){console.error('[LOGIN] fallback fetch error:',err);if(window._loaded){showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error');}else{showToast('📡 데이터 준비 중입니다. 10초 후 다시 시도해주세요','warning');}});return;}catch(e){console.error('[LOGIN] fallback error:',e);}if(window._loaded){var _isRes=resignRequests&&resignRequests.some(function(r){return r.status==='approved'&&r.name===name;});if(_isRes){showToast('퇴사한 교육생입니다','error');}else{showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error');}}else{showToast('📡 데이터 준비 중입니다. 10초 후 다시 시도해주세요','warning');}return}if(pw!==bd){showToast('비밀번호 불일치','error');return}if(remember){localStorage.setItem('saved_student_name',name);localStorage.setItem('saved_student_pw',bd)}else{localStorage.removeItem('saved_student_name');localStorage.removeItem('saved_student_pw')}var found=false;var isGuest=false;
+function showStudentLogin(){var savedName=localStorage.getItem('saved_student_name')||'';var savedRemember=!!savedName;openInputModal('교육생 로그인 (로그인 실패 시 새로고침)',[{label:'이름',type:'text',placeholder:'이름을 입력하세요',value:savedName,autocomplete:'new-password'},{label:'비밀번호',type:'password',placeholder:'비밀번호 입력',center:true,autocomplete:'new-password'},{label:'',type:'checkbox',checkLabel:'로그인 정보 기억하기',checked:savedRemember}],async function(){var name=document.getElementById('modalInput0').value.trim();var bd=document.getElementById('modalInput1').value.trim();var remember=document.getElementById('modalInput2').checked;if(!name||!bd){showToast('이름과 비밀번호를 입력하세요','warning');return}var _res=null;try{_res=await window._pwApi({action:'verifyStudent',name:name,password:bd});}catch(e){showToast(window._pwApiErr(e),'error');return}var _d=(_res&&_res.data)||{};if(!_d.ok){if(_d.reason==='resigned'){showToast('퇴사한 교육생입니다','error')}else if(_d.reason==='noUser'){showToast('등록된 교육생이 아닙니다. 관리자에게 문의하세요.','error')}else{showToast('비밀번호 불일치','error')}return}if(_d.name&&_d.name!==name){name=_d.name};try{(window._secStudentHist=window._secStudentHist||{});if(!window._secStudentHist[name]){window._secStudentHist[name]=1;['submissions','outings'].forEach(function(_c){db.collection(_c).where('name','==',name).get().then(function(snap){var mine=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var ids={};mine.forEach(function(d){ids[d.id]=1});if(_c==='submissions'){submissions=submissions.filter(function(s){return !ids[s.id]}).concat(mine)}else{outings=outings.filter(function(s){return !ids[s.id]}).concat(mine)}if(typeof updateStudentsList==='function')updateStudentsList();if(window._loaded)render();}).catch(function(e){console.error('[SEC-FIX v3.5] 내 이력 로드 실패:',_c,e)})})}}catch(e){}/* [v3.5] 교육생 본인 이력 */if(remember){localStorage.setItem('saved_student_name',name)}else{localStorage.removeItem('saved_student_name')}var found=false;var isGuest=false;
 // 데이터 로드 상태 확인
 var totalStudents=0;for(var k in students){if(Array.isArray(students[k]))totalStudents+=students[k].length;}
 if(totalStudents===0){window._loginRetryCount=(window._loginRetryCount||0)+1;if(window._loginRetryCount<=8){showToast('데이터 준비 중... ('+window._loginRetryCount+'/8)','info');setTimeout(function(){document.querySelector('#modalContent button.bg-primary-500,#modalContent button[onclick*="callback"]')?.click();},2000);return;}window._loginRetryCount=0;showToast('데이터 로딩이 지연됩니다. 잠시 후 다시 시도해주세요.','error');return;}
@@ -4626,13 +4644,13 @@ async function replyToAdminMessage(msgId){openInputModal('답변하기',[{label:
 
 // ============ 운영사무실 시스템 ============
 var isOfficeLoggedIn=false;
-var officePassword='1234';
+var officePassword='';/* [SEC-FIX] 기본 비밀번호 제거 */
 var hvacMode='heating';
 function loadMenuControl(){db.collection('settings').doc('menuControl').onSnapshot(function(doc){if(doc.exists){var data=doc.data();if(window._menuSaveAt&&Date.now()-window._menuSaveAt<30000&&data.showMealRequest!==undefined&&data.showMealRequest!==menuControlSettings.showMealRequest){if(data.showMealRequest===false&&menuControlSettings.showMealRequest===true&&!window._menuRestoreBusy){window._menuRestoreBusy=true;setTimeout(function(){db.collection('settings').doc('menuControl').set({showMealRequest:true},{merge:true}).then(function(){window._menuRestoreBusy=false;showToast('메뉴 설정이 자동 복원되었습니다','info');})['catch'](function(){window._menuRestoreBusy=false;});},500);}return;}menuControlSettings.showOfficeMenu=data.showOfficeMenu===true;menuControlSettings.showHvacTab=data.showHvacTab===true;menuControlSettings.showLeaderMessage=data.showLeaderMessage!==undefined?data.showLeaderMessage:true;menuControlSettings.showFacilityRequest=data.showFacilityRequest!==undefined?data.showFacilityRequest:true;menuControlSettings.showAccessRequest=data.showAccessRequest!==undefined?data.showAccessRequest:true;menuControlSettings.showLotteryEvent=data.showLotteryEvent!==undefined?data.showLotteryEvent:true;menuControlSettings.showUnsubmittedAlert=data.showUnsubmittedAlert!==undefined?data.showUnsubmittedAlert:true;menuControlSettings.showOutingRequest=data.showOutingRequest!==undefined?data.showOutingRequest:true;menuControlSettings.showVehicleNumber=data.showVehicleNumber!==undefined?data.showVehicleNumber:true;menuControlSettings.showPenaltySystem=data.showPenaltySystem!==undefined?data.showPenaltySystem:true;menuControlSettings.showDormDocuments=data.showDormDocuments!==undefined?data.showDormDocuments:true;menuControlSettings.showMealRequest=data.showMealRequest!==undefined?data.showMealRequest:true;window._staffRooms=data.staffRooms||['322'];window._repairRooms=data.repairRooms||[]}applyMenuControl();if(_loaded)debouncedRender()});db.collection('settings').doc('mealControl').onSnapshot(function(doc){mealControlState=doc.exists?(doc.data()||{}):{};if(!mealControlState.meals||!mealControlState.meals.length)mealControlState.meals=['아침','점심','저녁'];if(!Array.isArray(mealControlState.days))mealControlState.days=[];if(typeof mealControlState.memo!=='string')mealControlState.memo='';if(_loaded)debouncedRender()})}
 
-async function loadOfficePassword(){try{var doc=await db.collection('settings').doc('officeControl').get();if(doc.exists&&doc.data().password){officePassword=doc.data().password}}catch(e){}}
-async function saveOfficePassword(newPw){try{await db.collection('settings').doc('officeControl').set({password:newPw,updatedAt:new Date().toISOString()},{merge:true});officePassword=newPw;showToast('운영사무실 비밀번호 변경 완료','success')}catch(e){showToast('저장 실패','error')}}
-function showOfficeLogin(){openModal('<div class="p-6"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-building mr-2 text-orange-500"></i>운영사무실 로그인</h2><input type="password" id="officePasswordInput" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base mb-4" placeholder="비밀번호 입력" style="font-size:16px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkOfficeLogin()}"><div class="flex gap-2"><button onclick="checkOfficeLogin()" class="flex-1 py-3 bg-orange-500 text-white rounded-2xl font-bold text-base btn-press">로그인</button><button onclick="closeModal()" class="flex-1 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-base btn-press">취소</button></div></div>');setTimeout(function(){var el=document.getElementById('officePasswordInput');if(el)el.focus()},200)}function checkOfficeLogin(){var pw=document.getElementById('officePasswordInput').value;if(pw===officePassword){isOfficeLoggedIn=true;closeModal();showToast('운영사무실 로그인 성공','success');render()}else{showToast('비밀번호 오류','error')}}
+async function loadOfficePassword(){/* [SEC-FIX] 사무실 비밀번호는 클라이언트로 내려받지 않음 */}
+async function saveOfficePassword(newPw){try{await window._pwApi({action:'adminSetSecret',key:'officeControl',newPassword:newPw});showToast('운영사무실 비밀번호 변경 완료','success')}catch(e){showToast('저장 실패: '+window._pwApiErr(e),'error')}}
+function showOfficeLogin(){openModal('<div class="p-6"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-building mr-2 text-orange-500"></i>운영사무실 로그인</h2><input type="password" id="officePasswordInput" class="w-full px-4 py-3 bg-surface-50 border-2 border-surface-200 rounded-2xl text-base mb-4" placeholder="비밀번호 입력" style="font-size:16px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkOfficeLogin()}"><div class="flex gap-2"><button onclick="checkOfficeLogin()" class="flex-1 py-3 bg-orange-500 text-white rounded-2xl font-bold text-base btn-press">로그인</button><button onclick="closeModal()" class="flex-1 py-3 bg-surface-100 text-gray-500 rounded-2xl font-bold text-base btn-press">취소</button></div></div>');setTimeout(function(){var el=document.getElementById('officePasswordInput');if(el)el.focus()},200)}function checkOfficeLogin(){var pw=document.getElementById('officePasswordInput').value;if(!pw){showToast('비밀번호를 입력하세요','warning');return}window._pwApi({action:'verifyOffice',password:pw}).then(function(res){var d=(res&&res.data)||{};if(d.ok){if(d.token){firebase.auth().signInWithCustomToken(d.token).catch(function(){})}isOfficeLoggedIn=true;closeModal();showToast('운영사무실 로그인 성공','success');render()}else{showToast('비밀번호 오류','error')}}).catch(function(e){showToast(window._pwApiErr(e),'error')})}
 function exitOffice(){isOfficeLoggedIn=false;if(!isAdminLoggedIn&&!isLeaderLoggedIn&&!currentStudent){currentMode=null;}setTimeout(function(){render();},50);}
 
 function renderOfficeView(){
@@ -5288,7 +5306,7 @@ applyDarkMode();
 function handleStudentStay(){var check=isSubmitAllowed();if(!check.allowed){showToast(check.reason,'warning');return}var d=currentStudentDept();if(d)submitStatus(d,currentStudent,'stay')}
 function handleStudentOut(){var check=isSubmitAllowed();if(!check.allowed){showToast(check.reason,'warning');return}var d=currentStudentDept();if(d)submitStatus(d,currentStudent,'out')}
 function handleStudentOuting(){var check=isSubmitAllowed();if(!check.allowed){showToast(check.reason,'warning');return}var d=currentStudentDept();if(d)showOutingModal(d,currentStudent)}
-function changePassword(){var dept=currentStudentDept();var name=currentStudent;openInputModal('비밀번호 변경',[{label:'현재 비밀번호',type:'password',placeholder:'현재 비밀번호',maxLength:20,center:true},{label:'새 비밀번호',type:'password',placeholder:'새 비밀번호',maxLength:20,center:true},{label:'새 비밀번호 확인',type:'password',placeholder:'새 비밀번호 다시 입력',maxLength:20,center:true}],async function(){var cur=document.getElementById('modalInput0').value.trim();var np=document.getElementById('modalInput1').value.trim();var nc=document.getElementById('modalInput2').value.trim();if(!cur||!np||!nc){showToast('모든 항목을 입력하세요','warning');return}var pw=window._secureData.getPassword(name);if(cur!==pw){showToast('현재 비밀번호가 틀립니다','error');return}if(np.length<4){showToast('새 비밀번호는 4자리 이상이어야 합니다','warning');return}if(np!==nc){showToast('새 비밀번호가 일치하지 않습니다','warning');return}if(cur===np){showToast('현재와 동일한 비밀번호입니다','warning');return}try{await db.collection('passwords').doc(name).set({password:np,updatedAt:new Date().toISOString()});await db.collection('passwordChangeLogs').add({name:name,department:dept,changedAt:new Date().toISOString(),device:/Mobile|Android|iPhone/i.test(navigator.userAgent)?'Mobile':'PC'});closeModal();showToast('비밀번호가 변경되었습니다','success')}catch(e){showToast('변경 실패: '+e.message,'error')}})}
+function changePassword(){var dept=currentStudentDept();var name=currentStudent;openInputModal('비밀번호 변경',[{label:'현재 비밀번호',type:'password',placeholder:'현재 비밀번호',maxLength:20,center:true},{label:'새 비밀번호',type:'password',placeholder:'새 비밀번호',maxLength:20,center:true},{label:'새 비밀번호 확인',type:'password',placeholder:'새 비밀번호 다시 입력',maxLength:20,center:true}],async function(){var cur=document.getElementById('modalInput0').value.trim();var np=document.getElementById('modalInput1').value.trim();var nc=document.getElementById('modalInput2').value.trim();if(!cur||!np||!nc){showToast('모든 항목을 입력하세요','warning');return}if(np.length<4){showToast('새 비밀번호는 4자리 이상이어야 합니다','warning');return}if(np!==nc){showToast('새 비밀번호가 일치하지 않습니다','warning');return}if(cur===np){showToast('현재와 동일한 비밀번호입니다','warning');return}try{await window._pwApi({action:'changeStudentPassword',name:name,currentPassword:cur,newPassword:np});closeModal();showToast('비밀번호가 변경되었습니다','success')}catch(e){showToast('변경 실패: '+e.message,'error')}})}
 function updateVehicleStudentList(){var dept=document.getElementById('vehicleDept').value;var sel=document.getElementById('vehicleStudent');sel.innerHTML='<option value="">교육생 선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n)+(vehicleNumbers[n]?' ['+vehicleNumbers[n]+']':'');sel.appendChild(o)});showVehicleSearch()}
 function adminSaveVehicle(){var name=document.getElementById('vehicleStudent').value;var number=document.getElementById('vehicleNumberInput').value.trim();if(!name){showToast('교육생을 선택하세요','warning');return}if(!number){showToast('차량번호를 입력하세요','warning');return}saveVehicleNumber(name,number);document.getElementById('vehicleNumberInput').value='';updateVehicleStudentList()}
 function showVehicleSearch(){var area=document.getElementById('vehicleListResult');if(!area)return;var keyword=(document.getElementById('vehicleNumberInput')?document.getElementById('vehicleNumberInput').value.trim():'').toLowerCase();var selDeptRaw=(document.getElementById('vehicleDept')?document.getElementById('vehicleDept').value:'');if(selDeptRaw===''){{area.innerHTML='';return}}var selDept=selDeptRaw==='_all'?'':selDeptRaw;var list=[];departments.forEach(function(dept){if(selDept&&dept!==selDept)return;(students[dept]||[]).forEach(function(name){if(vehicleNumbers[name]){if(keyword&&vehicleNumbers[name].toLowerCase().indexOf(keyword)===-1&&name.toLowerCase().indexOf(keyword)===-1)return;list.push({dept:dept,name:name,room:window._secureData.getRoomNumber(name)||'',vehicle:vehicleNumbers[name]})}})});if(list.length===0){area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">등록된 차량이 없습니다</div>';return}list.sort(function(a,b){return parseInt(a.room||'999')-parseInt(b.room||'999')});var h='<div class="text-xs font-bold text-blue-600 mb-2">등록 차량 '+list.length+'대</div><div class="space-y-1 max-h-60 overflow-y-auto">';list.forEach(function(item){h+='<div class="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-surface-200"><div><span class="text-sm font-bold text-gray-700">'+(item.room?item.room+'호 ':'')+escapeHtml(item.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(item.dept)+']</span></div><div class="flex items-center gap-2"><span class="text-sm font-bold text-blue-600">'+escapeHtml(item.vehicle)+'</span><button onclick="saveVehicleNumber(\''+safeAttr(item.name)+'\',\'\');showVehicleSearch()" class="text-danger-400 hover:text-danger-600" style="font-size:10px"><i class="fas fa-times"></i></button></div></div>'});h+='</div>';area.innerHTML=h}
@@ -5416,12 +5434,11 @@ async function executeResignDelete(reqId){
         
         updateProgress(15,'개인 정보 삭제 중...');
         var batch1=db.batch();
-        batch1.delete(db.collection('passwords').doc(name));
         batch1.delete(db.collection('roomNumbers').doc(name));
         batch1.delete(db.collection('vehicleNumbers').doc(name));
         batch1.delete(db.collection('photos').doc(name));
         batch1.delete(db.collection('fcmTokens').doc(name));
-        await batch1.commit();
+        await batch1.commit();try{await window._pwApi({action:'adminRemovePassword',name:name});}catch(e){}
         updateProgress(25,'비밀번호·호실·차량·사진 삭제 ✓');
         deletedCount.vehicles=1;
         deletedCount.photos=1;
@@ -5648,7 +5665,7 @@ async function autoCleanResign(reqId){
 }
 async function cancelStudentSubmission(){var dept=currentStudentDept();if(!dept)return;var sd=getSelectedDate();openConfirmModal('잔류 취소','잔류 신청을 취소하시겠습니까?<br>미신청 상태가 되어 외박으로 자동 처리됩니다.',async function(){try{await db.collection('submissions').doc(sd+'_'+dept+'_'+currentStudent).delete();showToast('잔류 취소 완료 (외박으로 자동 처리)','success');render()}catch(e){showToast('취소 실패','error')}},'취소하기','돌아가기')}
 // ============ 학과대표 함수 ============
-function changeLeaderPassword(){if(!leaderDepartment||!DEPARTMENT_LEADERS[leaderDepartment]){showToast('학과대표 정보 없음','error');return}openInputModal('학과대표 비밀번호 변경',[{label:'현재 비밀번호',type:'password',placeholder:'현재 비밀번호',maxLength:20,center:true},{label:'새 비밀번호',type:'password',placeholder:'새 비밀번호',maxLength:20,center:true},{label:'새 비밀번호 확인',type:'password',placeholder:'새 비밀번호 다시 입력',maxLength:20,center:true}],async function(){var cur=document.getElementById('modalInput0').value.trim();var np=document.getElementById('modalInput1').value.trim();var nc=document.getElementById('modalInput2').value.trim();if(!cur||!np||!nc){showToast('모든 항목을 입력하세요','warning');return}if(cur!==DEPARTMENT_LEADERS[leaderDepartment].password){showToast('현재 비밀번호가 틀립니다','error');return}if(np!==nc){showToast('새 비밀번호가 일치하지 않습니다','warning');return}if(np.length<4){showToast('새 비밀번호는 4자리 이상이어야 합니다','warning');return}if(cur===np){showToast('현재와 동일한 비밀번호입니다','warning');return}try{await db.collection('departmentLeaders').doc(leaderDepartment).update({password:np,updatedAt:new Date().toISOString()});closeModal();showToast('비밀번호가 변경되었습니다','success')}catch(e){showToast('변경 실패','error')}})}
+function changeLeaderPassword(){if(!leaderDepartment||!DEPARTMENT_LEADERS[leaderDepartment]){showToast('학과대표 정보 없음','error');return}openInputModal('학과대표 비밀번호 변경',[{label:'현재 비밀번호',type:'password',placeholder:'현재 비밀번호',maxLength:20,center:true},{label:'새 비밀번호',type:'password',placeholder:'새 비밀번호',maxLength:20,center:true},{label:'새 비밀번호 확인',type:'password',placeholder:'새 비밀번호 다시 입력',maxLength:20,center:true}],async function(){var cur=document.getElementById('modalInput0').value.trim();var np=document.getElementById('modalInput1').value.trim();var nc=document.getElementById('modalInput2').value.trim();if(!cur||!np||!nc){showToast('모든 항목을 입력하세요','warning');return}if(np!==nc){showToast('새 비밀번호가 일치하지 않습니다','warning');return}if(np.length<4){showToast('새 비밀번호는 4자리 이상이어야 합니다','warning');return}if(cur===np){showToast('현재와 동일한 비밀번호입니다','warning');return}try{await window._pwApi({action:'changeLeaderPassword',dept:leaderDepartment,currentPassword:cur,newPassword:np});closeModal();showToast('비밀번호가 변경되었습니다','success')}catch(e){showToast('변경 실패','error')}})}
 function setQuickMode(mode){quickSubmitMode=(quickSubmitMode===mode)?null:mode;render()}
 function updateSelectedCount(){var n=document.querySelectorAll('.batch-check');var cnt=0;n.forEach(function(x){if(x.checked)cnt++});var el=document.getElementById('selectedCount');if(el)el.textContent=cnt}
 function selectAll(){document.querySelectorAll('.batch-check').forEach(function(c){c.checked=true});updateSelectedCount()}
@@ -6706,11 +6723,11 @@ async function loadCourses(){
 async function loadDateHistory(){var date=document.getElementById('historyDateInput').value;if(!date){showToast('날짜를 선택하세요','warning');return}var area=document.getElementById('historyResult');var sc=area;while(sc){if(sc.classList&&sc.classList.contains('section-content')){sc.style.maxHeight='none';sc.style.opacity='1';var ch=sc.parentElement.querySelector('.section-chevron');if(ch)ch.style.transform='rotate(0deg)';break}sc=sc.parentElement}area.innerHTML='<div class="text-sm text-gray-400 text-center py-3 mt-3">조회 중...</div>';try{var subSnap=await db.collection('submissions').where('date','==',date).get();var outSnap=await db.collection('outings').where('date','==',date).get();var subs=subSnap.docs.map(function(d){return Object.assign({id:d.id},d.data())}).filter(function(s){return s.status!=='cancelled'});var _memS=submissions.filter(function(s){return s.date===date});var _ids={};subs.forEach(function(s){_ids[s.id]=1});_memS.forEach(function(s){if(!_ids[s.id]&&s.status!=='cancelled'){subs.push(s);_ids[s.id]=1}});var outs=outSnap.docs.map(function(d){return Object.assign({id:d.id},d.data())}).filter(function(o){return !o.status||o.status!=='cancelled'});var _memO=outings.filter(function(o){return o.date===date});var _oids={};outs.forEach(function(o){_oids[o.id]=1});_memO.forEach(function(o){if(!_oids[o.id]&&(!o.status||o.status!=='cancelled')){outs.push(o);_oids[o.id]=1}});var isAutoOut=isWeekendOrHoliday(date);if(isAutoOut){var submittedNames=new Set();subs.forEach(function(s){submittedNames.add(s.department+'_'+s.name)});outs.forEach(function(o){submittedNames.add(o.department+'_'+o.name)});departments.forEach(function(dept){var deptStudents=(students[dept]||[]).filter(function(name){var regDate=window._secureData.getRegisteredDate(name);return !regDate||regDate<=date});deptStudents.forEach(function(name){var key=dept+'_'+name;if(!submittedNames.has(key)&&!(window._excludedAuto&&(window._excludedAuto.indexOf('auto_'+dept+'_'+name)!==-1||window._excludedAuto.indexOf('auto_'+date+'_'+dept+'_'+name)!==-1))){subs.push({id:'auto_'+date+'_'+dept+'_'+name,department:dept,name:name,status:'out',date:date,timestamp:'자동처리',isAuto:true})}})})}var stayList2=subs.filter(function(s){return s.status==='stay'}),outList2=subs.filter(function(s){return s.status==='out'});var di=formatDateWithDay(date);var dateLabel='<span class="'+(di.isHoliday?'text-danger-600':di.isWeekend?'text-info-600':'text-gray-700')+' font-bold">'+di.text+'</span>'+(isAutoOut?' <span class="text-xs text-warning-600">(미신청→자동외박)</span>':'');if(subs.length===0&&outs.length===0){area.innerHTML='<div class="text-sm text-gray-400 text-center py-3 mt-3">'+dateLabel+' - 제출 이력 없음</div>';return}area.innerHTML='<div class="mt-3"><div class="text-sm mb-3">'+dateLabel+'</div><div class="grid grid-cols-3 gap-2 mb-3"><div class="text-center p-2 bg-success-50 rounded-xl"><div class="text-lg font-black text-success-600">'+stayList2.length+'</div><div class="text-xs text-success-600 font-bold">잔류</div></div><div class="text-center p-2 bg-warning-50 rounded-xl"><div class="text-lg font-black text-warning-600">'+outList2.length+'</div><div class="text-xs text-warning-600 font-bold">외박</div></div><div class="text-center p-2 bg-info-50 rounded-xl"><div class="text-lg font-black text-info-600">'+outs.length+'</div><div class="text-xs text-info-600 font-bold">외출</div></div></div><div class="space-y-2 max-h-60 overflow-y-auto">'+departments.map(function(dept){var ds=subs.filter(function(s){return s.department===dept});var do2=outs.filter(function(o){return o.department===dept});if(ds.length===0&&do2.length===0)return'';var stayN=sortStudentsByRoom(ds.filter(function(s){return s.status==='stay'}).map(function(s){return s.name})).map(function(s){return formatStudentNameRaw(s)}).join(', ');var outN=sortStudentsByRoom(ds.filter(function(s){return s.status==='out'}).map(function(s){return s.name})).map(function(s){return formatStudentNameRaw(s)}).join(', ');var outingN=sortStudentsByRoom(do2.map(function(o){return o.name})).map(function(s){return formatStudentNameRaw(s)}).join(', ');return'<div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="font-bold text-gray-700 text-sm mb-1">'+escapeHtml(dept)+'</div>'+(stayN?'<div class="text-sm text-success-600">잔류: '+escapeHtml(stayN)+'</div>':'')+(outN?'<div class="text-sm text-warning-600">외박: '+escapeHtml(outN)+'</div>':'')+(outingN?'<div class="text-sm text-info-600">외출: '+escapeHtml(outingN)+'</div>':'')+'</div>'}).filter(function(x){return x}).join('')+'</div></div>'}catch(e){area.innerHTML='<div class="text-sm text-danger-500 text-center py-3 mt-3">조회 실패: '+(e&&e.message?e.message:'')+'</div>'}}
 function setStatRange(days){var end=new Date(),start=new Date();start.setDate(start.getDate()-days+1);document.getElementById('statStartDate').value=start.getFullYear()+'-'+String(start.getMonth()+1).padStart(2,'0')+'-'+String(start.getDate()).padStart(2,'0');document.getElementById('statEndDate').value=end.getFullYear()+'-'+String(end.getMonth()+1).padStart(2,'0')+'-'+String(end.getDate()).padStart(2,'0');loadPeriodStats()}
 async function loadPeriodStats(){var startD=document.getElementById('statStartDate').value,endD=document.getElementById('statEndDate').value,area=document.getElementById('periodStatsResult');var sc=area;while(sc){if(sc.classList&&sc.classList.contains('section-content')){sc.style.maxHeight='none';sc.style.opacity='1';var ch=sc.parentElement.querySelector('.section-chevron');if(ch)ch.style.transform='rotate(0deg)';break}sc=sc.parentElement}if(!startD||!endD){showToast('기간을 선택하세요','warning');return}if(startD>endD){showToast('시작일이 종료일보다 큽니다','warning');return}area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">조회 중...</div>';try{var subSnap=await db.collection('submissions').where('date','>=',startD).where('date','<=',endD).get();var outSnap=await db.collection('outings').where('date','>=',startD).where('date','<=',endD).get();var subs=subSnap.docs.map(function(d){return Object.assign({id:d.id},d.data())}).filter(function(s){return s.status!=='cancelled'});var outs=outSnap.docs.map(function(d){return Object.assign({id:d.id},d.data())}).filter(function(o){return !o.status||o.status!=='cancelled'});var allDatesInRange=[];var curDate=new Date(startD+'T00:00:00');var endDate2=new Date(endD+'T00:00:00');while(curDate<=endDate2){allDatesInRange.push(curDate.getFullYear()+'-'+String(curDate.getMonth()+1).padStart(2,'0')+'-'+String(curDate.getDate()).padStart(2,'0'));curDate.setDate(curDate.getDate()+1)}allDatesInRange.forEach(function(dateStr){if(!isWeekendOrHoliday(dateStr))return;var daySubs=subs.filter(function(s){return s.date===dateStr});var dayOuts=outs.filter(function(o){return o.date===dateStr});var submittedNames=new Set();daySubs.forEach(function(s){submittedNames.add(s.department+'_'+s.name)});dayOuts.forEach(function(o){submittedNames.add(o.department+'_'+o.name)});departments.forEach(function(dept){var deptStudents=(students[dept]||[]).filter(function(name){var regDate=window._secureData.getRegisteredDate(name);return !regDate||regDate<=dateStr});deptStudents.forEach(function(name){var key=dept+'_'+name;if(!submittedNames.has(key)&&!(window._excludedAuto&&window._excludedAuto.indexOf('auto_'+dept+'_'+name)!==-1)){subs.push({id:'auto_'+dateStr+'_'+dept+'_'+name,department:dept,name:name,status:'out',date:dateStr,timestamp:'자동처리',isAuto:true})}})})});var dates=new Set();subs.forEach(function(s){dates.add(s.date)});outs.forEach(function(o){dates.add(o.date)});var sortedDates=Array.from(dates).sort();var totalDays=sortedDates.length;var totalStay=subs.filter(function(s){return s.status==='stay'}).length;var totalOut=subs.filter(function(s){return s.status==='out'}).length;var totalOuting=outs.length;var avgStay=totalDays>0?(totalStay/totalDays).toFixed(1):'0';var avgOut=totalDays>0?(totalOut/totalDays).toFixed(1):'0';var avgOuting=totalDays>0?(totalOuting/totalDays).toFixed(1):'0';var deptStats={};departments.forEach(function(dept){var ds=subs.filter(function(s){return s.department===dept});var do2=outs.filter(function(o){return o.department===dept});deptStats[dept]={stay:ds.filter(function(s){return s.status==='stay'}).length,out:ds.filter(function(s){return s.status==='out'}).length,outing:do2.length}});var dailyHtml='';sortedDates.slice(-14).forEach(function(date){var ds=subs.filter(function(s){return s.date===date});var do2=outs.filter(function(o){return o.date===date});var st=ds.filter(function(s){return s.status==='stay'}).length;var ot=ds.filter(function(s){return s.status==='out'}).length;var og=do2.length;var total2=st+ot+og;var di=formatDateWithDay(date);var dateClass=di.isHoliday?'text-danger-600':di.isWeekend?'text-info-600':'text-gray-600';dailyHtml+='<div class="flex items-center gap-2 py-1.5 border-b border-surface-100"><span class="text-sm font-medium '+dateClass+' w-20 flex-shrink-0">'+date.substring(5)+(di.holiday?' '+di.holiday:'')+'</span><span class="text-sm font-bold text-success-600 w-10 text-center">'+(st||'-')+'</span><span class="text-sm font-bold text-warning-600 w-10 text-center">'+(ot||'-')+'</span><span class="text-sm font-bold text-info-600 w-10 text-center">'+(og||'-')+'</span><div class="flex-1 flex gap-0.5 h-4">'+(st>0?'<div class="bg-success-400 rounded-sm h-full" style="flex:'+st+'"></div>':'')+(ot>0?'<div class="bg-warning-400 rounded-sm h-full" style="flex:'+ot+'"></div>':'')+(og>0?'<div class="bg-info-400 rounded-sm h-full" style="flex:'+og+'"></div>':'')+'</div><span class="text-sm text-gray-400 w-10 text-right">'+total2+'</span></div>'});var deptHtml='';Object.keys(deptStats).forEach(function(dept){var d=deptStats[dept];var dTotal=d.stay+d.out+d.outing;if(dTotal===0)return;var dStayPct=Math.round(d.stay/dTotal*100);var dOutPct=Math.round(d.out/dTotal*100);var dOutingPct=Math.round(d.outing/dTotal*100);deptHtml+='<div class="py-2 border-b border-surface-100"><div class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700 truncate flex-1">'+escapeHtml(dept)+'</span><div class="flex gap-3 text-xs"><span class="w-16 text-center text-success-600 font-bold text-sm">'+d.stay+' <span class="text-xs font-bold opacity-100">('+dStayPct+'%)</span></span><span class="w-16 text-center text-warning-600 font-bold text-sm">'+d.out+' <span class="text-xs font-bold opacity-100">('+dOutPct+'%)</span></span><span class="w-16 text-center text-info-600 font-bold text-sm">'+d.outing+' <span class="text-xs font-bold opacity-100">('+dOutingPct+'%)</span></span></div></div><div class="flex gap-0.5 h-2 mt-1 rounded-full overflow-hidden">'+(d.stay>0?'<div class="bg-success-400 h-full rounded-sm" style="flex:'+d.stay+'"></div>':'')+(d.out>0?'<div class="bg-warning-400 h-full rounded-sm" style="flex:'+d.out+'"></div>':'')+(d.outing>0?'<div class="bg-info-400 h-full rounded-sm" style="flex:'+d.outing+'"></div>':'')+'</div></div>'});var weekendHtml='';var weekendDates=allDatesInRange.filter(function(d){var dd=new Date(d+'T00:00:00');var day=dd.getDay();if(day===0||day===5||day===6)return true;if(isHoliday(d))return true;var nextDay=new Date(dd);nextDay.setDate(nextDay.getDate()+1);var nextStr=nextDay.getFullYear()+'-'+String(nextDay.getMonth()+1).padStart(2,'0')+'-'+String(nextDay.getDate()).padStart(2,'0');if(isHoliday(nextStr))return true;return false});if(weekendDates.length>0){var wdeptStats={};departments.forEach(function(dept){var wStay=0,wTotal=0;weekendDates.forEach(function(dateStr){var original=window._secureData.getStudentsByDept(dept)||[];var approvedBefore=resignRequests.filter(function(r){return r.status==='approved'&&r.department===dept&&r.approvedDate&&r.approvedDate<=dateStr});var active=original.filter(function(nm){return !approvedBefore.some(function(r){return r.name===nm})}).filter(function(nm){var regDate=window._secureData.getRegisteredDate(nm);return !regDate||regDate<=dateStr});wTotal+=active.length;var dayStayCount=0;active.forEach(function(nm){
-var found=subs.find(function(s){return s.date===dateStr&&s.department===dept&&s.name===nm&&s.status==='stay'});if(found)dayStayCount++});wStay+=dayStayCount});wdeptStats[dept]={stay:wStay,out:Math.max(0,wTotal-wStay),total:wTotal}});var wTotalAll=0,wStayAll=0,wOutAll=0;Object.keys(wdeptStats).forEach(function(dept){wTotalAll+=wdeptStats[dept].total;wStayAll+=wdeptStats[dept].stay;wOutAll+=wdeptStats[dept].out});var wStayPctAll=wTotalAll>0?Math.round(wStayAll/wTotalAll*100):0;var wOutPctAll=wTotalAll>0?Math.round(wOutAll/wTotalAll*100):0;weekendHtml='<div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-calendar-check text-info-500 mr-1"></i>주말/공휴일 잔류율 ('+weekendDates.length+'일)</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex items-center justify-between p-3 mb-2 bg-white rounded-xl border border-surface-200"><div class="text-sm font-bold text-gray-700">전체 평균</div><div class="flex gap-4"><span class="text-sm font-bold text-success-600">잔류 '+wStayPctAll+'%</span><span class="text-sm font-bold text-warning-600">외박 '+wOutPctAll+'%</span></div></div><div class="flex gap-0.5 h-3 mb-3 rounded-full overflow-hidden">'+(wStayAll>0?'<div class="bg-success-400 h-full" style="flex:'+wStayAll+'"></div>':'')+(wOutAll>0?'<div class="bg-warning-400 h-full" style="flex:'+wOutAll+'"></div>':'')+'</div><div class="flex items-center py-1.5 mb-1"><span class="text-xs text-gray-400 flex-1"></span><div class="flex gap-3 text-xs text-gray-400"><span class="w-16 text-center font-bold text-sm">잔류</span><span class="w-16 text-center font-bold text-sm">외박</span><span class="w-16 text-center font-bold text-sm">잔류율</span></div></div>';Object.keys(wdeptStats).forEach(function(dept){var wd=wdeptStats[dept];if(wd.total===0)return;var stayPct=Math.round(wd.stay/wd.total*100);weekendHtml+='<div class="py-2 border-b border-surface-100"><div class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700 truncate flex-1">'+escapeHtml(dept)+'</span><div class="flex gap-3 text-xs"><span class="w-16 text-center text-success-600 font-bold text-sm">'+wd.stay+'</span><span class="w-16 text-center text-warning-600 font-bold text-sm">'+wd.out+'</span><span class="w-16 text-center font-bold text-sm '+(stayPct>=50?'text-success-600':'text-warning-600')+'">'+stayPct+'%</span></div></div><div class="flex gap-0.5 h-2 mt-1 rounded-full overflow-hidden">'+(wd.stay>0?'<div class="bg-success-400 h-full rounded-sm" style="flex:'+wd.stay+'"></div>':'')+(wd.out>0?'<div class="bg-warning-400 h-full rounded-sm" style="flex:'+wd.out+'"></div>':'')+'</div></div>'});weekendHtml+='</div></div>'}area.innerHTML='<div class="mt-3"><div class="grid grid-cols-4 gap-2 mb-4"><div class="text-center p-3 bg-surface-50 rounded-xl"><div class="text-xl font-black text-gray-700">'+totalDays+'</div><div class="text-xs text-gray-500 font-bold">조회일수</div></div><div class="text-center p-3 bg-success-50 rounded-xl"><div class="text-xl font-black text-success-600">'+totalStay+'</div><div class="text-xs text-success-600 font-bold">잔류(일평균'+avgStay+')</div></div><div class="text-center p-3 bg-warning-50 rounded-xl"><div class="text-xl font-black text-warning-600">'+totalOut+'</div><div class="text-xs text-warning-600 font-bold">외박(일평균'+avgOut+')</div></div><div class="text-center p-3 bg-info-50 rounded-xl"><div class="text-xl font-black text-info-600">'+totalOuting+'</div><div class="text-xs text-info-600 font-bold">외출(일평균'+avgOuting+')</div></div></div><div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-2">일별 추이 ('+sortedDates.length+'일)</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex gap-2 text-xs text-gray-400 mb-2"><span class="w-20"></span><span class="w-10 text-center text-success-500 font-bold text-sm">잔류</span><span class="w-10 text-center text-warning-500 font-bold text-sm">외박</span><span class="w-10 text-center text-info-500 font-bold text-sm">외출</span><span class="flex-1"></span><span class="w-10 text-right text-sm">합계</span></div>'+dailyHtml+'</div></div>'+weekendHtml+'<div><div class="text-sm font-bold text-gray-700 mb-2">학과별 누적</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex items-center py-1.5"><span class="text-xs text-gray-400 flex-1"></span><div class="flex gap-3 text-xs text-gray-400"><span class="w-16 text-center font-bold text-sm">잔류</span><span class="w-16 text-center font-bold text-sm">외박</span><span class="w-16 text-center font-bold text-sm">외출</span></div></div>'+deptHtml+'</div></div></div>'}catch(e){area.innerHTML='<div class="text-sm text-danger-500 text-center py-3">조회 실패: '+escapeHtml(e.message)+'</div>'}}async function resetStudentPassword(){var dept=document.getElementById('pwLookupDept').value,name=document.getElementById('pwLookupName').value,newPw=document.getElementById('pwResetValue').value.trim();if(!dept||!name){showToast('교육생을 먼저 조회하세요','warning');return}if(!newPw||newPw.length<4){showToast('4자리 이상 비밀번호를 입력하세요','warning');return}openConfirmModal('비밀번호 초기화',escapeHtml(name)+'의 비밀번호를<br><b>'+escapeHtml(newPw)+'</b>로 초기화하시겠습니까?',async function(){try{await db.collection('passwords').doc(name).update({password:newPw,updatedAt:new Date().toISOString()});await db.collection('passwordChangeLogs').add({name:name,department:dept,changedAt:new Date().toISOString(),device:'관리자 초기화'});showToast(name+' 비밀번호 초기화 완료','success');document.getElementById('pwResetValue').value='';lookupPassword()}catch(e){showToast('초기화 실패','error')}},'초기화')}
+var found=subs.find(function(s){return s.date===dateStr&&s.department===dept&&s.name===nm&&s.status==='stay'});if(found)dayStayCount++});wStay+=dayStayCount});wdeptStats[dept]={stay:wStay,out:Math.max(0,wTotal-wStay),total:wTotal}});var wTotalAll=0,wStayAll=0,wOutAll=0;Object.keys(wdeptStats).forEach(function(dept){wTotalAll+=wdeptStats[dept].total;wStayAll+=wdeptStats[dept].stay;wOutAll+=wdeptStats[dept].out});var wStayPctAll=wTotalAll>0?Math.round(wStayAll/wTotalAll*100):0;var wOutPctAll=wTotalAll>0?Math.round(wOutAll/wTotalAll*100):0;weekendHtml='<div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-2"><i class="fas fa-calendar-check text-info-500 mr-1"></i>주말/공휴일 잔류율 ('+weekendDates.length+'일)</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex items-center justify-between p-3 mb-2 bg-white rounded-xl border border-surface-200"><div class="text-sm font-bold text-gray-700">전체 평균</div><div class="flex gap-4"><span class="text-sm font-bold text-success-600">잔류 '+wStayPctAll+'%</span><span class="text-sm font-bold text-warning-600">외박 '+wOutPctAll+'%</span></div></div><div class="flex gap-0.5 h-3 mb-3 rounded-full overflow-hidden">'+(wStayAll>0?'<div class="bg-success-400 h-full" style="flex:'+wStayAll+'"></div>':'')+(wOutAll>0?'<div class="bg-warning-400 h-full" style="flex:'+wOutAll+'"></div>':'')+'</div><div class="flex items-center py-1.5 mb-1"><span class="text-xs text-gray-400 flex-1"></span><div class="flex gap-3 text-xs text-gray-400"><span class="w-16 text-center font-bold text-sm">잔류</span><span class="w-16 text-center font-bold text-sm">외박</span><span class="w-16 text-center font-bold text-sm">잔류율</span></div></div>';Object.keys(wdeptStats).forEach(function(dept){var wd=wdeptStats[dept];if(wd.total===0)return;var stayPct=Math.round(wd.stay/wd.total*100);weekendHtml+='<div class="py-2 border-b border-surface-100"><div class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700 truncate flex-1">'+escapeHtml(dept)+'</span><div class="flex gap-3 text-xs"><span class="w-16 text-center text-success-600 font-bold text-sm">'+wd.stay+'</span><span class="w-16 text-center text-warning-600 font-bold text-sm">'+wd.out+'</span><span class="w-16 text-center font-bold text-sm '+(stayPct>=50?'text-success-600':'text-warning-600')+'">'+stayPct+'%</span></div></div><div class="flex gap-0.5 h-2 mt-1 rounded-full overflow-hidden">'+(wd.stay>0?'<div class="bg-success-400 h-full rounded-sm" style="flex:'+wd.stay+'"></div>':'')+(wd.out>0?'<div class="bg-warning-400 h-full rounded-sm" style="flex:'+wd.out+'"></div>':'')+'</div></div>'});weekendHtml+='</div></div>'}area.innerHTML='<div class="mt-3"><div class="grid grid-cols-4 gap-2 mb-4"><div class="text-center p-3 bg-surface-50 rounded-xl"><div class="text-xl font-black text-gray-700">'+totalDays+'</div><div class="text-xs text-gray-500 font-bold">조회일수</div></div><div class="text-center p-3 bg-success-50 rounded-xl"><div class="text-xl font-black text-success-600">'+totalStay+'</div><div class="text-xs text-success-600 font-bold">잔류(일평균'+avgStay+')</div></div><div class="text-center p-3 bg-warning-50 rounded-xl"><div class="text-xl font-black text-warning-600">'+totalOut+'</div><div class="text-xs text-warning-600 font-bold">외박(일평균'+avgOut+')</div></div><div class="text-center p-3 bg-info-50 rounded-xl"><div class="text-xl font-black text-info-600">'+totalOuting+'</div><div class="text-xs text-info-600 font-bold">외출(일평균'+avgOuting+')</div></div></div><div class="mb-4"><div class="text-sm font-bold text-gray-700 mb-2">일별 추이 ('+sortedDates.length+'일)</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex gap-2 text-xs text-gray-400 mb-2"><span class="w-20"></span><span class="w-10 text-center text-success-500 font-bold text-sm">잔류</span><span class="w-10 text-center text-warning-500 font-bold text-sm">외박</span><span class="w-10 text-center text-info-500 font-bold text-sm">외출</span><span class="flex-1"></span><span class="w-10 text-right text-sm">합계</span></div>'+dailyHtml+'</div></div>'+weekendHtml+'<div><div class="text-sm font-bold text-gray-700 mb-2">학과별 누적</div><div class="bg-surface-50 rounded-xl p-3 border border-surface-200"><div class="flex items-center py-1.5"><span class="text-xs text-gray-400 flex-1"></span><div class="flex gap-3 text-xs text-gray-400"><span class="w-16 text-center font-bold text-sm">잔류</span><span class="w-16 text-center font-bold text-sm">외박</span><span class="w-16 text-center font-bold text-sm">외출</span></div></div>'+deptHtml+'</div></div></div>'}catch(e){area.innerHTML='<div class="text-sm text-danger-500 text-center py-3">조회 실패: '+escapeHtml(e.message)+'</div>'}}async function resetStudentPassword(){var dept=document.getElementById('pwLookupDept').value,name=document.getElementById('pwLookupName').value,newPw=document.getElementById('pwResetValue').value.trim();if(!dept||!name){showToast('교육생을 먼저 조회하세요','warning');return}if(!newPw||newPw.length<4){showToast('4자리 이상 비밀번호를 입력하세요','warning');return}openConfirmModal('비밀번호 초기화',escapeHtml(name)+'의 비밀번호를<br><b>'+escapeHtml(newPw)+'</b>로 초기화하시겠습니까?',async function(){try{await window._pwApi({action:'adminSetPassword',name:name,newPassword:newPw,department:dept});showToast(name+' 비밀번호 초기화 완료','success');document.getElementById('pwResetValue').value='';lookupPassword()}catch(e){showToast('초기화 실패','error')}},'초기화')}
 function showManageTab(tab){['students','departments','leaders','passwords','danger','resign'].forEach(function(t){var el=document.getElementById('manage-'+t);if(el)el.style.display='none';var btn=document.getElementById('manage-btn-'+t);if(btn)btn.className='px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap bg-surface-100 text-gray-500 btn-press transition-all'});var el=document.getElementById('manage-'+tab);if(el)el.style.display='block';var btn=document.getElementById('manage-btn-'+tab);if(btn)btn.className='px-5 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap bg-primary-500 text-white btn-press transition-all shadow-button'}
 
 async function addStudent(){var dept=document.getElementById('addStudentDept').value,name=document.getElementById('addStudentName').value.trim(),room=document.getElementById('addStudentRoom').value.trim(),pw=document.getElementById('addStudentPw').value.trim(),birthYear=document.getElementById('addStudentBirthYear')?document.getElementById('addStudentBirthYear').value.trim():'';if(!dept||!name||!pw){showToast('학과,이름,비밀번호 필수','warning');return}if(pw.length<4){showToast('비밀번호는 4자리 이상','warning');return}if(students[dept]&&students[dept].includes(name)){showToast('이미 존재','warning');return}if(room){var _rc=0;departments.forEach(function(d2){(students[d2]||[]).forEach(function(n2){if(window._secureData.getRoomNumber(n2)===room)_rc++})});if(_rc>=2){showToast(room+'호는 이미 2명이 배정되어 있습니다','warning');return}}try{var batch=db.batch();var todayDate=getCurrentDate();var ageVal=null;if(birthYear){var by=parseInt(birthYear);if(by>=1950&&by<=2015){ageVal=new Date().getFullYear()-by}else if(by>=0&&by<=99){var fullYear=by<=30?2000+by:1900+by;ageVal=new Date().getFullYear()-fullYear}}var roomData={department:dept,registeredDate:todayDate,status:'active',updatedAt:new Date().toISOString()};if(room)roomData.room=room;if(ageVal)roomData.age=ageVal;batch.set(db.collection('roomNumbers').doc(name),roomData,{merge:true});
-batch.set(db.collection('passwords').doc(name),{password:pw,department:dept,registeredDate:todayDate,updatedAt:new Date().toISOString()});var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();/* ★ 예방: 재등록 시 잔여 퇴사이력 자동 정리 */try{await cleanupResignHistory(name)}catch(e){}try{var _base=name.replace(/\(여\)$/,''),_opp=name.indexOf('(여)')===-1?_base+'(여)':_base;if(_opp!==name){var _oppDoc=await db.collection('passwords').doc(_opp).get();if(_oppDoc.exists){var _allS=window._secureData.getAllStudents(),_used=false;for(var _dd in _allS){if(Array.isArray(_allS[_dd])&&_allS[_dd].indexOf(_opp)!==-1){_used=true;break}}if(!_used){await db.collection('passwords').doc(_opp).delete();console.log('[addStudent] 고아 비밀번호 문서 정리:',_opp)}}}}catch(_e){}showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value='';if(document.getElementById('addStudentBirthYear'))document.getElementById('addStudentBirthYear').value=''}catch(e){showToast('추가 실패','error')}}
+var updated=(window._secureData.getStudentsByDept(dept)||[]).concat([name]).sort(function(a,b){return parseInt(window._secureData.getRoomNumber(a)||'999')-parseInt(window._secureData.getRoomNumber(b)||'999')});batch.set(db.collection('students').doc(dept),{students:updated,updatedAt:new Date().toISOString()});await batch.commit();try{await window._pwApi({action:'adminSetPassword',name:name,newPassword:pw,department:dept,registeredDate:todayDate});}catch(e){showToast('비밀번호 등록 실패: '+window._pwApiErr(e),'error')}/* ★ 예방: 재등록 시 잔여 퇴사이력 자동 정리 */try{await cleanupResignHistory(name)}catch(e){}try{var _base=name.replace(/\(여\)$/,''),_opp=name.indexOf('(여)')===-1?_base+'(여)':_base;if(_opp!==name){var _oppDoc=await window._pwBlockedCol().doc(_opp).get();if(_oppDoc.exists){var _allS=window._secureData.getAllStudents(),_used=false;for(var _dd in _allS){if(Array.isArray(_allS[_dd])&&_allS[_dd].indexOf(_opp)!==-1){_used=true;break}}if(!_used){await window._pwBlockedCol().doc(_opp).delete();console.log('[addStudent] 고아 비밀번호 문서 정리:',_opp)}}}}catch(_e){}showToast(name+' 추가 완료','success');document.getElementById('addStudentName').value='';document.getElementById('addStudentRoom').value='';document.getElementById('addStudentPw').value='';if(document.getElementById('addStudentBirthYear'))document.getElementById('addStudentBirthYear').value=''}catch(e){showToast('추가 실패','error')}}
 async function addGuest(){
   var name=prompt('게스트 이름을 입력하세요 (예: 게스트1)');
   if(!name||!name.trim())return;
@@ -6721,11 +6738,12 @@ async function addGuest(){
   try{
     var batch=db.batch();
     var todayDate=getCurrentDate();
-    batch.set(db.collection('passwords').doc(name),{password:pw,department:guestDept,registeredDate:todayDate,updatedAt:new Date().toISOString(),isGuest:true});
+    
     var updated=(students[guestDept]||[]).concat([name]);
     batch.set(db.collection('students').doc(guestDept),{students:updated,updatedAt:new Date().toISOString()});
     await batch.commit();
-    showToast(name+' 게스트 추가 완료 (비밀번호: guest1234)','success');
+    try{await window._pwApi({action:'adminSetPassword',name:name,newPassword:pw,department:guestDept,registeredDate:todayDate,isGuest:true});}catch(e){}
+    showToast(name+' 게스트 추가 완료','success');
   }catch(e){showToast('게스트 추가 실패','error')}
 }
 function renderGuestList(){
@@ -6746,8 +6764,8 @@ async function deleteGuest(name){
     var batch=db.batch();
     var updated=(students['_guest']||[]).filter(function(n){return n!==name});
     batch.set(db.collection('students').doc('_guest'),{students:updated,updatedAt:new Date().toISOString()});
-    batch.delete(db.collection('passwords').doc(name));
     await batch.commit();
+    try{await window._pwApi({action:'adminRemovePassword',name:name});}catch(e){}
     showToast(name+' 게스트 삭제 완료','success');
     render();
   }catch(e){showToast('게스트 삭제 실패','error')}
@@ -6858,12 +6876,11 @@ async function executeStudentDelete(dept,name){
         
         updateProgress(15,'개인 정보 삭제 중...');
         var batch1=db.batch();
-        batch1.delete(db.collection('passwords').doc(name));
         batch1.delete(db.collection('roomNumbers').doc(name));
         batch1.delete(db.collection('vehicleNumbers').doc(name));
         batch1.delete(db.collection('photos').doc(name));
         batch1.delete(db.collection('fcmTokens').doc(name));
-        await batch1.commit();
+        await batch1.commit();try{await window._pwApi({action:'adminRemovePassword',name:name});}catch(e){}
         updateProgress(25,'비밀번호·호실·차량·사진 삭제 ✓');
         deletedCount.photos=1;
         
@@ -7151,10 +7168,7 @@ async function renameDepartment(oldName, newNameArg){
           department: newName,
           updatedAt: new Date().toISOString()
         }, {merge:true});
-        batch.set(db.collection('passwords').doc(n), {
-          department: newName,
-          updatedAt: new Date().toISOString()
-                }, {merge:true});
+        /* [SEC-FIX] passwords 학과 필드는 서버 전용 — 갱신 제거 */
       });
     });
     
@@ -7393,7 +7407,7 @@ async function saveDeptOrder(){
     }
 }async function addDepartment(){var name=document.getElementById('addDeptName').value.trim();if(!name){showToast('학과명을 입력하세요','warning');return}if(departments.includes(name)){showToast('이미 존재하는 학과입니다','warning');return}try{departments.push(name);await db.collection('config').doc('departments').set({list:departments,updatedAt:new Date().toISOString()});await db.collection('students').doc(name).set({students:[],updatedAt:new Date().toISOString()});document.getElementById('addDeptName').value='';showToast(name+' 학과 추가 완료','success');render()}catch(e){showToast('추가 실패: '+e.message,'error')}}
 
-async function deleteDepartmentAction(){var name=document.getElementById('delDeptName').value;if(!name){showToast('선택 필요','warning');return}var deptStudents=(window._secureData.getStudentsByDept(name)||[]).slice();var msg=escapeHtml(name)+' 학과 삭제?';if(deptStudents.length>0){msg+='<br><br>⚠️ 소속 교육생 <b>'+deptStudents.length+'명</b>의 정보(호실/비밀번호/사진/차량번호)도 함께 삭제됩니다.'}openConfirmModal('학과 삭제',msg,async function(){try{var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:departments.filter(function(d){return d!==name}),updatedAt:new Date().toISOString()});batch.delete(db.collection('students').doc(name));batch.delete(db.collection('departmentLeaders').doc(name));deptStudents.forEach(function(sname){var pure=typeof sname==='string'?sname.replace(/\([^)]*\)/,'').trim():sname;[pure,sname].forEach(function(n){batch.delete(db.collection('roomNumbers').doc(n));batch.delete(db.collection('passwords').doc(n));batch.delete(db.collection('photos').doc(n));batch.delete(db.collection('vehicleNumbers').doc(n))})});await batch.commit();showToast(name+' 학과 + 교육생 '+deptStudents.length+'명 삭제 완료','success');render()}catch(e){showToast('삭제 실패: '+e.message,'error')}},'삭제')}
+async function deleteDepartmentAction(){var name=document.getElementById('delDeptName').value;if(!name){showToast('선택 필요','warning');return}var deptStudents=(window._secureData.getStudentsByDept(name)||[]).slice();var msg=escapeHtml(name)+' 학과 삭제?';if(deptStudents.length>0){msg+='<br><br>⚠️ 소속 교육생 <b>'+deptStudents.length+'명</b>의 정보(호실/비밀번호/사진/차량번호)도 함께 삭제됩니다.'}openConfirmModal('학과 삭제',msg,async function(){try{var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:departments.filter(function(d){return d!==name}),updatedAt:new Date().toISOString()});batch.delete(db.collection('students').doc(name));batch.delete(db.collection('departmentLeaders').doc(name));deptStudents.forEach(function(sname){var pure=typeof sname==='string'?sname.replace(/\([^)]*\)/,'').trim():sname;[pure,sname].forEach(function(n){batch.delete(db.collection('roomNumbers').doc(n));batch.delete(db.collection('photos').doc(n));batch.delete(db.collection('vehicleNumbers').doc(n))})});await batch.commit();try{for(var _di=0;_di<deptStudents.length;_di++){var _pn=deptStudents[_di],_pp=typeof _pn==='string'?_pn.replace(/\([^)]*\)/,'').trim():_pn;await window._pwApi({action:'adminRemovePassword',name:_pn});if(_pp&&_pp!==_pn)await window._pwApi({action:'adminRemovePassword',name:_pp});}}catch(e){console.warn('[SEC-FIX] 비밀번호 삭제 실패:',e)}showToast(name+' 학과 + 교육생 '+deptStudents.length+'명 삭제 완료','success');render()}catch(e){showToast('삭제 실패: '+e.message,'error')}},'삭제')}
 function updateLeaderStudentList(){var dept=document.getElementById('setLeaderDept').value,sel=document.getElementById('setLeaderStudent');sel.innerHTML='<option value="">선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
 async function setLeaderAction(){var dept=document.getElementById('setLeaderDept').value,name=document.getElementById('setLeaderStudent').value,pw=document.getElementById('setLeaderPw').value.trim();if(!dept||!name||!pw){showToast('모든 항목 입력','warning');return}await db.collection('departmentLeaders').doc(dept).set({name:name,password:pw,updatedAt:new Date().toISOString()});showToast(dept+' 학과대표 지정 완료','success');render()}
 async function deleteLeader(dept){openConfirmModal('학과대표 해제',dept+' 학과대표를 해제하시겠습니까?',async function(){await db.collection('departmentLeaders').doc(dept).delete();showToast(dept+' 학과대표 해제 완료','success');render()},'해제')}
@@ -7682,7 +7696,7 @@ function uploadStudentsExcel(){
                                 if(s.room)roomData.room=s.room;
                                 if(ageVal)roomData.age=ageVal;
                                 if(s.room||ageVal)await db.collection('roomNumbers').doc(s.name).set(roomData,{merge:true});
-                                await db.collection('passwords').doc(s.name).set({password:s.password,department:dept,registeredDate:todayDate2,updatedAt:new Date().toISOString()});
+                                await window._pwBlockedCol().doc(s.name).set({password:s.password,department:dept,registeredDate:todayDate2,updatedAt:new Date().toISOString()});
                                 if(existing.indexOf(s.name)===-1)existing.push(s.name);if(s.room){var _erc=0;for(var dk2 in byDept){byDept[dk2].forEach(function(ss){if(ss.room===s.room&&ss.name!==s.name)_erc++})}if(_erc>=2){console.log(s.name+': '+s.room+'호 초과(3명이상), 건너뜀');continue}}
                                 cnt++;
                             }
@@ -8337,13 +8351,13 @@ function photoThumb(name, size) {
 }
 function loadVehicleNumbers(){
     if(!db)return;
-    db.collection('vehicleNumbers').onSnapshot(function(snap){
+    var _secLoad10=function(){try{if(window._secLive__secLoad10)window._secLive__secLoad10()}catch(e){}window._secLive__secLoad10=db.collection('vehicleNumbers').onSnapshot(function(snap){
         vehicleNumbers={};
         snap.docs.forEach(function(d){
             vehicleNumbers[d.id]=d.data().vehicleNumber||'';
         });
         if(_loaded)debouncedRender();
-    });
+    },function(e){console.error('[SEC-FIX v3.4] vehicleNumbers 실시간 오류:',e&&e.message)})};_secLoad10();(window._secReloaders=window._secReloaders||[]).push(_secLoad10);;
 }
 async function saveVehicleNumber(name,number){
     if(!number||!number.trim()){
@@ -8359,7 +8373,7 @@ async function saveVehicleNumber(name,number){
 var roomMemos={};
 function loadRoomMemos(){
   if(!db)return;
-  db.collection('roomMemos').onSnapshot(function(snap){
+  var _secLoad11=function(){try{if(window._secLive__secLoad11)window._secLive__secLoad11()}catch(e){}window._secLive__secLoad11=db.collection('roomMemos').onSnapshot(function(snap){
     roomMemos={};
     snap.docs.forEach(function(d){
       var data=d.data();
@@ -8370,7 +8384,7 @@ function loadRoomMemos(){
       }
     });
     if(_loaded)debouncedRender();
-  });
+  },function(e){console.error('[SEC-FIX v3.4] roomMemos 실시간 오류:',e&&e.message)})};_secLoad11();(window._secReloaders=window._secReloaders||[]).push(_secLoad11);;
 }
 function saveRoomMemo(roomNum){
     var existing=roomMemos[roomNum]||{};
@@ -9849,7 +9863,7 @@ if(!window._mealDayLblBound){window._mealDayLblBound=true;document.addEventListe
 function _buildNutritionistViewHTML(){var h='<div class="p-4 max-w-3xl mx-auto">';h+='<div class="flex items-center justify-between mb-4"><div><h2 class="text-xl font-bold">식수 인원 현황</h2><p class="text-sm text-gray-500">영양사용 조회 화면 · 읽기 전용</p></div><button onclick="_nutritionistLogout()" class="px-4 py-2 rounded-xl bg-surface-100 border border-surface-200 text-sm font-bold">로그아웃</button></div>';var days=(typeof mealControlState!=='undefined'&&mealControlState.days)?mealControlState.days:[];if(!days.length){h+='<div class="p-6 text-center text-gray-500 rounded-2xl bg-surface-50">현재 진행 중인 식사 신청이 없습니다.</div>';}else{h+='<div class="p-4 mb-4 rounded-2xl bg-amber-50 border border-amber-200 text-sm">신청 대상: '+days.map(function(d){return d.date+' ('+d.meals.join('/')+')';}).join(', ')+'</div>';if(typeof mealControlState.memo==='string'&&mealControlState.memo){h+='<div class="p-4 mb-4 rounded-2xl bg-surface-50 text-sm">공지: '+mealControlState.memo+'</div>';}try{h+='<div class="mb-4">'+_buildMealSummaryHTML()+'</div>';}catch(e){h+='<div class="p-4 text-sm text-danger-600">요약표를 불러올 수 없습니다.</div>';}try{h+='<div>'+_buildMealStatusHTML()+'</div>';}catch(e){}}h+='</div>';return h;}
 function renderNutritionistView(){var m=document.getElementById('loading');if(m){m.innerHTML=_buildNutritionistViewHTML();}}
 function _nutritionistLogout(){window.isNutritionistLoggedIn=false;currentStudent=null;currentMode=null;try{logout();}catch(e){}setTimeout(function(){location.reload();},100);}
-function showNutritionistLogin(){var target=String((typeof mealControlState!=='undefined'&&mealControlState.nutritionistPassword)||'1234');openInputModal('영양사 로그인',[{label:'비밀번호',type:'password',placeholder:'••••••••',value:''}],function(){var pw=document.getElementById('modalInput0').value;if(pw!==target){showToast('비밀번호가 일치하지 않습니다','warning');return;}window.isNutritionistLoggedIn=true;currentMode='nutritionist';closeModal();render();showToast('영양사 로그인','success');});}
+function showNutritionistLogin(){openInputModal('영양사 로그인',[{label:'비밀번호',type:'password',placeholder:'••••••••',value:''}],function(){var pw=document.getElementById('modalInput0').value;window._pwApi({action:'verifyNutritionist',password:pw}).then(async function(res){var d=(res&&res.data)||{};if(d.ok){if(d.token){try{await firebase.auth().signInWithCustomToken(d.token)}catch(e){}}window.isNutritionistLoggedIn=true;currentMode='nutritionist';closeModal();render();showToast('영양사 로그인','success');}else{showToast('비밀번호가 일치하지 않습니다','warning');}}).catch(function(e){showToast(window._pwApiErr(e),'error');});});}
 function renderNutritionistView(){var m=document.getElementById('app')||document.getElementById('main-content')||document.getElementById('content');if(m){m.innerHTML=_buildNutritionistViewHTML();return;}var div=document.createElement('div');div.innerHTML=_buildNutritionistViewHTML();document.body.appendChild(div);}
 function _mealShowDate(d){var _ct=(typeof getCurrentDate==='function')?getCurrentDate():(new Date().toISOString().slice(0,10));if(!d||d<=_ct)return true;try{var w=new Date(d+'T00:00:00').getDay();if(w===0||w===6)return true;if(typeof isHoliday==='function'&&isHoliday(d))return true;}catch(e){}return false;}
 function _filterSubmitDateSelect(){var today=(typeof getCurrentDate==='function')?getCurrentDate():(new Date().toISOString().slice(0,10));var closed=(today>='2026-09-24'&&today<='2026-09-26');var w=new Date(today+'T00:00:00').getDay();var isWH=(w===0||w===6)||((typeof isHoliday==='function')&&isHoliday(today));[['submitDateSelect',true],['leaderDateSelect',false]].forEach(function(pair){var sel=document.getElementById(pair[0]);if(!sel||!sel.options)return;[].slice.call(sel.options).forEach(function(o){var v=o.value;if(!v||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v))return;if(v>='2026-09-24'&&v<='2026-09-26'){o.remove();return;}if(pair[1]&&v>today&&!isWH){o.remove();return;}});var has=[].slice.call(sel.options).some(function(o){return o.value===today});if(!has){var o=document.createElement('option');o.value=today;o.textContent=(typeof formatDateWithDay==='function')?formatDateWithDay(today).text:today;sel.insertBefore(o,sel.firstChild);}if(pair[1]){if(closed){sel.disabled=true;sel.style.opacity='0.5';}else if(!isWH){sel.value=today;sel.disabled=true;sel.style.opacity='0.75';}}});}
@@ -9861,7 +9875,7 @@ _pollStudents();setInterval(_pollStudents,20000);
 if(!window._mealReqBound){window._mealReqBound=true;try{if(typeof mealRequests==='undefined')window.mealRequests=[];
 var _mrSync=function(s){window._mrSubOk=true;try{var arr=[];s.forEach(function(d){var dd=d.data()||{};dd.id=d.id;arr.push(dd)});var cur=(typeof mealRequests!=='undefined')?mealRequests:[];var _a=arr.map(function(x){return x.id+':'+JSON.stringify(x.meals||{})}).sort().join('|');var _b=cur.map(function(x){return x.id+':'+JSON.stringify(x.meals||{})}).sort().join('|');if(_a!==_b){mealRequests=arr;if(typeof _loaded!=='undefined'&&_loaded)debouncedRender();}}catch(e){}};
 db.collection('mealRequests').get().then(function(s){_mrSync(s)}).catch(function(e){_mrFallback();});
-db.collection('mealRequests').onSnapshot(_mrSync,function(e){_mrFallback();});
+db.collection('mealRequests').onSnapshot(_mrSync,function(e){_mrFallback();});/* [SEC-FIX v3.3] 급식신청 실시간 복원 */
 }catch(e){}}
 function _diagMealControl(){db.collection('settings').doc('mealControl').get({source:'server'}).then(function(s){var d=s&&s.exists?(s.data()||{}):{};var ds=Array.isArray(d.days)?d.days:[];var txt=ds.length?ds.map(function(x){return x.date+' ('+(x.meals||[]).join('/')+')'}).join(', '):'(비어있음 — 설정 저장이 서버에 없음)';openModal('<div style="padding:20px"><h3 style="font-weight:900;font-size:18px;margin-bottom:8px">mealControl 서버 진단</h3><p style="font-size:14px;margin:8px 0">신청 대상: <b>'+txt+'</b></p><p style="font-size:12px;color:#6b7280">메모: '+(d.memo||'없음')+'</p><button onclick="closeModal()" style="margin-top:12px;padding:10px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:bold">확인</button></div>');}).catch(function(e){openModal('<div style="padding:20px"><h3 style="font-weight:900;font-size:18px;margin-bottom:8px">mealControl 서버 진단</h3><p style="font-size:14px;color:#dc2626">조회 실패: '+String((e&&e.message)||e).slice(0,150)+'</p><button onclick="closeModal()" style="margin-top:12px;padding:10px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-weight:bold">확인</button></div>');});}
 setTimeout(function(){try{var st=document.createElement('style');st.textContent='.animate-fade-up,.stagger-1,.stagger-2,.stagger-3,.animate-pulse-soft{animation:none!important;opacity:1!important;transform:none!important}';document.head.appendChild(st);}catch(e){}},8000);
@@ -9952,7 +9966,7 @@ function lookupPassword(){
     var dept=document.getElementById('pwLookupDept').value;
     var name=document.getElementById('pwLookupName').value;
     if(!dept||!name){showToast('학과와 교육생을 선택하세요','warning');return}
-    var pw=window._secureData.getPassword(name);
+    var pw='(보안 정책상 미표시)';
     var room=window._secureData.getRoomNumber(name);
     var regDate=window._secureData.getRegisteredDate(name);
     document.getElementById('pwLookupResult').innerHTML='<div class="mt-4 p-4 bg-primary-50 rounded-xl border border-primary-200"><div class="grid grid-cols-2 gap-3"><div><div class="text-xs text-gray-500">이름</div><div class="font-bold text-gray-800">'+escapeHtml(name)+'</div></div><div><div class="text-xs text-gray-500">호실</div><div class="font-bold text-gray-800">'+(room?room+'호':'미설정')+'</div></div><div><div class="text-xs text-gray-500">비밀번호</div><div class="font-bold text-primary-600 text-lg tracking-widest">'+escapeHtml(pw||'없음')+'</div></div><div><div class="text-xs text-gray-500">등록일</div><div class="font-bold text-gray-800">'+(regDate||'미설정')+'</div></div></div></div>';
@@ -10407,7 +10421,7 @@ async function updateStudentRegDate(){
     if(!newDate){showToast('날짜를 선택하세요','warning');return}
     try{
         await db.collection('roomNumbers').doc(name).set({registeredDate:newDate,updatedAt:new Date().toISOString()},{merge:true});
-        await db.collection('passwords').doc(name).set({registeredDate:newDate,updatedAt:new Date().toISOString()},{merge:true});
+        /* [SEC-FIX] 입사일은 roomNumbers에만 기록 */
         showToast(name+' 입사일 → '+newDate+' 변경 완료','success');
     }catch(e){showToast('변경 실패: '+e.message,'error')}
 }
@@ -10503,16 +10517,8 @@ async function updateStudentName(){
                     batch.delete(db.collection('roomNumbers').doc(oldName));
                 }
                 
-                // 4. passwords: 새 이름으로 복사 후 기존 삭제
-                if(oldPw){
-                    batch.set(db.collection('passwords').doc(newName), {
-                        password: oldPw,
-                        department: dept,
-                        registeredDate: oldRegDate || '',
-                        updatedAt: new Date().toISOString()
-                    });
-                    batch.delete(db.collection('passwords').doc(oldName));
-                }
+                // 4. [SEC-FIX] 비밀번호 이관 — 배치와 무관하게 서버 함수로 즉시 수행
+                if(oldPw){try{await window._pwApi({action:'adminCopyPassword',fromName:oldName,toName:newName});}catch(e){showToast('비밀번호 이관 실패: '+window._pwApiErr(e),'error')}}
                 
                 // 5. 학과대표인 경우 업데이트
                 if(DEPARTMENT_LEADERS[dept] && DEPARTMENT_LEADERS[dept].name === oldName){
@@ -10707,7 +10713,7 @@ async function moveStudentDept(){
             batch.set(db.collection('students').doc(oldDept),{students:oldList,updatedAt:new Date().toISOString()});
             batch.set(db.collection('students').doc(newDept),{students:newList,updatedAt:new Date().toISOString()});
             batch.set(db.collection('roomNumbers').doc(name),{department:newDept,updatedAt:new Date().toISOString()},{merge:true});
-            batch.set(db.collection('passwords').doc(name),{department:newDept,updatedAt:new Date().toISOString()},{merge:true});
+            /* [SEC-FIX] */
             if(DEPARTMENT_LEADERS[oldDept]&&DEPARTMENT_LEADERS[oldDept].name===name){batch.delete(db.collection('departmentLeaders').doc(oldDept))}
             await batch.commit();
             showToast(name+' → '+newDept+' 이동 완료','success');
@@ -11904,11 +11910,7 @@ window.forceDeleteStudent = async function(targetName) {
     } catch(e) {}
     try {
         // 1) passwords 삭제
-        var pSnap = await db.collection('passwords').doc(targetName).get();
-        if (pSnap.exists) {
-            await db.collection('passwords').doc(targetName).delete();
-            report.passwords = true;
-        } else { console.log('  - passwords/' + targetName + ' 없음'); }
+        try{await window._pwApi({action:'adminRemovePassword',name:targetName});report.passwords=true;}catch(e){console.log('  - passwords 삭제:',window._pwApiErr(e));}
         // 2) roomNumbers 삭제
         var rSnap = await db.collection('roomNumbers').doc(targetName).get();
         if (rSnap.exists) {
@@ -11972,7 +11974,7 @@ window.forceDeleteStudent = async function(targetName) {
 window.diagnoseStudent = async function(targetName) {
     if (!targetName) { console.error('이름을 입력하세요. 예: diagnoseStudent("이현우")'); return; }
     try {
-        var p = await db.collection('passwords').doc(targetName).get();
+        var p = await window._pwBlockedCol().doc(targetName).get();
         var r = await db.collection('roomNumbers').doc(targetName).get();
         var sSnap = await db.collection('students').get();
         var foundInDepts = [];
@@ -12034,7 +12036,7 @@ async function submitPendingStudent() {
     
     // 고아 데이터 체크 및 강제 정리 (await로 완전 동기 처리)
     try {
-        var orphanCheck = await db.collection('passwords').doc(name).get();
+        var orphanCheck = await window._pwBlockedCol().doc(name).get();
         var orphanRoomCheck = await db.collection('roomNumbers').doc(name).get();
         if (orphanCheck.exists || orphanRoomCheck.exists) {
             var prevDept = '';
@@ -12047,7 +12049,7 @@ async function submitPendingStudent() {
             }
             // ★ 강제삭제: forceDeleteStudent를 await로 호출 (각 삭제를 개별 await로 순차 실행)
             try {
-                if (orphanCheck.exists) await db.collection('passwords').doc(name).delete();
+                if (orphanCheck.exists) await window._pwBlockedCol().doc(name).delete();
                 if (orphanRoomCheck.exists) await db.collection('roomNumbers').doc(name).delete();
                 // 모든 학과 students 배열에서 제거 (Firestore에서 직접 조회 - stale 데이터 회피)
                 var allDeptSnap = await db.collection('students').get();
@@ -12095,7 +12097,7 @@ async function submitPendingStudent() {
         await db.collection('roomNumbers').doc(name).set(roomData);
         
         // 2) passwords 새로 쓰기
-        await db.collection('passwords').doc(name).set({
+        await window._pwBlockedCol().doc(name).set({
             password: pw,
             department: dept,
             registeredDate: todayDate,
@@ -12181,7 +12183,7 @@ async function confirmMoveIn(name) {
                     movedInAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 });
-                batch.update(db.collection('passwords').doc(name), {
+                batch.update(window._pwBlockedCol().doc(name), {
                     status: 'active',
                     registeredDate: today,
                     updatedAt: new Date().toISOString()
@@ -12247,8 +12249,8 @@ async function cancelPendingStudent(name, dept) {
                 var updated = (window._secureData.getStudentsByDept(dept) || []).filter(function(s) { return s !== name; });
                 batch.set(db.collection('students').doc(dept), { students: updated, updatedAt: new Date().toISOString() });
                 batch.delete(db.collection('roomNumbers').doc(name));
-                batch.delete(db.collection('passwords').doc(name));
                 await batch.commit();
+                try{await window._pwApi({action:'adminRemovePassword',name:name});}catch(e){}
                 showToast(name + ' 예비 등록 취소 완료', 'success');
                 render();
             } catch (e) {
@@ -12314,7 +12316,7 @@ async function autoConfirmDueMoveIns() {
                         movedInAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()
                     });
-                    batch.update(db.collection('passwords').doc(p.name), {
+                    batch.update(window._pwBlockedCol().doc(p.name), {
                         status: 'active',
                         registeredDate: today,
                         updatedAt: new Date().toISOString()
@@ -12663,7 +12665,7 @@ async function executePendingBulkUpload() {
                     await db.collection('roomNumbers').doc(s.name).set(roomData);
                     
                     // passwords 등록
-                    await db.collection('passwords').doc(s.name).set({
+                    await window._pwBlockedCol().doc(s.name).set({
                         password: s.password,
                         department: deptName,
                         registeredDate: todayDate,
@@ -13471,12 +13473,7 @@ function renderPendingCard(p, isDue, seq) {
       setTimeout(_waitAndPatch, 500);
       return;
     }
-    db.collection('students').onSnapshot(function(){
-      if(typeof render === 'function') render();
-    });
-    db.collection('config').doc('departments').onSnapshot(function(){
-      if(typeof render === 'function') render();
-    });
+    /* [SEC-FIX v3.1] 중복 렌더링 리스너 제거(렌더 전용 핫픽스) — 메인 setup 리스너로 통합 */
   }
   _waitAndPatch();
 })();
@@ -19326,7 +19323,7 @@ function fixDepartmentCounts(){
       const db = firebase.firestore();
       const detected = new Set();
       try {
-        const pwDoc = await db.collection('passwords').doc(name).get();
+        const pwDoc = await window._pwBlockedCol().doc(name).get();
         if (pwDoc.exists && pwDoc.data().department) detected.add(pwDoc.data().department);
       } catch(e) {}
       try {
@@ -21064,8 +21061,8 @@ function fixDepartmentCounts(){
       var origName = name.replace(/\(여\)$/, '');
       var yeoName = origName + '(여)';
       var rs = await Promise.all([
-        db.collection('passwords').doc(origName).get(),
-        db.collection('passwords').doc(yeoName).get()
+        window._pwBlockedCol().doc(origName).get(),
+        window._pwBlockedCol().doc(yeoName).get()
       ]);
       var _existing = rs.filter(function(d){ return d.exists && d.data().password; });
       var found = _existing[0];
@@ -21104,7 +21101,7 @@ function fixDepartmentCounts(){
   async function autoMigrateToHash(name, plaintext) {
     try {
       var hashed = await window._pwCrypto.hash(plaintext);
-      await db.collection('passwords').doc(name).update({
+      await window._pwBlockedCol().doc(name).update({
         password: hashed,
         passwordHashed: true,
         updatedAt: new Date().toISOString(),
@@ -21144,7 +21141,7 @@ function fixDepartmentCounts(){
       
       try {
         var hashedPw = await window._pwCrypto.hash(np);
-        await db.collection('passwords').doc(name).update({
+        await window._pwBlockedCol().doc(name).update({
           password: hashedPw,
           passwordHashed: true,
           mustChangePassword: false,
@@ -21182,7 +21179,7 @@ function fixDepartmentCounts(){
       async function() {
         try {
           var hashedPw = await window._pwCrypto.hash(newPw);
-          await db.collection('passwords').doc(name).update({
+          await window._pwBlockedCol().doc(name).update({
             password: hashedPw,
             passwordHashed: true,
             mustChangePassword: true,
@@ -21219,7 +21216,7 @@ function fixDepartmentCounts(){
     var statusText = '조회 중...';
     var statusColor = 'text-gray-500';
     try {
-      var doc = await db.collection('passwords').doc(name).get();
+      var doc = await window._pwBlockedCol().doc(name).get();
       if (!doc.exists) {
         statusText = '⚠️ 문서 없음';
         statusColor = 'text-red-600';
@@ -21631,7 +21628,7 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
 
     try {
       var hashed = await window._pwCrypto.hash(np);
-      await db.collection('passwords').doc(name).update({
+      await window._pwBlockedCol().doc(name).update({
         password: hashed,
         passwordHashed: true,
         mustChangePassword: false,
@@ -24108,6 +24105,21 @@ async function removeCustomHoliday(date){
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+<script>
+/* [SEC-FIX v2.1] 서버 인증(pwApi) 래퍼 + 차단 컬렉션 안전망 */
+window._pwApiErr=function(e){var m=(e&&(e.message||e.details))||String(e||'');return String(m).replace(/^Cloud Functions error:\s*/,'').trim()||'오류가 발생했습니다';};
+window._pwApi=function(payload){return firebase.app().functions('asia-northeast3').httpsCallable('pwApi')(payload);};
+window._pwBlockedCol=function(){var WARN='[SEC-FIX] passwords 직접 접근은 차단되었습니다(서버 함수 사용)';var stubSnap={empty:true,docs:[],size:0,forEach:function(){},docChanges:function(){return[]}};function doc(id){return{get:function(){return Promise.resolve({exists:false,data:function(){return{}},id:id||''})},set:function(){console.warn(WARN);return Promise.resolve()},update:function(){console.warn(WARN);return Promise.resolve()},delete:function(){console.warn(WARN);return Promise.resolve()}}}return{doc:doc,get:function(){return Promise.resolve(stubSnap)},onSnapshot:function(cb){try{cb(stubSnap)}catch(e){}return function(){}},where:function(){return this},limit:function(){return this},orderBy:function(){return this}};};
+</script>
+<script>
+/* [SEC-FIX v3.2] 자정 롤오버: 날짜가 바뀌면 당일 리스너를 새로 재부착 */
+(function(){try{window._secLastDate=getCurrentDate()}catch(e){}
+setInterval(function(){try{var t=getCurrentDate();if(window._secLastDate!==t){window._secLastDate=t;(window._secReloaders||[]).forEach(function(f){try{f()}catch(e){}})}}catch(e){}},60000);})();
+</script>
+<script>
+/* [SEC-FIX v3.4] 실시간 리스너 전면 복원 — submissions만 하이브리드(당일 실시간+역할별 이력) 유지, 중복 리스너는 제거 */
+window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(f){try{f()}catch(e){}}))}catch(e){}};
+</script>
 </body>
 </html>
 
