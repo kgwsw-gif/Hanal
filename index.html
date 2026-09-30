@@ -1482,11 +1482,7 @@ function doPrintRoomStatus(filter){
     });
   }
   
-  html += '
-<script>/* [SEC-FIX v3.5b] pwApi 기반 로그인·비밀번호 함수 복원 — 구 래퍼(클라이언트 비밀번호 직접 읽기)는 신규 보안규칙과 충돌하여 제거 */
-(function(){var K=window._secKeep||{};['showStudentLogin','verifyAndSubmit','changePassword','changeLeaderPassword','showLeaderLogin','showAdminLogin','showOfficeLogin','checkOfficeLogin','saveOfficePassword','changeNutritionistPassword'].forEach(function(n){if(typeof K[n]==='function')window[n]=K[n]})})();
-</script>
-</body></html>';
+  html += '</body></html>';
   
   var win = window.open('', '_blank', 'width=1200,height=800');
   win.document.write(html);
@@ -14989,7 +14985,7 @@ function subscribeLeaderMessages(threadId) {
   // 관리자 로그인
   if (typeof window.showAdminLogin === 'function' && !window._origShowAdminLogin) {
     window._origShowAdminLogin = window.showAdminLogin;
-    window.showAdminLogin = function() {
+    window.__secDead_showAdminLogin = function() {
       var result = window._origShowAdminLogin.apply(this, arguments);
       setTimeout(function() { checkAndShowUnreadOnLogin('admin'); }, 1500);
       return result;
@@ -14999,7 +14995,7 @@ function subscribeLeaderMessages(threadId) {
   // 학과대표 로그인
   if (typeof window.showLeaderLogin === 'function' && !window._origShowLeaderLogin) {
     window._origShowLeaderLogin = window.showLeaderLogin;
-    window.showLeaderLogin = function() {
+    window.__secDead_showLeaderLogin = function() {
       var result = window._origShowLeaderLogin.apply(this, arguments);
       setTimeout(function() { checkAndShowUnreadOnLogin('leader'); }, 1500);
       return result;
@@ -15009,7 +15005,7 @@ function subscribeLeaderMessages(threadId) {
   // 학생 로그인
   if (typeof window.showStudentLogin === 'function' && !window._origShowStudentLogin) {
     window._origShowStudentLogin = window.showStudentLogin;
-    window.showStudentLogin = function() {
+    window.__secDead_showStudentLogin = function() {
       var result = window._origShowStudentLogin.apply(this, arguments);
       setTimeout(function() { checkAndShowUnreadOnLogin('student'); }, 1500);
       return result;
@@ -21049,10 +21045,6 @@ function fixDepartmentCounts(){
     }
   }
   
-</script><script>/* [SEC-FIX v3.5b] 구 해시 래퍼가 덮어쓰기 전 pwApi 기반 함수 보관 */
-window._secKeep=window._secKeep||{};
-['showStudentLogin','verifyAndSubmit','changePassword','changeLeaderPassword','showLeaderLogin','showAdminLogin','showOfficeLogin','checkOfficeLogin','saveOfficePassword','changeNutritionistPassword'].forEach(function(n){if(typeof window[n]==='function')window._secKeep[n]=window[n]});
-</script><script>
   window._pwCrypto = {
     hash: toStoredFormat,
     verify: verifyPassword,
@@ -21120,7 +21112,7 @@ window._secKeep=window._secKeep||{};
   
   // ========== [2편] changePassword 재정의 ==========
   window._origChangePassword = window.changePassword;
-  window.changePassword = function() {
+  window.__secDead_changePassword = function() {
     var dept = currentStudentDept();
     var name = currentStudent;
     
@@ -21275,7 +21267,7 @@ window._secKeep=window._secKeep||{};
   // - 1111 등 금지 비밀번호 감지 시 강제 변경 UI
   // - localStorage 평문 비번 저장 완전 제거 (학과명만 저장)
   window._preHashShowLeaderLogin = window.showLeaderLogin;
-  window.showLeaderLogin = function() {
+  window.__secDead_showLeaderLogin = function() {
     if (isAdminLoggedIn) { showAdminDeptSelect(); return; }
     if (isLeaderLoggedIn) { currentMode = 'leader'; render(); return; }
     
@@ -21497,7 +21489,7 @@ window._secKeep=window._secKeep||{};
   
     // ========== [학과대표 비밀번호 변경 - 해싱 지원] ==========
   window._origChangeLeaderPassword = window.changeLeaderPassword;
-  window.changeLeaderPassword = function() {
+  window.__secDead_changeLeaderPassword = function() {
     if (!leaderDepartment || !DEPARTMENT_LEADERS[leaderDepartment]) {
       showToast('학과대표 정보 없음', 'error');
       return;
@@ -21730,7 +21722,7 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
   
   // ========== [3편+4편] showStudentLogin 재정의 ==========
   window._preHashShowStudentLogin = window.showStudentLogin;
-  window.showStudentLogin = function() {
+  window.__secDead_showStudentLogin = function() {
     var savedName = localStorage.getItem('saved_student_name') || '';
     var savedRemember = !!savedName;
     
@@ -24126,8 +24118,9 @@ setInterval(function(){try{var t=getCurrentDate();if(window._secLastDate!==t){wi
 </script>
 <script>
 /* [SEC-FIX v3.4] 실시간 리스너 전면 복원 — submissions만 하이브리드(당일 실시간+역할별 이력) 유지, 중복 리스너는 제거 */
-window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(f){try{f()}catch(e){}}))}catch(e){}};
+window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(f){try{f()}catch(e){}})}catch(e){}};
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
 
