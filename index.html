@@ -21216,29 +21216,23 @@ function fixDepartmentCounts(){
     var statusText = '조회 중...';
     var statusColor = 'text-gray-500';
     try {
-      var doc = await window._pwBlockedCol().doc(name).get();
-      if (!doc.exists) {
-        statusText = '⚠️ 문서 없음';
+      var _st = (await window._pwApi({ action: 'adminPasswordStatus', name: name })).data || {};
+      if (!_st.exists) {
+        statusText = '⚠️ 미설정 (비밀번호 없이 로그인)';
         statusColor = 'text-red-600';
+      } else if (_st.mustChange) {
+        statusText = '🔄 초기화됨 (학생이 재설정 예정)';
+        statusColor = 'text-amber-600';
+      } else if (_st.hashed) {
+        statusText = '🔒 서버에 암호화 저장됨';
+        statusColor = 'text-green-600';
       } else {
-        var d = doc.data();
-        var hashed = typeof d.password === 'string' && d.password.startsWith('sha256$');
-        var mustChange = d.mustChangePassword === true;
-        
-        if (mustChange && hashed) {
-          statusText = '🔄 초기화됨 (학생이 재설정 예정)';
-          statusColor = 'text-amber-600';
-        } else if (hashed) {
-          statusText = '🔒 암호화 저장됨';
-          statusColor = 'text-green-600';
-        } else {
-          statusText = '⚠️ 미암호화 (' + (d.password || '없음') + ')';
-          statusColor = 'text-orange-600';
-        }
+        statusText = '⚠️ 최초 로그인 시 서버가 자동 암호화';
+        statusColor = 'text-orange-600';
       }
-    } catch(e) {
+    } catch (e) {
       console.error('[lookupPassword]', e);
-      statusText = '❌ 조회 실패';
+      statusText = '조회 실패 (관리자 재로그인 필요)';
       statusColor = 'text-red-600';
     }
     
