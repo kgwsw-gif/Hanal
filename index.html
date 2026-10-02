@@ -4260,7 +4260,7 @@ function refreshHvacListener() {
             }catch(e){}
         }
     });
-    db.collection('announcement').doc('current').onSnapshot(function(doc){announcement=(doc.exists?doc.data().text:'')||'';checkLoaded()});
+    var _annOk=function(doc){announcement=(doc.exists?doc.data().text:'')||'';checkLoaded()};var _annTries=0;var _annSub=function(){db.collection('announcement').doc('current').onSnapshot(_annOk,function(e){_annTries++;console.warn('[SEC-FIX v3.5] 공지 실시간 오류 — 재시도('+_annTries+'):',e&&e.code);if(_annTries<=10)setTimeout(_annSub,3000);checkLoaded()})};_annSub();
     db.collection('loginLogs').orderBy('timestamp','desc').limit(20).onSnapshot(function(snap){loginLogs=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()});
     db.collection('settings').doc('submitControl').onSnapshot(function(doc){if(doc.exists){submitMode=doc.data().mode||'always';submitManualOpen=doc.data().manualOpen!==false}checkLoaded()});
     db.collection('settings').doc('dormGuide').onSnapshot(function(doc){window._dormGuideText=(doc.exists&&doc.data()&&doc.data().content)?doc.data().content:null;if(window._loaded)debouncedRender();});
