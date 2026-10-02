@@ -9995,6 +9995,18 @@ async function showResignedStudentsModal(){
       });
     });
     
+    // [SEC-FIX v3.5] 직접 삭제된 교육생도 퇴사자 목록에 표시 (deletionLogs 병합)
+    try{
+      var dsnap = await db.collection('deletionLogs').get();
+      dsnap.forEach(function(d){
+        var x = d.data()||{};
+        var nm = x.name || x.studentName || '';
+        if(!nm) return;
+        var dp = x.department || x.dept || '';
+        if(list.some(function(e){return e.name===nm && e.department===dp})) return;
+        list.push({id:d.id, name:nm, department:dp, resignDate:String(x.deletedAt||x.date||x.createdAt||'').slice(0,10), reason:x.reason||('직접 삭제'), approvedBy:x.deletedBy||'관리자 직접삭제', approvedDate:'', createdAt:x.createdAt||''});
+      });
+    }catch(_de){console.warn('[SEC-FIX v3.5] deletionLogs 병합 실패:', _de && _de.message)}
     list.sort(function(a,b){ return (b.resignDate||'').localeCompare(a.resignDate||''); });
     window._resignedList = list;
     
