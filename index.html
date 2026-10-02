@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v3.6</title>
+    <title>화성캠 행복관 인원관리 v2.0</title>
     <!-- XLSX 라이브러리 (엑셀 업로드/다운로드용) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
@@ -544,12 +544,12 @@ box-shadow:inset 3px 0 0 0 #1f2937 !important;
   </div>
 </div>
 <div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none"></div>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js"></script>
 <script>
 
 // ========== 새 로딩 애니메이션 ==========
@@ -649,8 +649,8 @@ try{
     firebase.initializeApp(firebaseConfig);
     /* [SEC-FIX v2.2] App Check — Firebase 콘솔 > App Check > 웹 앱 등록 후 reCAPTCHA v3 사이트 키를 아래에 입력하세요.
        키 미설정 시 비활성(소프트 롤아웃). 콘솔 '적용(Enforce)' 전환은 클라이언트 배포 확인 후에. */
-    window.__RECAPTCHA_V3_SITE_KEY='6LdP8dotAAAAAEQ9BubkYiK_7Smq7SxSwDm327H5';
-    try{if(window.__RECAPTCHA_V3_SITE_KEY.indexOf('REPLACE_')!==0&&firebase.appCheck){var _P=firebase.appCheck.ReCaptchaEnterpriseProvider;if(_P){firebase.appCheck().activate(new _P(window.__RECAPTCHA_V3_SITE_KEY),true);}else{firebase.appCheck().activate(window.__RECAPTCHA_V3_SITE_KEY,true);} console.log('[SEC-FIX] App Check 활성화');}}catch(e){console.warn('[SEC-FIX] App Check 활성화 실패:',e);}    db=firebase.firestore();
+    window.__RECAPTCHA_V3_SITE_KEY='REPLACE_WITH_YOUR_RECAPTCHA_V3_SITE_KEY';
+    try{if(window.__RECAPTCHA_V3_SITE_KEY.indexOf('REPLACE_')!==0&&firebase.appCheck){firebase.appCheck().activate(window.__RECAPTCHA_V3_SITE_KEY,true);}}catch(e){console.warn('[SEC-FIX] App Check 활성화 실패:',e);}    db=firebase.firestore();
 storage=firebase.storage();
 db.enablePersistence({synchronizeTabs:true}).catch(function(e){console.log('Persistence:',e.code)});
 
@@ -1482,7 +1482,11 @@ function doPrintRoomStatus(filter){
     });
   }
   
-  html += '</body></html>';
+  html += '
+<script>/* [SEC-FIX v3.5b] pwApi 기반 로그인·비밀번호 함수 복원 — 구 래퍼(클라이언트 비밀번호 직접 읽기)는 신규 보안규칙과 충돌하여 제거 */
+(function(){var K=window._secKeep||{};['showStudentLogin','verifyAndSubmit','changePassword','changeLeaderPassword','showLeaderLogin','showAdminLogin','showOfficeLogin','checkOfficeLogin','saveOfficePassword','changeNutritionistPassword'].forEach(function(n){if(typeof K[n]==='function')window[n]=K[n]})})();
+</script>
+</body></html>';
   
   var win = window.open('', '_blank', 'width=1200,height=800');
   win.document.write(html);
@@ -4260,7 +4264,7 @@ function refreshHvacListener() {
             }catch(e){}
         }
     });
-    var _annOk=function(doc){announcement=(doc.exists?doc.data().text:'')||'';checkLoaded()};var _annTries=0;var _annSub=function(){db.collection('announcement').doc('current').onSnapshot(_annOk,function(e){_annTries++;console.warn('[SEC-FIX v3.5] 공지 실시간 오류 — 재시도('+_annTries+'):',e&&e.code);if(_annTries<=10)setTimeout(_annSub,3000);checkLoaded()})};_annSub();
+    db.collection('announcement').doc('current').onSnapshot(function(doc){announcement=(doc.exists?doc.data().text:'')||'';checkLoaded()});
     db.collection('loginLogs').orderBy('timestamp','desc').limit(20).onSnapshot(function(snap){loginLogs=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()});
     db.collection('settings').doc('submitControl').onSnapshot(function(doc){if(doc.exists){submitMode=doc.data().mode||'always';submitManualOpen=doc.data().manualOpen!==false}checkLoaded()});
     db.collection('settings').doc('dormGuide').onSnapshot(function(doc){window._dormGuideText=(doc.exists&&doc.data()&&doc.data().content)?doc.data().content:null;if(window._loaded)debouncedRender();});
@@ -5763,7 +5767,7 @@ function quickSubmitAdmin(dept,name){
 async function submitQuickPenalty(dept,name){var typeEl=document.getElementById('quickPenaltyType');var type=typeEl.value;var score=parseInt(document.getElementById('quickPenaltyScore').value);var date=document.getElementById('quickPenaltyDate').value;var reason=document.getElementById('quickPenaltyReason').value.trim();if(!type){showToast('벌점 유형을 선택하세요','warning');return}if(!score||score<=0){showToast('벌점 점수를 입력하세요','warning');return}if(!date){showToast('날짜를 선택하세요','warning');return}var actionText='';if(score>=10)actionText='즉시 강제퇴사';else if(score>=5)actionText='벌점 누적 + 학내봉사 5일';else if(score>=3)actionText='벌점 누적 + 학내봉사 3일';else if(score>=2)actionText='경고 + 벌점 누적';else if(score>0) actionText='벌점 누적';else actionText='경고 조치 (벌점 없음)';var isFirstMissing=false;if(type==='인원보고 미제출'){var prevMissing=penaltyPoints.filter(function(p){return p.name===name&&p.type==='인원보고 미제출'&&p.status==='active'});if(prevMissing.length===0){isFirstMissing=true;score=0;actionText='경고 (첫 회 경고)'}}try{await db.collection('penaltyPoints').add({department:dept,name:name,type:type,score:score,date:date,reason:isFirstMissing?'인원보고 미제출/지연제출 1회 경고 (다음 미제출/지연제출 시 벌점 부여)':(reason||type),action:actionText,room:window._secureData.getRoomNumber(name)||'',givenBy:isSuperAdmin?'슈퍼관리자':'관리자',createdAt:new Date().toISOString(),status:'active',isWarning:isFirstMissing});closeModal();if(isFirstMissing){showToast(name+'에게 인원보고 미제출/지연제출 첫 회 경고 부여','warning');showSuccessAnimation('첫 회 경고 부여',name+' · 다음 미제출/지연제출 시 벌점 1점 부여')}else{showToast(name+'에게 벌점 '+score+'점 부여 완료','success');showSuccessAnimation('벌점 부여 완료',name+' · '+type+' '+score+'점')}}catch(e){showToast('벌점 부여 실패: '+e.message,'error')}}
 
 // ============ 공지/다운로드 ============
-async function saveAnnouncement(){var i=document.getElementById('announcementInput');if(!i)return;var t=i.value.trim();if(!t){openConfirmModal('공지 삭제 확인','공지 내용이 비어 있습니다.<br>고정 공지를 <b style=color:#dc2626>삭제</b>할까요?',async function(){try{await db.collection('announcement').doc('current').set({text:'',updatedAt:new Date().toISOString()});showToast('공지사항 삭제 완료','success')}catch(e){showToast('저장 실패: '+e.message,'error')}},'삭제');return}try{await db.collection('announcement').doc('current').set({text:t,updatedAt:new Date().toISOString()});showToast('공지사항 저장 완료','success')}catch(e){console.error('공지 저장 실패:',e);showToast('저장 실패: '+e.message,'error')}}
+async function saveAnnouncement(){var i=document.getElementById('announcementInput');if(!i)return;await db.collection('announcement').doc('current').set({text:i.value.trim(),updatedAt:new Date().toISOString()});showToast('공지사항 저장 완료','success')}
 
 async function saveAccessNotice(){
     var i = document.getElementById('accessNoticeInput');
@@ -8170,7 +8174,7 @@ function renderLanding(){
 
     var _dataReady=(window._loaded===true);var studentBtn=_c.allowed?'<button '+(_dataReady?'onclick="showStudentLogin()"':'disabled style="pointer-events:none;filter:grayscale(70%);opacity:0.65"')+' class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-1" style="'+cardStyle('rgba(187,247,208,0.7)','rgba(209,250,229,0.4)','rgba(16,185,129,0.5)','rgba(16,185,129,0.12)','rgba(187,247,208,0.35)','rgba(209,250,229,0.2)','rgba(16,185,129,0.5)')+'">'+clay3d(_dataReady?'#34d399':'#9ca3af',_dataReady?'#059669':'#6b7280','fa-user-graduate','rgba(5,150,105,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">'+(_dataReady?'교육생':'데이터 준비 중...')+'</div><div class="text-sm mt-0.5" style="'+subColor+'">'+(menuControlSettings.showOutingRequest!==false?'잔류/외박/외출 신청':'잔류/외박 신청')+'</div></div>'+pillArrow('#34d399','#059669')+'</button>':'<div class="w-full p-5 rounded-2xl shadow-card border border-gray-200 flex items-center gap-4 animate-fade-up stagger-1" style="background:rgba(200,200,200,0.3)!important;opacity:0.5"><div class="w-14 h-14 rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0"><i class="fas fa-lock text-gray-400 text-2xl"></i></div><div class="text-left flex-1"><div class="font-bold text-gray-400 text-lg">교육생</div><div class="text-sm text-danger-500 mt-0.5">'+(_c.reason||'인원보고가 비활성화 상태입니다').replace(/\n/g,' ')+'</div></div></div>';
 
-    return'<div class="min-h-screen flex items-center justify-center px-4 py-8"><div class="max-w-md w-full"><div class="text-center mb-10 animate-fade-up"><div style="width:80px;height:80px;margin:0 auto 16px;border-radius:1.5rem;background:linear-gradient(145deg,#6366f1,#4f46e5,#7c3aed);box-shadow:inset -4px -4px 8px rgba(0,0,0,0.2),inset 4px 4px 8px rgba(255,255,255,0.2),8px 8px 24px rgba(99,102,241,0.35);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden"><div style="position:absolute;top:8px;left:12px;width:55%;height:35%;border-radius:50%;background:radial-gradient(ellipse,rgba(255,255,255,0.35),transparent);pointer-events:none"></div><i class="fas fa-building" style="font-size:32px;color:#fff;filter:drop-shadow(2px 3px 4px rgba(0,0,0,0.3));position:relative;z-index:1"></i></div><h1 class="text-3xl font-black" style="'+headColor+'">행복관 인원관리</h1><p class="text-base mt-2" style="'+headSubColor+'">화성캠퍼스 기숙사 관리 시스템</p></div><div class="space-y-3">'+studentBtn+'<button onclick="showLeaderLogin()" class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-2" style="'+cardStyle('rgba(253,230,138,0.7)','rgba(254,243,199,0.4)','rgba(217,119,6,0.5)','rgba(217,119,6,0.12)','rgba(253,230,138,0.35)','rgba(254,243,199,0.2)','rgba(217,119,6,0.5)')+'">'+clay3d('#fbbf24','#d97706','fa-user-tie','rgba(217,119,6,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">학과대표</div><div class="text-sm mt-0.5" style="'+subColor+'">학과 일괄 관리</div></div>'+pillArrow('#fbbf24','#d97706')+'</button><button onclick="showAdminLogin()" class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-3" style="'+cardStyle('rgba(199,210,254,0.7)','rgba(224,231,255,0.4)','rgba(99,102,241,0.5)','rgba(99,102,241,0.12)','rgba(199,210,254,0.35)','rgba(224,231,255,0.2)','rgba(99,102,241,0.5)')+'">'+clay3d('#818cf8','#4f46e5','fa-shield-alt','rgba(79,70,229,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">관리자</div><div class="text-sm mt-0.5" style="'+subColor+'">전체 현황 관리</div></div>'+pillArrow('#818cf8','#4f46e5')+'</button><button onclick="showOfficeLogin()" class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-4" style="'+cardStyle('rgba(254,215,170,0.7)','rgba(255,237,213,0.4)','rgba(234,88,12,0.5)','rgba(234,88,12,0.12)','rgba(254,215,170,0.35)','rgba(255,237,213,0.2)','rgba(234,88,12,0.5)')+'">'+clay3d('#fb923c','#ea580c','fa-building','rgba(234,88,12,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">운영사무실</div><div class="text-sm mt-0.5" style="'+subColor+'">냉난방 신청 관리</div></div>'+pillArrow('#fb923c','#ea580c')+'</button></div>'+(announcement?'<div class="mt-6 p-5 rounded-2xl shadow-card border-2 animate-fade-up stagger-4" style="background:linear-gradient(135deg,rgba(224,231,255,0.5),rgba(199,210,254,0.3))!important;border-color:rgba(99,102,241,0.3)!important"><div style="display:flex;align-items:flex-start;gap:12px"><div style="width:36px;min-width:36px;height:36px;border-radius:10px;background:linear-gradient(145deg,#818cf8,#6366f1);box-shadow:inset -2px -2px 4px rgba(0,0,0,0.15),inset 2px 2px 4px rgba(255,255,255,0.3),3px 3px 8px rgba(99,102,241,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px"><i class="fas fa-bullhorn" style="font-size:14px;color:#fff;filter:drop-shadow(1px 1px 1px rgba(0,0,0,0.2))"></i></div><div style="flex:1;min-width:0;font-size:14px;font-weight:500;line-height:1.7;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;'+annoColor+'">'+_noticeHTML(announcement)+'</div></div></div>':'')+'<div class="text-center mt-8 animate-fade-up stagger-5"><p class="text-sm" style="'+verColor+'">v3.6</p><button onclick="toggleSound()" class="mt-3 px-4 py-2 bg-surface-100 border-2 rounded-xl text-sm font-bold btn-press" style="border-color:rgba(100,116,139,0.35)!important"><i class="fas '+(soundEnabled?"fa-volume-up text-success-500":"fa-volume-mute text-gray-400")+' mr-1"></i>'+(soundEnabled?'알림소리 ON':'알림소리 OFF')+'</button> <button onclick="toggleDarkMode()" class="mt-3 px-4 py-2 bg-surface-100 border-2 rounded-xl text-sm font-bold btn-press" style="border-color:rgba(100,116,139,0.35)!important"><i class="fas '+(darkMode?"fa-sun text-warning-500":"fa-moon text-primary-500")+' mr-1"></i>'+(darkMode?'라이트 모드':'다크 모드')+'</button></div></div></div>';
+    return'<div class="min-h-screen flex items-center justify-center px-4 py-8"><div class="max-w-md w-full"><div class="text-center mb-10 animate-fade-up"><div style="width:80px;height:80px;margin:0 auto 16px;border-radius:1.5rem;background:linear-gradient(145deg,#6366f1,#4f46e5,#7c3aed);box-shadow:inset -4px -4px 8px rgba(0,0,0,0.2),inset 4px 4px 8px rgba(255,255,255,0.2),8px 8px 24px rgba(99,102,241,0.35);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden"><div style="position:absolute;top:8px;left:12px;width:55%;height:35%;border-radius:50%;background:radial-gradient(ellipse,rgba(255,255,255,0.35),transparent);pointer-events:none"></div><i class="fas fa-building" style="font-size:32px;color:#fff;filter:drop-shadow(2px 3px 4px rgba(0,0,0,0.3));position:relative;z-index:1"></i></div><h1 class="text-3xl font-black" style="'+headColor+'">행복관 인원관리</h1><p class="text-base mt-2" style="'+headSubColor+'">화성캠퍼스 기숙사 관리 시스템</p></div><div class="space-y-3">'+studentBtn+'<button onclick="showLeaderLogin()" class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-2" style="'+cardStyle('rgba(253,230,138,0.7)','rgba(254,243,199,0.4)','rgba(217,119,6,0.5)','rgba(217,119,6,0.12)','rgba(253,230,138,0.35)','rgba(254,243,199,0.2)','rgba(217,119,6,0.5)')+'">'+clay3d('#fbbf24','#d97706','fa-user-tie','rgba(217,119,6,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">학과대표</div><div class="text-sm mt-0.5" style="'+subColor+'">학과 일괄 관리</div></div>'+pillArrow('#fbbf24','#d97706')+'</button><button onclick="showAdminLogin()" class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-3" style="'+cardStyle('rgba(199,210,254,0.7)','rgba(224,231,255,0.4)','rgba(99,102,241,0.5)','rgba(99,102,241,0.12)','rgba(199,210,254,0.35)','rgba(224,231,255,0.2)','rgba(99,102,241,0.5)')+'">'+clay3d('#818cf8','#4f46e5','fa-shield-alt','rgba(79,70,229,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">관리자</div><div class="text-sm mt-0.5" style="'+subColor+'">전체 현황 관리</div></div>'+pillArrow('#818cf8','#4f46e5')+'</button><button onclick="showOfficeLogin()" class="w-full p-5 rounded-3xl card-interactive border-4 flex items-center gap-4 btn-press animate-fade-up stagger-4" style="'+cardStyle('rgba(254,215,170,0.7)','rgba(255,237,213,0.4)','rgba(234,88,12,0.5)','rgba(234,88,12,0.12)','rgba(254,215,170,0.35)','rgba(255,237,213,0.2)','rgba(234,88,12,0.5)')+'">'+clay3d('#fb923c','#ea580c','fa-building','rgba(234,88,12,0.3)')+' <div class="text-left flex-1"><div class="font-bold text-lg" style="'+titleColor+'">운영사무실</div><div class="text-sm mt-0.5" style="'+subColor+'">냉난방 신청 관리</div></div>'+pillArrow('#fb923c','#ea580c')+'</button></div>'+(announcement?'<div class="mt-6 p-5 rounded-2xl shadow-card border-2 animate-fade-up stagger-4" style="background:linear-gradient(135deg,rgba(224,231,255,0.5),rgba(199,210,254,0.3))!important;border-color:rgba(99,102,241,0.3)!important"><div style="display:flex;align-items:flex-start;gap:12px"><div style="width:36px;min-width:36px;height:36px;border-radius:10px;background:linear-gradient(145deg,#818cf8,#6366f1);box-shadow:inset -2px -2px 4px rgba(0,0,0,0.15),inset 2px 2px 4px rgba(255,255,255,0.3),3px 3px 8px rgba(99,102,241,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px"><i class="fas fa-bullhorn" style="font-size:14px;color:#fff;filter:drop-shadow(1px 1px 1px rgba(0,0,0,0.2))"></i></div><div style="flex:1;min-width:0;font-size:14px;font-weight:500;line-height:1.7;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;'+annoColor+'">'+_noticeHTML(announcement)+'</div></div></div>':'')+'<div class="text-center mt-8 animate-fade-up stagger-5"><p class="text-sm" style="'+verColor+'">v2.0</p><button onclick="toggleSound()" class="mt-3 px-4 py-2 bg-surface-100 border-2 rounded-xl text-sm font-bold btn-press" style="border-color:rgba(100,116,139,0.35)!important"><i class="fas '+(soundEnabled?"fa-volume-up text-success-500":"fa-volume-mute text-gray-400")+' mr-1"></i>'+(soundEnabled?'알림소리 ON':'알림소리 OFF')+'</button> <button onclick="toggleDarkMode()" class="mt-3 px-4 py-2 bg-surface-100 border-2 rounded-xl text-sm font-bold btn-press" style="border-color:rgba(100,116,139,0.35)!important"><i class="fas '+(darkMode?"fa-sun text-warning-500":"fa-moon text-primary-500")+' mr-1"></i>'+(darkMode?'라이트 모드':'다크 모드')+'</button></div></div></div>';
 }
 // ============ 학과대표 뷰 ============
 function renderLeaderView(todaySubs,todayOuts){
@@ -9995,18 +9999,6 @@ async function showResignedStudentsModal(){
       });
     });
     
-    // [SEC-FIX v3.5] 직접 삭제된 교육생도 퇴사자 목록에 표시 (deletionLogs 병합)
-    try{
-      var dsnap = await db.collection('deletionLogs').get();
-      dsnap.forEach(function(d){
-        var x = d.data()||{};
-        var nm = x.name || x.studentName || '';
-        if(!nm) return;
-        var dp = x.department || x.dept || '';
-        if(list.some(function(e){return e.name===nm && e.department===dp})) return;
-        list.push({id:d.id, name:nm, department:dp, resignDate:String(x.deletedAt||x.date||x.createdAt||'').slice(0,10), reason:x.reason||('직접 삭제'), approvedBy:x.deletedBy||'관리자 직접삭제', approvedDate:'', createdAt:x.createdAt||''});
-      });
-    }catch(_de){console.warn('[SEC-FIX v3.5] deletionLogs 병합 실패:', _de && _de.message)}
     list.sort(function(a,b){ return (b.resignDate||'').localeCompare(a.resignDate||''); });
     window._resignedList = list;
     
@@ -14997,7 +14989,7 @@ function subscribeLeaderMessages(threadId) {
   // 관리자 로그인
   if (typeof window.showAdminLogin === 'function' && !window._origShowAdminLogin) {
     window._origShowAdminLogin = window.showAdminLogin;
-    window.__secDead_showAdminLogin = function() {
+    window.showAdminLogin = function() {
       var result = window._origShowAdminLogin.apply(this, arguments);
       setTimeout(function() { checkAndShowUnreadOnLogin('admin'); }, 1500);
       return result;
@@ -15007,7 +14999,7 @@ function subscribeLeaderMessages(threadId) {
   // 학과대표 로그인
   if (typeof window.showLeaderLogin === 'function' && !window._origShowLeaderLogin) {
     window._origShowLeaderLogin = window.showLeaderLogin;
-    window.__secDead_showLeaderLogin = function() {
+    window.showLeaderLogin = function() {
       var result = window._origShowLeaderLogin.apply(this, arguments);
       setTimeout(function() { checkAndShowUnreadOnLogin('leader'); }, 1500);
       return result;
@@ -15017,7 +15009,7 @@ function subscribeLeaderMessages(threadId) {
   // 학생 로그인
   if (typeof window.showStudentLogin === 'function' && !window._origShowStudentLogin) {
     window._origShowStudentLogin = window.showStudentLogin;
-    window.__secDead_showStudentLogin = function() {
+    window.showStudentLogin = function() {
       var result = window._origShowStudentLogin.apply(this, arguments);
       setTimeout(function() { checkAndShowUnreadOnLogin('student'); }, 1500);
       return result;
@@ -21057,6 +21049,10 @@ function fixDepartmentCounts(){
     }
   }
   
+</script><script>/* [SEC-FIX v3.5b] 구 해시 래퍼가 덮어쓰기 전 pwApi 기반 함수 보관 */
+window._secKeep=window._secKeep||{};
+['showStudentLogin','verifyAndSubmit','changePassword','changeLeaderPassword','showLeaderLogin','showAdminLogin','showOfficeLogin','checkOfficeLogin','saveOfficePassword','changeNutritionistPassword'].forEach(function(n){if(typeof window[n]==='function')window._secKeep[n]=window[n]});
+</script><script>
   window._pwCrypto = {
     hash: toStoredFormat,
     verify: verifyPassword,
@@ -21124,7 +21120,7 @@ function fixDepartmentCounts(){
   
   // ========== [2편] changePassword 재정의 ==========
   window._origChangePassword = window.changePassword;
-  window.__secDead_changePassword = function() {
+  window.changePassword = function() {
     var dept = currentStudentDept();
     var name = currentStudent;
     
@@ -21228,23 +21224,29 @@ function fixDepartmentCounts(){
     var statusText = '조회 중...';
     var statusColor = 'text-gray-500';
     try {
-      var _st = (await window._pwApi({ action: 'adminPasswordStatus', name: name })).data || {};
-      if (!_st.exists) {
-        statusText = '⚠️ 미설정 (비밀번호 없이 로그인)';
+      var doc = await window._pwBlockedCol().doc(name).get();
+      if (!doc.exists) {
+        statusText = '⚠️ 문서 없음';
         statusColor = 'text-red-600';
-      } else if (_st.mustChange) {
-        statusText = '🔄 초기화됨 (학생이 재설정 예정)';
-        statusColor = 'text-amber-600';
-      } else if (_st.hashed) {
-        statusText = '🔒 서버에 암호화 저장됨';
-        statusColor = 'text-green-600';
       } else {
-        statusText = '⚠️ 최초 로그인 시 서버가 자동 암호화';
-        statusColor = 'text-orange-600';
+        var d = doc.data();
+        var hashed = typeof d.password === 'string' && d.password.startsWith('sha256$');
+        var mustChange = d.mustChangePassword === true;
+        
+        if (mustChange && hashed) {
+          statusText = '🔄 초기화됨 (학생이 재설정 예정)';
+          statusColor = 'text-amber-600';
+        } else if (hashed) {
+          statusText = '🔒 암호화 저장됨';
+          statusColor = 'text-green-600';
+        } else {
+          statusText = '⚠️ 미암호화 (' + (d.password || '없음') + ')';
+          statusColor = 'text-orange-600';
+        }
       }
-    } catch (e) {
+    } catch(e) {
       console.error('[lookupPassword]', e);
-      statusText = '조회 실패 (관리자 재로그인 필요)';
+      statusText = '❌ 조회 실패';
       statusColor = 'text-red-600';
     }
     
@@ -21273,7 +21275,7 @@ function fixDepartmentCounts(){
   // - 1111 등 금지 비밀번호 감지 시 강제 변경 UI
   // - localStorage 평문 비번 저장 완전 제거 (학과명만 저장)
   window._preHashShowLeaderLogin = window.showLeaderLogin;
-  window.__secDead_showLeaderLogin = function() {
+  window.showLeaderLogin = function() {
     if (isAdminLoggedIn) { showAdminDeptSelect(); return; }
     if (isLeaderLoggedIn) { currentMode = 'leader'; render(); return; }
     
@@ -21495,7 +21497,7 @@ function fixDepartmentCounts(){
   
     // ========== [학과대표 비밀번호 변경 - 해싱 지원] ==========
   window._origChangeLeaderPassword = window.changeLeaderPassword;
-  window.__secDead_changeLeaderPassword = function() {
+  window.changeLeaderPassword = function() {
     if (!leaderDepartment || !DEPARTMENT_LEADERS[leaderDepartment]) {
       showToast('학과대표 정보 없음', 'error');
       return;
@@ -21728,7 +21730,7 @@ function showForceChangeModal(name, currentPlaintext, onSuccess) {
   
   // ========== [3편+4편] showStudentLogin 재정의 ==========
   window._preHashShowStudentLogin = window.showStudentLogin;
-  window.__secDead_showStudentLogin = function() {
+  window.showStudentLogin = function() {
     var savedName = localStorage.getItem('saved_student_name') || '';
     var savedRemember = !!savedName;
     
@@ -24124,7 +24126,7 @@ setInterval(function(){try{var t=getCurrentDate();if(window._secLastDate!==t){wi
 </script>
 <script>
 /* [SEC-FIX v3.4] 실시간 리스너 전면 복원 — submissions만 하이브리드(당일 실시간+역할별 이력) 유지, 중복 리스너는 제거 */
-window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(f){try{f()}catch(e){}})}catch(e){}};
+window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(f){try{f()}catch(e){}}))}catch(e){}};
 </script>
 </body>
 </html>
