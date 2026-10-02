@@ -1,0 +1,25 @@
+{
+  "name": "행복관 인원관리",
+  "short_name": "행복관",
+  "description": "화성캠퍼스 기숙사 관리 시스템",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2ff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
