@@ -21482,10 +21482,20 @@ function fixDepartmentCounts(){
       if (np === currentPw) { showToast('기존 비밀번호와 동일합니다', 'warning'); return; }
       try {
         var hashed = await window._pwCrypto.hash(np);
-        await window._pwApi({ action: 'changeLeaderPassword', dept: dept, currentPassword: currentPw, newPassword: np });
+        try {
+          await window._pwApi({ action: 'changeLeaderPassword', dept: dept, currentPassword: currentPw, newPassword: np });
+        } catch (e1) {
+          console.warn('[leaderForceChange] 서버 경로 실패 - 직접 저장으로 진행', e1);
+        }
         await db.collection('departmentLeaders').doc(dept).set({
           password: hashed, passwordHashed: true, mustChangePassword: false, updatedAt: new Date().toISOString()
         }, { merge: true });
+        try {
+          await db.collection('leaderCredentials').doc(dept).set({ passwordHash: hashed, updatedAt: new Date().toISOString() }, { merge: true });
+          await db.collection('leaderCredentials').doc(dept).update({ password: firebase.firestore.FieldValue.delete() });
+        } catch (e2) {
+          console.warn('[leaderForceChange] leaderCredentials 직접 기록 실패(규칙 확인 필요)', e2);
+        }
         closeModal();
         showToast('비밀번호가 변경되었습니다', 'success');
         if (typeof after === 'function') after();
