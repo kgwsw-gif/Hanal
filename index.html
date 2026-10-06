@@ -21423,6 +21423,7 @@ function fixDepartmentCounts(){
           // [v6.5] 서버 함수로 저장 + 서버가 저장 직후 재조회 검증(verified)
           var _r = (await window._pwApi({ action: 'adminSetPassword', name: name, newPassword: newPw,
                                           department: dept, mustChangePassword: true })).data || {};
+          if (_r.ok === true && _r.verified === undefined) throw new Error('서버가 아직 구버전입니다 (비밀번호는 저장됨). functions 배포(firebase deploy --only functions) 후 다시 초기화해 주세요');
           if (_r.verified !== true) throw new Error('서버 저장 검증 실패 - 다시 시도해 주세요');
           if (_r.removedTwin) console.log('[v6.5] 잔여 중복 문서 정리:', _r.removedTwin);
           showToast(name + ' 비밀번호 초기화 완료 ✅ 서버 저장·검증됨 (첫 로그인 시 새 비밀번호 설정)', 'success');
