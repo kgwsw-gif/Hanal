@@ -4259,7 +4259,8 @@ function refreshHvacListener() {
         var pct=Math.round(_loadCount/TOTAL*100);if(window._updateNewLoadingBar)window._updateNewLoadingBar(pct);if(_loadCount>=TOTAL){
             _loaded=true;window._loaded=true;
             updateStudentsList();
-            if(window._finishNewLoading)window._finishNewLoading();
+            try{if(typeof render==='function')render();}catch(e){}/* [v6.7] 로딩화면이 덮은 상태에서 화면을 먼저 완성 */
+            if(window._finishNewLoading)setTimeout(function(){try{window._finishNewLoading()}catch(e){}},1200);/* [v6.7] CSS 생성(1~2초) 후 로딩화면 닫기 → 빈칸 없이 한 번에 표시 */
             var ld=document.getElementById('loading');
             if(ld&&ld.style.display!=='none'){
                 setTimeout(function(){ld.style.opacity='0';setTimeout(function(){ld.style.display='none';document.getElementById('app').style.display='block';render()},700)},1200);
@@ -4319,7 +4320,7 @@ db.collection('settings').doc('accessNotice').onSnapshot(function(doc){
     if(doc.exists && doc.data().text !== undefined) accessNotice = doc.data().text;
     if(typeof render==='function' && document.getElementById('app') && document.getElementById('app').style.display!=='none') debouncedRender();
 });
-    setTimeout(function(){if(!_loaded){_loaded=true;window._loaded=true;updateStudentsList();if(window._finishNewLoading)window._finishNewLoading();var ld=document.getElementById('loading');if(ld&&ld.style.display!=='none'){setTimeout(function(){ld.style.opacity='0';setTimeout(function(){ld.style.display='none';document.getElementById('app').style.display='block';render()},700)},1200)}}},2000);
+    setTimeout(function(){if(!_loaded){_loaded=true;window._loaded=true;updateStudentsList();try{if(typeof render==='function')render();}catch(e){}if(window._finishNewLoading)setTimeout(function(){try{window._finishNewLoading()}catch(e){}},1200);var ld=document.getElementById('loading');if(ld&&ld.style.display!=='none'){setTimeout(function(){ld.style.opacity='0';setTimeout(function(){ld.style.display='none';document.getElementById('app').style.display='block';render()},700)},1200)}}},2000);
 }
 // ============ 통계 ============
 // ============ 주말/공휴일 자동 외박 처리 공통 함수 ============
