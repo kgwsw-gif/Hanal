@@ -4257,7 +4257,7 @@ function refreshHvacListener() {
         if(_loaded){debouncedRender();return}
         _loadCount++;
         var pct=Math.round(_loadCount/TOTAL*100);if(window._updateNewLoadingBar)window._updateNewLoadingBar(pct);if(_loadCount>=TOTAL){
-            _loaded=true;
+            _loaded=true;window._loaded=true;
             updateStudentsList();
             if(window._finishNewLoading)window._finishNewLoading();
             var ld=document.getElementById('loading');
@@ -4319,7 +4319,7 @@ db.collection('settings').doc('accessNotice').onSnapshot(function(doc){
     if(doc.exists && doc.data().text !== undefined) accessNotice = doc.data().text;
     if(typeof render==='function' && document.getElementById('app') && document.getElementById('app').style.display!=='none') debouncedRender();
 });
-    setTimeout(function(){if(!_loaded){_loaded=true;updateStudentsList();if(window._finishNewLoading)window._finishNewLoading();var ld=document.getElementById('loading');if(ld&&ld.style.display!=='none'){setTimeout(function(){ld.style.opacity='0';setTimeout(function(){ld.style.display='none';document.getElementById('app').style.display='block';render()},700)},1200)}}},2000);
+    setTimeout(function(){if(!_loaded){_loaded=true;window._loaded=true;updateStudentsList();if(window._finishNewLoading)window._finishNewLoading();var ld=document.getElementById('loading');if(ld&&ld.style.display!=='none'){setTimeout(function(){ld.style.opacity='0';setTimeout(function(){ld.style.display='none';document.getElementById('app').style.display='block';render()},700)},1200)}}},2000);
 }
 // ============ 통계 ============
 // ============ 주말/공휴일 자동 외박 처리 공통 함수 ============
@@ -7854,7 +7854,7 @@ document.addEventListener('visibilitychange', async function(){
 })();
 
 function _setAppHTML(html){var app=document.getElementById('app');if(!app)return;try{if(localStorage.getItem('dbgRender')==='1'&&app._lastHTML!==html){var _d='';try{_d=(new Error().stack||'').split('\n')[2].trim()}catch(e){}var _o=app._lastHTML||'',_i=0;while(_i<_o.length&&_i<html.length&&_o[_i]===html[_i])_i++;var _snip=function(t){return (t||'').substring(Math.max(0,_i-45),_i+45).replace(/</g,'‹')};console.log('%c[화면 갱신]','color:#1d4ed8','위치 '+_i+' | 이전: …'+_snip(_o)+'… | 새: …'+_snip(html)+'…',_d);}}catch(e){}if(app._lastHTML===html)return;app._lastHTML=html;if(!window._appReadySet){window._appReadySet=true;try{document.body.classList.add('app-ready')}catch(e){}}/* [v6.7] 등장애니메이션 항상 끔 — 첫 화면부터 즉시 표시 */app.innerHTML=html;}
-function render(){if(currentMode==='nutritionist'){renderNutritionistView();return;}setTimeout(function(){try{_filterSubmitDateSelect();}catch(e){}},100);setTimeout(function(){try{_filterSubmitDateSelect();}catch(e){}},600);if(currentMode==='student'&&typeof currentStudent!=='undefined'&&currentStudent){isAdminLoggedIn=false;isLeaderLoggedIn=false;isSuperAdmin=false;window.isNutritionistLoggedIn=false;}
+function render(){if(currentMode==='nutritionist'){renderNutritionistView();return;}/* [v6.7] 데이터 로딩이 끝나기 전에는 로그인 화면을 부분적으로 그리지 않음(로딩 완료 후 한 번에 표시) */if(!_loaded&&typeof _loaded!=='undefined'&&(isAdminLoggedIn||isLeaderLoggedIn||(typeof currentStudent!=='undefined'&&currentStudent&&!isGuestLoggedIn))&&currentMode){return;}setTimeout(function(){try{_filterSubmitDateSelect();}catch(e){}},100);setTimeout(function(){try{_filterSubmitDateSelect();}catch(e){}},600);if(currentMode==='student'&&typeof currentStudent!=='undefined'&&currentStudent){isAdminLoggedIn=false;isLeaderLoggedIn=false;isSuperAdmin=false;window.isNutritionistLoggedIn=false;}
     initIntervals();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
     var stats=getStats(),todaySubs,todayOuts;if(isWeekendOrHoliday(currentDate)){var _autoData=getAutoOutSubmissions(currentDate);todaySubs=_autoData.submissions;todayOuts=_autoData.outings}else{todaySubs=submissions.filter(function(s){return s.date===currentDate&&s.status!=='cancelled'});todayOuts=outings.filter(function(o){return o.date===currentDate&&(!o.status||o.status!=='cancelled')})}
     var _pendingAcc=accessRequests.filter(function(r){return r.status==='pending'}).length;var _bannerEl=document.getElementById('accessAlarmBanner');var _countEl=document.getElementById('accessAlarmCount');if(_bannerEl){if(_pendingAcc>0&&(isAdminLoggedIn||isOfficeLoggedIn)){_bannerEl.style.display='block';if(_countEl)_countEl.textContent=_pendingAcc;if(!_accessAlarmInterval)startAccessAlarm()}else{_bannerEl.style.display='none';stopAccessAlarm()}}
