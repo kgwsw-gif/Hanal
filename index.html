@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v6.6</title>
+    <title>화성캠 행복관 인원관리 v6.7</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22837,10 +22837,57 @@ function _hwpOrder(dd){
     return order;
 }
 // ---- 근무일지 ----
+// [v6.7] 근무일지 비고: 선택한 날짜(당일)에 발생한 입사·퇴사를 학과별로 자동 표시
+// 입사 = 학생 등록 입사일(registeredDate, '입사 예정(pending)'은 제외)
+// 퇴사 = 퇴사 승인(approved) 또는 관리자 직접 삭제(deletionLogs) — 월간 입사·퇴사 현황과 동일 판정
+// 월간 현황에서 제외한 인물(+기본 숨깄 '이대호')도 비고에서 제외. 여러 명이면 "홍길동(입사), 김철수(퇴사)"로 모두 표시.
+function _worklogRemarks(targetDate){
+    var rem={};
+    try{
+        var hid=['이대호'];
+        try{(window._mmHidden||[]).forEach(function(n){hid.push(n)})}catch(e){}
+        var seenIn={}, seenOut={};
+        var put=function(dept,name,label){
+            if(!name||hid.indexOf(name)>-1) return;
+            var k=String(dept||'');
+            if(k==='스마트전기(전기)과'||k==='스마트전기(소방)과') k='스마트전기과';
+            if(!k||k==='미분류') return;
+            k=k.replace('과','').replace('과정','');
+            if(!k) return;
+            (rem[k]=rem[k]||[]).push(String(name).replace('(여)','').trim()+'('+label+')');
+        };
+        var entries=window._secureData&&window._secureData.getAllRoomEntries?window._secureData.getAllRoomEntries():{};
+        Object.keys(entries).forEach(function(name){
+            if(hid.indexOf(name)>-1) return;
+            var e=entries[name]||{};
+            if(e.status==='pending') return; /* 입사 예정은 아직 미표시 */
+            var rd=(typeof _mmLocalDate==='function')?_mmLocalDate(e.registeredDate):'';
+            if(rd&&rd===targetDate&&!seenIn[name]){seenIn[name]=true;
+                put(e.department||(typeof findDeptByNameFallback==='function'?findDeptByNameFallback(name):'')||'미분류',name,'입사');}
+        });
+        (typeof resignRequests!=='undefined'?resignRequests:[]).forEach(function(r){
+            if(r.status!=='approved'||!r.name) return;
+            var od=(typeof _mmLocalDate==='function')?(_mmLocalDate(r.approvedDate)||_mmLocalDate(r.personalDataDeletedAt)||_mmLocalDate(r.updatedAt)||_mmLocalDate(r.resignDate)):'';
+            if(od&&od===targetDate&&!seenOut[r.name]){seenOut[r.name]=true;put(r.department||'미분류',r.name,'퇴사');}
+        });
+        (typeof deletionLogs!=='undefined'?deletionLogs:[]).forEach(function(d){
+            var nm=d.name||d.studentName||(d.target&&d.target.name)||'';
+            if(!nm||seenOut[nm]) return;
+            if(d.dryRun) return;
+            if(d.type&&d.type!=='student') return;
+            var od=(typeof _mmLocalDate==='function')?(_mmLocalDate(d.deletedAt)||_mmLocalDate(d.date)||_mmLocalDate(d.executedAt)||_mmLocalDate(d.createdAt)):'';
+            if(od&&od===targetDate){seenOut[nm]=true;put(d.department||d.dept||(d.target&&d.target.dept)||'미분류',nm,'퇴사');}
+        });
+    }catch(e){}
+    var out={};
+    Object.keys(rem).forEach(function(k){out[k]=rem[k].join(', ')});
+    return out;
+}
 function buildWorkLogFullHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
     var order=_hwpOrder(dd);
+    var wlRem=_worklogRemarks(targetDate); /* [v6.7] 당일 입·퇴사 비고 */
     var F={font:'맑은 고딕',pt:12,size:'3'};
     var h='<table border="1" cellspacing="0" cellpadding="2" style="border:2px solid #000;border-collapse:collapse;table-layout:fixed">';
     h+='<tr>'+_hcR('행 복 관  근 무 일 지',{font:F.font,pt:F.pt,size:F.size,colspan:6})+'</tr>';
@@ -22861,7 +22908,7 @@ function buildWorkLogFullHtml(targetDate){
         +_hc(data.accident+'/'+data.accidentFemale,F)
         +_hc(data.current+'/'+data.currentFemale,{font:F.font,pt:F.pt,size:F.size,bold:true})
         +_hcR(data.overnight+'/'+data.overnightFemale,F)
-        +_hcR('\u00a0',F)+'</tr>';
+        +_hcR(escapeHtml(wlRem[dk]||'\u00a0'),F)+'</tr>';
     });
     h+='</table>';
     return h;
@@ -22871,6 +22918,7 @@ function buildWorkLogNumbersHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
     var order=_hwpOrder(dd);
+    var wlRem=_worklogRemarks(targetDate); /* [v6.7] 당일 입·퇴사 비고 */
     function row(vals,boldFlags){
         var h='<tr>';
         vals.forEach(function(v,i){
@@ -22884,7 +22932,7 @@ function buildWorkLogNumbersHtml(targetDate){
     h+=row([td.total+'/'+td.totalFemale,td.accident+'/'+td.accidentFemale,td.current+'/'+td.currentFemale,td.overnight+'/'+td.overnightFemale,''],[true,true,true,true,true]);
     order.forEach(function(dk){
         var data=dd[dk]||{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0};
-        h+=row([data.total+'/'+data.totalFemale,data.accident+'/'+data.accidentFemale,data.current+'/'+data.currentFemale,data.overnight+'/'+data.overnightFemale,''],[true,false,true,false,false]);
+        h+=row([data.total+'/'+data.totalFemale,data.accident+'/'+data.accidentFemale,data.current+'/'+data.currentFemale,data.overnight+'/'+data.overnightFemale,(wlRem[dk]||'')],[true,false,true,false,false]);
     });
     h+='</table>';
     return h;
@@ -24465,6 +24513,7 @@ window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920" integrity="sha512-L0ha0OXavK/8okipN9F8BtP84dg9DUhPERbBXzwI6dgTA55d2+yweo3pn5CSFYs45/r8md2+xvUPtTdvTNRfjA==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
 
