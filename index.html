@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v6.9h</title>
+    <title>화성캠 행복관 인원관리 v6.9i</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22919,7 +22919,7 @@ function _worklogRemarks(targetDate){
 function buildWorkLogFullHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
-    var order=_wlDocOrder(dd);
+    var order=_hwpOrder(dd);
     var wlRem=_worklogRemarks(targetDate); /* [v6.7] 당일 입·퇴사 비고 */
     var F={font:'맑은 고딕',pt:12,size:'3'};
     var h='<table border="1" cellspacing="0" cellpadding="2" style="border:2px solid #000;border-collapse:collapse;table-layout:fixed">';
@@ -22950,7 +22950,7 @@ function buildWorkLogFullHtml(targetDate){
 function buildWorkLogNumbersHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
-    var order=_wlDocOrder(dd);
+    var order=_hwpOrder(dd);
     var wlRem=_worklogRemarks(targetDate); /* [v6.7] 당일 입·퇴사 비고 */
     function row(vals,boldFlags){
         var h='<tr>';
@@ -23053,7 +23053,7 @@ function openHwpCopyPage(targetDate,kind){
     }else{
         title='인원현황 ('+(kind==='stay'?'잔류자명단':'외박자명단')+')';
         var dd=collectCurrentData(targetDate,kind);
-        var order=_wlDocOrder(dd).map(function(d){return{key:d,name:d.replace('과','').replace('과정','')}});
+        var order=_hwpOrder(dd).map(function(d){return{key:d,name:d.replace('과','').replace('과정','')}});
         body='<div style="font-size:15px;font-weight:bold;color:#1f2937;margin:16px 0 6px">① 숫자 부분만 복사 (총원/사고/현재/외박 순, 라벨 제외) — 맑은고딕 11</div>'
         +'<button onclick="copyBlock(\'areaA\',this)" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:15px;font-weight:bold;cursor:pointer">📋 숫자 복사하기</button> <span style="font-size:13px;font-weight:bold;color:#047857"></span>'
         +'<div style="font-size:15px;font-weight:bold;color:#1f2937;margin:22px 0 6px">② '+(kind==='stay'?'잔류자':'외박자')+' 명단+기숙사 과대표+비고 3행 복사(한 번에) — 굴림 8, 줄간격 160% · 비고는 파란색 굵게</div>'
