@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v7.0</title>
+    <title>화성캠 행복관 인원관리 v7.1</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -7007,8 +7007,8 @@ async function executeStudentDelete(dept,name){
                     name: name,
                     department: dept || '미배정',
                     status: 'approved',
-                    resignDate: new Date().toISOString().substring(0,10),
-                    approvedDate: new Date().toISOString().substring(0,10),
+                    resignDate: getCurrentDate(),
+                    approvedDate: getCurrentDate(),
                     approvedBy: '관리자',
                     registeredDate: (window._secureData.getRegisteredDate(name)||null),
                     reason: reason || '관리자 직접 삭제',
@@ -7018,9 +7018,7 @@ async function executeStudentDelete(dept,name){
                 });
                 deletedCount.resigns = 1;
             }
-            updateProgress(91,'퇴사 이력 보존 완료 ✓');
-        } catch(e) {
-        }
+            updateProgress(91,'퇴사 이력 보존 완료 ✓'); } catch(e) { console.warn('[퇴사 이력 보존] 비고 기록 실패:',e); showToast('⚠️ 비고(퇴사) 기록 실패: '+e.message,'error'); }
         
         // 서약서 데이터 및 서명 이미지 삭제 (개인정보처리방침 준수)
         updateProgress(88,'서약서 데이터 삭제 중...');
@@ -12207,8 +12205,8 @@ window.forceDeleteStudent = async function(targetName) {
                     name: targetName,
                     department: _deptName,
                     status: 'approved',
-                    resignDate: new Date().toISOString().substring(0,10),
-                    approvedDate: new Date().toISOString().substring(0,10),
+                    resignDate: getCurrentDate(),
+                    approvedDate: getCurrentDate(),
                     approvedBy: '관리자 (강제삭제)',
                     registeredDate: (window._secureData.getRegisteredDate(targetName)||null),
                     reason: '강제삭제 처리',
