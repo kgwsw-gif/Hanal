@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v6.9a</title>
+    <title>화성캠 행복관 인원관리 v6.9b</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22855,8 +22855,7 @@ function _worklogRemarks(targetDate){
             var k=String(dept||'');
             if(k==='스마트전기(전기)과'||k==='스마트전기(소방)과') k='스마트전기과';
             if(!k||k==='미분류') return '';
-            k=k.replace('과','').replace('과정','');
-            return k;
+            return k; /* 과·과정 유지 — 근무일지 표 행 키(dk)와 동일해야 비고가 붙음 [v6.9b 핵심 수정] */
         };
         var strip=function(n){return String(n).replace('(여)','').trim()};
         var ld=function(v){return (typeof _mmLocalDate==='function')?_mmLocalDate(v):''};
