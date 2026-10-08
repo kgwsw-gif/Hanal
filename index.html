@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v7.1</title>
+    <title>화성캠 행복관 인원관리 v7.3</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -789,6 +789,9 @@ var _pushSentToday = {};
 setInterval(function(){
   if (currentMode !== 'admin') return;
   if (typeof isWeekendOrHoliday === 'function' && isWeekendOrHoliday()) return;
+  var _tm=new Date(Date.now()+86400000);
+  var _tms=_tm.getFullYear()+'-'+String(_tm.getMonth()+1).padStart(2,'0')+'-'+String(_tm.getDate()).padStart(2,'0');
+  if (typeof isWeekendOrHoliday === 'function' && isWeekendOrHoliday(_tms)) return; /* [v7.2] 휴일 전일(내일 주맑·공휴일)은 발송 안함 */
   
   var now = new Date();
   var day = now.getDay();
@@ -3967,6 +3970,9 @@ function _shouldShowReminder() {
     // 6. 오늘이 외박/잔류 신청일인지 (잔류 확인만 하는 날 제외)
     var todayStr = getCurrentDate();
     if (isWeekendOrHoliday(todayStr)) return false;
+    var _tm=new Date(Date.now()+86400000);
+    var _tms=_tm.getFullYear()+'-'+String(_tm.getMonth()+1).padStart(2,'0')+'-'+String(_tm.getDate()).padStart(2,'0');
+    if (isWeekendOrHoliday(_tms)) return false; /* [v7.3] 휴일 전일(내일 주말·공휴일)은 모달 미표시 */
 
     // 7. 본인이 아직 제출 안 했는지 확인
     var dept = currentStudentDept();
