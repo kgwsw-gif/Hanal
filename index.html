@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v6.9b</title>
+    <title>화성캠 행복관 인원관리 v6.9c</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22836,6 +22836,15 @@ function _hwpOrder(dd){
     if(smartIdx>-1){order.splice(smartIdx>order.length?order.length:smartIdx,0,'스마트전기과');dd['스마트전기과']=mergeSmartelec(dd)}
     return order;
 }
+/* [v6.9c] 한글 근무일지 문서의 학과 행 순서 — 문서 템플릿과 동일해야 붙여넣을 때 행이 어긋나지 않음 */
+var _WL_DOC_ORDER=['자동차도장과','산업설비과','주얼리목공예과','스마트자동차과','스마트전기과','스마트기계과','스마트표면처리과','중장년(설비)과정','여성재취업과정'];
+function _wlDocOrder(dd){
+    var base=_hwpOrder(dd);
+    var out=[];
+    _WL_DOC_ORDER.forEach(function(k){ if(base.indexOf(k)>-1) out.push(k) });
+    base.forEach(function(k){ if(out.indexOf(k)===-1) out.push(k) });
+    return out;
+}
 // ---- 근무일지 ----
 // [v6.7] 근무일지 비고: 선택한 날짜(당일)에 발생한 입사·퇴사를 학과별로 자동 표시
 // 입사 = 학생 등록 입사일(registeredDate, '입사 예정(pending)'은 제외)
@@ -22910,7 +22919,7 @@ function _worklogRemarks(targetDate){
 function buildWorkLogFullHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
-    var order=_hwpOrder(dd);
+    var order=_wlDocOrder(dd);
     var wlRem=_worklogRemarks(targetDate); /* [v6.7] 당일 입·퇴사 비고 */
     var F={font:'맑은 고딕',pt:12,size:'3'};
     var h='<table border="1" cellspacing="0" cellpadding="2" style="border:2px solid #000;border-collapse:collapse;table-layout:fixed">';
@@ -22932,7 +22941,7 @@ function buildWorkLogFullHtml(targetDate){
         +_hc(data.accident+'/'+data.accidentFemale,F)
         +_hc(data.current+'/'+data.currentFemale,{font:F.font,pt:F.pt,size:F.size,bold:true})
         +_hcR(data.overnight+'/'+data.overnightFemale,F)
-        +_hcR(escapeHtml(wlRem[dk]||'\u00a0'),F)+'</tr>';
+        +_hcR(escapeHtml(wlRem[dk]||'\u00a0'),{font:F.font,pt:11,bold:true,align:'left'})+'</tr>'; /* [v6.9c] 비고: 11pt·굵게·왼쪽 정렬 */
     });
     h+='</table>';
     return h;
@@ -22941,12 +22950,13 @@ function buildWorkLogFullHtml(targetDate){
 function buildWorkLogNumbersHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
-    var order=_hwpOrder(dd);
+    var order=_wlDocOrder(dd);
     var wlRem=_worklogRemarks(targetDate); /* [v6.7] 당일 입·퇴사 비고 */
     function row(vals,boldFlags){
         var h='<tr>';
         vals.forEach(function(v,i){
             var o={font:'맑은 고딕',pt:12,size:'3',bold:boldFlags[i],width:i===4?145:89};
+            if(i===4){o.pt=11;delete o.size;o.bold=true;o.align='left'} /* [v6.9c] 비고: 맑은고딕 11·굵게·왼쪽 정렬 */
             if(i===3||i===4)o.extraCss='border-right:2px solid #000'; // 외박·비고 오른쪽 세로선 굵게
             h+=_hc(v===''?'\u00a0':escapeHtml(String(v)),o);
         });
