@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v6.9e</title>
+    <title>화성캠 행복관 인원관리 v6.9f</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22999,7 +22999,7 @@ function buildStatusFullHtml(dd,order,listType,targetDate){
     });
     h+='</tr>';
     h+='<tr>'+_hc('기숙사 과대표',{font:'맑은 고딕',pt:11,colspan:2});
-    order.forEach(function(d){var L=window.DEPARTMENT_LEADERS&&window.DEPARTMENT_LEADERS[d.key];h+=_hc(escapeHtml(L&&L.name?L.name:'')||'\u00a0',{font:'굴림',pt:9,size:'1',align:'center',valign:'top'})});
+    order.forEach(function(d){var L=window.DEPARTMENT_LEADERS&&window.DEPARTMENT_LEADERS[d.key];h+=_hc(escapeHtml(L&&L.name?L.name:'')||'\u00a0',{font:'굴림',pt:9,size:'1',align:'center',valign:'middle'})});
     h+='</tr>';
     h+='<tr>'+_hc('비 고',{font:'맑은 고딕',pt:11,colspan:2});
     var wlRemP=_worklogRemarks(targetDate);
@@ -23035,7 +23035,7 @@ function buildStatusNamesHtml(dd,order,targetDate){
     });
     h+='</tr>';
     h+='<tr>';
-    order.forEach(function(d){var L=window.DEPARTMENT_LEADERS&&window.DEPARTMENT_LEADERS[d.key];h+=_hc(escapeHtml(L&&L.name?L.name:'')||'\u00a0',{font:'굴림',pt:9,size:'1',align:'center',valign:'top',width:89})});
+    order.forEach(function(d){var L=window.DEPARTMENT_LEADERS&&window.DEPARTMENT_LEADERS[d.key];h+=_hc(escapeHtml(L&&L.name?L.name:'')||'\u00a0',{font:'굴림',pt:9,size:'1',align:'center',valign:'middle',width:89})});
     h+='</tr>';
     h+='<tr>';
     order.forEach(function(d){h+=_hc(escapeHtml(wlRem[d.key]||'')||'\u00a0',{font:'굴림',pt:8,size:'1',bold:true,align:'left',valign:'top',width:89,color:'#0000ff',extraCss:'color:#0000ff;'})});
