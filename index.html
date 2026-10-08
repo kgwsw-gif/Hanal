@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v6.7</title>
+    <title>화성캠 행복관 인원관리 v6.9a</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -22839,49 +22839,74 @@ function _hwpOrder(dd){
 // ---- 근무일지 ----
 // [v6.7] 근무일지 비고: 선택한 날짜(당일)에 발생한 입사·퇴사를 학과별로 자동 표시
 // 입사 = 학생 등록 입사일(registeredDate, '입사 예정(pending)'은 제외)
-// 퇴사 = 퇴사 승인(approved) 또는 관리자 직접 삭제(deletionLogs) — 월간 입사·퇴사 현황과 동일 판정
-// 월간 현황에서 제외한 인물(+기본 숨깄 '이대호')도 비고에서 제외. 여러 명이면 "홍길동(입사), 김철수(퇴사)"로 모두 표시.
+// 퇴사 = 실제 퇴사일(resignDate) 우선, 없으면 승인일 — 직접 삭제(deletionLogs)는 삭제일 기준 [v6.9 수정]
+// 월간 현황에서 제외한 인물(+기본 숨김 '이대호')도 비고에서 제외. 여러 명이면 "홍길동(입사), 김철수(퇴사)"로 모두 표시.
+// [v6.9] 비고 기준 변경: 인원 수 기준 폐지 → 학과 신설·폐지 '상황 판정'으로 전환
+//  · 입사: 그 학과의 현재 등록 인원 전원의 입사일이 같은 날이고 당일 입사가 2명 이상이면 학과 신설로 보고 비고 생략
+//  · 퇴사: 당일 퇴사가 2명 이상이고 그 학과에 그 날 이후 남는 사람이 없으면(전원 퇴소=폐지) 비고 생략
+//  · 퇴사일 = 예정일(resignDate)과 승인 시각(personalDataDeletedAt·approvedDate) 중 빠른 날 — 오늘 승인했으면 오늘 표시 [v6.9a]
+//  · 1명 입·퇴사와 소규모 다수는 모두 표시 / '월간 현황 제외' 인물은 계속 비고에서 제외
 function _worklogRemarks(targetDate){
-    var rem={};
+    var out={};
     try{
         var hid=['이대호'];
         try{(window._mmHidden||[]).forEach(function(n){hid.push(n)})}catch(e){}
-        var seenIn={}, seenOut={};
-        var put=function(dept,name,label){
-            if(!name||hid.indexOf(name)>-1) return;
+        var key=function(dept){
             var k=String(dept||'');
             if(k==='스마트전기(전기)과'||k==='스마트전기(소방)과') k='스마트전기과';
-            if(!k||k==='미분류') return;
+            if(!k||k==='미분류') return '';
             k=k.replace('과','').replace('과정','');
-            if(!k) return;
-            (rem[k]=rem[k]||[]).push(String(name).replace('(여)','').trim()+'('+label+')');
+            return k;
         };
+        var strip=function(n){return String(n).replace('(여)','').trim()};
+        var ld=function(v){return (typeof _mmLocalDate==='function')?_mmLocalDate(v):''};
+        var roster={}, markIn={}, markOut={}, dep={}, seenOut={};
         var entries=window._secureData&&window._secureData.getAllRoomEntries?window._secureData.getAllRoomEntries():{};
         Object.keys(entries).forEach(function(name){
             if(hid.indexOf(name)>-1) return;
             var e=entries[name]||{};
-            if(e.status==='pending') return; /* 입사 예정은 아직 미표시 */
-            var rd=(typeof _mmLocalDate==='function')?_mmLocalDate(e.registeredDate):'';
-            if(rd&&rd===targetDate&&!seenIn[name]){seenIn[name]=true;
-                put(e.department||(typeof findDeptByNameFallback==='function'?findDeptByNameFallback(name):'')||'미분류',name,'입사');}
+            if(e.status==='pending') return; /* 입사 예정은 미표시·인원 집계 제외 */
+            var k=key(e.department||(typeof findDeptByNameFallback==='function'?findDeptByNameFallback(name):'')||'미분류');
+            if(!k) return;
+            var reg=ld(e.registeredDate);
+            (roster[k]=roster[k]||[]).push({name:name,reg:reg});
+            if(reg&&reg===targetDate)(markIn[k]=markIn[k]||[]).push(strip(name)+'(입사)');
         });
         (typeof resignRequests!=='undefined'?resignRequests:[]).forEach(function(r){
-            if(r.status!=='approved'||!r.name) return;
-            var od=(typeof _mmLocalDate==='function')?(_mmLocalDate(r.approvedDate)||_mmLocalDate(r.personalDataDeletedAt)||_mmLocalDate(r.updatedAt)||_mmLocalDate(r.resignDate)):'';
-            if(od&&od===targetDate&&!seenOut[r.name]){seenOut[r.name]=true;put(r.department||'미분류',r.name,'퇴사');}
+            if(r.status!=='approved'||!r.name||seenOut[r.name]) return;
+            var ap=ld(r.personalDataDeletedAt)||ld(r.approvedDate)||ld(r.updatedAt)||'';
+            var rd=ld(r.resignDate)||'';
+            var od=(ap&&rd)?(rd<ap?rd:ap):(rd||ap); /* 실제 퇴사일 = 예정일과 승인 시각 중 빠른 날 */
+            if(!od) return;
+            dep[r.name]=od;
+            if(od===targetDate){seenOut[r.name]=true;var k=key(r.department||'미분류');if(k)(markOut[k]=markOut[k]||[]).push(strip(r.name)+'(퇴사)')}
         });
         (typeof deletionLogs!=='undefined'?deletionLogs:[]).forEach(function(d){
             var nm=d.name||d.studentName||(d.target&&d.target.name)||'';
             if(!nm||seenOut[nm]) return;
             if(d.dryRun) return;
             if(d.type&&d.type!=='student') return;
-            var od=(typeof _mmLocalDate==='function')?(_mmLocalDate(d.deletedAt)||_mmLocalDate(d.date)||_mmLocalDate(d.executedAt)||_mmLocalDate(d.createdAt)):'';
-            if(od&&od===targetDate){seenOut[nm]=true;put(d.department||d.dept||(d.target&&d.target.dept)||'미분류',nm,'퇴사');}
+            var od=ld(d.deletedAt)||ld(d.date)||ld(d.executedAt)||ld(d.createdAt);
+            if(!od) return;
+            dep[nm]=od;
+            if(od===targetDate){seenOut[nm]=true;var k=key(d.department||d.dept||(d.target&&d.target.dept)||'미분류');if(k)(markOut[k]=markOut[k]||[]).push(strip(nm)+'(퇴사)')}
         });
-    }catch(e){}
-    var out={};
-    Object.keys(rem).forEach(function(k){out[k]=rem[k].join(', ')});
-    return out;
+        Object.keys(markIn).forEach(function(k){
+            var mem=(roster[k]||[]).filter(function(m){return m.reg&&m.reg<=targetDate});
+            var founding=mem.length>0&&mem.every(function(m){return m.reg===targetDate});
+            if(markIn[k].length>=2&&founding){ return; /* 학과 신설일(전원이 같은 날 입사) */ }
+            out[k]=(out[k]||[]).concat(markIn[k]);
+        });
+        Object.keys(markOut).forEach(function(k){
+            var mem=roster[k]||[];
+            var remaining=mem.filter(function(m){return m.reg<=targetDate&&(!dep[m.name]||dep[m.name]>targetDate)}).length;
+            if(markOut[k].length>=2&&remaining===0){ return; /* 학과 폐지(전원 퇴소) */ }
+            out[k]=(out[k]||[]).concat(markOut[k]);
+        });
+        var fin={};
+        Object.keys(out).forEach(function(k){ if(out[k].length>0) fin[k]=out[k].join(', ') });
+        return fin;
+    }catch(e){ return {} }
 }
 function buildWorkLogFullHtml(targetDate){
     var dd=collectCurrentData(targetDate,'overnight');
