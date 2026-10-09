@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v7.7</title>
+    <title>화성캠 행복관 인원관리 v8.0</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -6018,31 +6018,47 @@ function generateStatusReportPrompt(){openInputModal('인원현황',[{label:'날
 
 async function generateWorkLog(targetDate){
     try{await loadExcelJS();showToast('근무일지 생성 중...','info');var dd=collectCurrentData(targetDate,'overnight'),wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Table 1');
-    var bs={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}},base={font:{name:'맑은 고딕',size:12},alignment:{horizontal:'center',vertical:'middle',wrapText:false},border:bs},bold={font:{name:'맑은 고딕',size:12,bold:true},alignment:{horizontal:'center',vertical:'middle',wrapText:false},border:bs};;
+    var bs={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}},base={font:{name:'맑은 고딕',size:12},alignment:{horizontal:'center',vertical:'middle',wrapText:false},border:bs},bold={font:{name:'맑은 고딕',size:12,bold:true},alignment:{horizontal:'center',vertical:'middle',wrapText:false},border:bs},remBold={font:{name:'맑은 고딕',size:12,bold:true},alignment:{horizontal:'center',vertical:'middle',wrapText:false},border:bs};;
     ws.addRow(['행 복 관  근 무 일 지']);ws.mergeCells('A1:F1');ws.getCell('A1').style=base;ws.addRow([]);ws.addRow(['인    원    현    황    (  현 원  /  여  )']);ws.mergeCells('A3:F3');ws.getCell('A3').style=base;
     var hr=ws.addRow(['학 과 별','총원','사고','현재','외박','비   고']);hr.eachCell(function(c){c.style=base});
     var td=Object.values(dd).reduce(function(a,d){return{total:a.total+d.total,totalFemale:a.totalFemale+d.totalFemale,accident:a.accident+d.accident,accidentFemale:a.accidentFemale+d.accidentFemale,current:a.current+d.current,currentFemale:a.currentFemale+d.currentFemale,overnight:a.overnight+d.overnight,overnightFemale:a.overnightFemale+d.overnightFemale}},{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0});
     var tr=ws.addRow(['계',td.total+'/'+td.totalFemale,td.accident+'/'+td.accidentFemale,td.current+'/'+td.currentFemale,td.overnight+'/'+td.overnightFemale,'']);tr.eachCell(function(c){c.style=bold});
     var order=_hwpOrder(dd);var wlRem=_worklogRemarks(targetDate);
-    order.forEach(function(dk){var dn=dk.replace('과','').replace('과정','');var data=dd[dk]||{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0};var row=ws.addRow([dn,data.total+'/'+data.totalFemale,data.accident+'/'+data.accidentFemale,data.current+'/'+data.currentFemale,data.overnight+'/'+data.overnightFemale,(wlRem[dk]||'')]);row.eachCell(function(c,cn){c.style=(cn===2||cn===4)?bold:base;if(cn===6)c.font={name:'맑은 고딕',size:12,bold:true,color:{argb:'FF0000FF'}}})});
+    order.forEach(function(dk){var dn=dk.replace('과','').replace('과정','');var data=dd[dk]||{total:0,totalFemale:0,accident:0,accidentFemale:0,current:0,currentFemale:0,overnight:0,overnightFemale:0};var row=ws.addRow([dn,data.total+'/'+data.totalFemale,data.accident+'/'+data.accidentFemale,data.current+'/'+data.currentFemale,data.overnight+'/'+data.overnightFemale,(wlRem[dk]||'')]);row.eachCell(function(c,cn){c.style=(cn===2||cn===4)?bold:(cn===6?remBold:base)})});
     ws.columns=[{width:20},{width:12},{width:12},{width:12},{width:12},{width:20}];
     var buf=await wb.xlsx.writeBuffer(),blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='근무일지_'+targetDate+'.xlsx';a.click();showToast('근무일지 다운로드 완료','success')}catch(e){showToast('생성 실패: '+e.message,'error')}
 }
 
 async function generateStatusReport(targetDate,listType){
     try{await loadExcelJS();showToast('인원현황 생성 중...','info');var dd=collectCurrentData(targetDate,listType),wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Table 1');
-    var order=_hwpOrder(dd).map(function(d){return{key:d,name:d.replace('과','').replace('과정','')}});
-    var bs={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}},base={font:{name:'맑은 고딕',size:11},alignment:{horizontal:'center',vertical:'middle',wrapText:true},border:bs},bold2={font:{name:'맑은 고딕',size:11,bold:true},alignment:{horizontal:'center',vertical:'middle',wrapText:true},border:bs};
-    ws.addRow(['행  복  관  인  원  현  황']);ws.mergeCells(1,1,1,3+order.length);ws.getCell('A1').style=base;ws.addRow([]);
-    var hd=['구분','','총원'];order.forEach(function(d){hd.push(d.name)});var hdr=ws.addRow(hd);hdr.eachCell(function(c){c.style=bold2});ws.mergeCells(3,1,3,2);
-    var calc=function(f,ff){var t=0,tf=0;order.forEach(function(d){var data=dd[d.key]||{};t+=(data[f]||0);tf+=(data[ff]||0)});return{t:t,tf:tf}};
-    [['입사','total','totalFemale'],['사고','accident','accidentFemale'],['현재','current','currentFemale'],['외박','overnight','overnightFemale']].forEach(function(r,i){var totals=calc(r[1],r[2]),rd=[r[0],'',totals.t+'/'+totals.tf];order.forEach(function(d){var data=dd[d.key]||{};rd.push((data[r[1]]||0)+'/'+(data[r[2]]||0))});
-var row=ws.addRow(rd);row.eachCell(function(c){c.style=(i===0||i===2)?bold2:base});ws.mergeCells(4+i,1,4+i,2)});
-    var lt=listType==='stay'?'잔류자명단':'외박자명단',nld=[lt,'',''];
-    order.forEach(function(d){var data=dd[d.key]||{overnightStudents:[]},studs=data.overnightStudents,m=studs.filter(function(s){return !s.includes('(여)')}),f=studs.filter(function(s){return s.includes('(여)')});var list=m.slice();if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');list=list.concat(f.map(function(s){return s.replace('(여)','')}))}nld.push(list.join('\n'))});
-    var nameStyle={font:{name:'굴림',size:8},alignment:{horizontal:'left',vertical:'top',wrapText:true},border:bs};var nlr=ws.addRow(nld);nlr.eachCell(function(c,cn){c.style=cn>=3?nameStyle:base});ws.mergeCells(8,1,8,2);
-    ws.getColumn(1).width=6;ws.getColumn(2).width=6;ws.getColumn(3).width=8;for(var i=0;i<order.length;i++)ws.getColumn(4+i).width=12;
-    var buf=await wb.xlsx.writeBuffer(),blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='인원현황_'+targetDate+'.xlsx';a.click();showToast('인원현황 다운로드 완료','success')}catch(e){showToast('생성 실패: '+e.message,'error')}
+    var order=_hwpOrder(dd),wlRem=_worklogRemarks(targetDate); /* [v8.0] 한글 문서용 복사(buildStatusFullHtml)와 같은 격자: 학과가 열, 위 표와 명단이 같은 열 */
+    var bs={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+    var fSt=function(b){return{font:{name:'맑은 고딕',size:11,bold:!!b},alignment:{horizontal:'center',vertical:'middle',wrapText:false},border:bs}};
+    var nameSt=function(){return{font:{name:'굴림',size:8},alignment:{horizontal:'left',vertical:'top',wrapText:true},border:bs}};
+    var leadSt=function(){return{font:{name:'굴림',size:9},alignment:{horizontal:'center',vertical:'middle'},border:bs}};
+    var remSt=function(){return{font:{name:'굴림',size:8,bold:true},alignment:{horizontal:'left',vertical:'top',wrapText:true},border:bs}};
+    var ncol=2+order.length; /* 구 분+총원/여+학과 n개 */
+    ws.addRow(['행  복  관  인  원  현  황']);ws.mergeCells(1,1,1,ncol);ws.getCell(1,1).style=fSt(false);ws.addRow([]);
+    var hr=ws.addRow(['구 분','총원/여'].concat(order.map(function(dk){return dk.replace('과','').replace('과정','')})));
+    hr.eachCell(function(c){c.style=fSt(true)});
+    [['총원','total','totalFemale',true],['사고','accident','accidentFemale',false],['현재','current','currentFemale',true],['외박','overnight','overnightFemale',false]].forEach(function(rd){
+        var f=rd[1],ff=rd[2],tot=order.reduce(function(a,dk){var data=dd[dk]||{};return{t:a.t+(data[f]||0),tf:a.tf+(data[ff]||0)}},{t:0,tf:0});
+        var rr=ws.addRow([rd[0],tot.t+'/'+tot.tf].concat(order.map(function(dk){var data=dd[dk]||{};return (data[f]||0)+'/'+(data[ff]||0)})));
+        rr.eachCell(function(c){c.style=fSt(rd[3])});
+    });
+    var mkRow=function(label,cells,styleFn){
+        var nr=ws.addRow([label,''].concat(cells)),rn=ws.rowCount;ws.mergeCells(rn,1,rn,2);
+        nr.getCell(1).style=fSt(false);nr.getCell(2).style=fSt(false);
+        for(var i=3;i<=ncol;i++)nr.getCell(i).style=styleFn();
+        return nr;
+    };
+    mkRow('입사',order.map(function(dk){var data=dd[dk]||{},roster=(data.roster||[]).filter(function(n){return !window._secureData.isPending(n)});var m=_wlSortNames(roster.filter(function(s){return !s.includes('(여)')})),f=_wlSortNames(roster.filter(function(s){return s.includes('(여)')}));var list=m.map(function(s){return s+_wlNameDate(s,targetDate)});if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');list=list.concat(f.map(function(s){return s.replace('(여)','')+_wlNameDate(s,targetDate)}))}return list.join('\n')}),nameSt);
+    mkRow(listType==='stay'?'잔류자':'외박자',order.map(function(dk){var data=dd[dk]||{overnightStudents:[]},studs=data.overnightStudents||[];var m=studs.filter(function(s){return !s.includes('(여)')}),f=studs.filter(function(s){return s.includes('(여)')});var list=m.slice();if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');list=list.concat(f.map(function(s){return s.replace('(여)','')}))}return list.join('\n')}),nameSt);
+    mkRow('기숙사 과대표',order.map(function(dk){var L=window.DEPARTMENT_LEADERS&&window.DEPARTMENT_LEADERS[dk];return (L&&L.name)?L.name:''}),leadSt);
+    mkRow('비 고',order.map(function(dk){return wlRem[dk]||''}),remSt);
+    var widths=[{width:9},{width:10}];for(var wi=0;wi<order.length;wi++)widths.push({width:11});
+    ws.columns=widths;
+    var buf=await wb.xlsx.writeBuffer(),blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),a3=document.createElement('a');a3.href=URL.createObjectURL(blob);a3.download='인원현황_'+targetDate+'.xlsx';a3.click();showToast('인원현황 다운로드 완료','success')}catch(e){showToast('생성 실패: '+e.message,'error')}
 }
 
 async function downloadLoginLogs(){
