@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v8.0</title>
+    <title>화성캠 행복관 인원관리 v8.8</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -23101,10 +23101,11 @@ function openHwpCopyPage(targetDate,kind){
     var title,body='';
     if(kind==='worklog'){
         title='근무일지';
+        var dd=collectCurrentData(targetDate,'overnight'),td2=Object.values(dd).reduce(function(a2,d){return{total:a2.total+d.total,totalFemale:a2.totalFemale+d.totalFemale}},{total:0,totalFemale:0});
         body='<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;margin:16px 0 10px;font-size:14px;color:#1e293b;line-height:2">'
         +'<b style="font-size:15px">📌 한글 문서에 붙여넣는 방법 — 딱 3단계</b><br>'
         +_hwpBadge(1,'#7c3aed')+' 아래 <b style="background:#f5f3ff;padding:1px 6px;border-radius:6px">[📋 숫자 복사하기]</b> 보라색 버튼을 클릭 &nbsp;→&nbsp; '
-        +_hwpBadge(2,'#7c3aed')+' 한글 근무일지에서 <b style="color:#7c3aed">"109/7"이 적힌 칸</b>(계 행 총원 칸 — 아래 표에 <b>②</b> 표시된 바로 그 위치)를 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b>(또는 마우스 오른쪽 버튼 → <b>붙이기</b>)를 누르면 <b style="color:#dc2626">"셀 붙이기" 창</b>이 열립니다 — 이때 <b style="color:#dc2626">덮어쓰기</b>를 선택하면 숫자가 표 전체에 한 번에 들어갑니다.<br>'
+        +_hwpBadge(2,'#7c3aed')+' 한글 근무일지에서 <b style="color:#7c3aed">"'+td2.total+'/'+td2.totalFemale+'"이 적힌 칸</b>(계 행 총원 칸 — 아래 표에 <b>②</b> 표시된 바로 그 위치)를 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b>(또는 마우스 오른쪽 버튼 → <b>붙이기</b>)를 누르면 <b style="color:#dc2626">"셀 붙이기" 창</b>이 열립니다 — 이때 <b style="color:#dc2626">덮어쓰기</b>를 선택하면 숫자가 표 전체에 한 번에 들어갑니다.<br>'
         +'<span style="font-size:12.5px;color:#475569">· 복사 범위: 숫자 부분만 (계~학과별, 총원/사고/현재/외박/비고) — 맑은고딕 12 &nbsp;|&nbsp; 학과 순서: 설정→학과 순서 변경 저장 순서 &nbsp;|&nbsp; 비고: 당일 입사/퇴사자 자동 기록(파란색 굵게)<br>· 버튼이 안 먹히면 아래 미리보기 표에서 숫자 부분을 드래그해 Ctrl+C 해도 됩니다</span></div>'
         +_hwpBadge(1,'#7c3aed')+'<button onclick="copyBlock(\'areaA\',this)" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:15px;font-weight:bold;cursor:pointer">📋 숫자 복사하기</button> <span style="font-size:13px;font-weight:bold;color:#047857"></span>'
         +'<div style="background:white;padding:20px;border-radius:10px;border:1px solid #e2e8f0;overflow:auto;margin-top:8px">'+buildWorkLogFullHtml(targetDate)+'</div>'
@@ -23113,9 +23114,10 @@ function openHwpCopyPage(targetDate,kind){
         title='인원현황 ('+(kind==='stay'?'잔류자명단':'외박자명단')+')';
         var dd=collectCurrentData(targetDate,kind);
         var order=_hwpOrder(dd).map(function(d){return{key:d,name:d.replace('과','').replace('과정','')}});
+        var td2=Object.values(dd).reduce(function(a2,d){return{total:a2.total+d.total,totalFemale:a2.totalFemale+d.totalFemale}},{total:0,totalFemale:0});
         body='<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 16px;margin:16px 0 10px;font-size:14px;color:#1e293b;line-height:2">'
         +'<b style="font-size:15px">📌 한글 문서에 붙여넣는 방법 — 숫자·명단 2번만 복사</b><br>'
-        +'<b>숫자 넣기:</b> '+_hwpBadge(1,'#7c3aed')+' <b style="background:#f5f3ff;padding:1px 6px;border-radius:6px">[📋 숫자 복사하기]</b> 클릭 &nbsp;→&nbsp; '+_hwpBadge(2,'#7c3aed')+' 한글 문서에서 <b style="color:#7c3aed">"109/7"이 적힌 칸</b>(총원 칸 — 아래 표에 ② 표시) 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b><br>'
+        +'<b>숫자 넣기:</b> '+_hwpBadge(1,'#7c3aed')+' <b style="background:#f5f3ff;padding:1px 6px;border-radius:6px">[📋 숫자 복사하기]</b> 클릭 &nbsp;→&nbsp; '+_hwpBadge(2,'#7c3aed')+' 한글 문서에서 <b style="color:#7c3aed">"'+td2.total+'/'+td2.totalFemale+'"이 적힌 칸</b>(총원 칸 — 아래 표에 ② 표시) 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b><br>'
         +'<b>명단 넣기:</b> '+_hwpBadge(3,'#059669')+' <b style="background:#ecfdf5;padding:1px 6px;border-radius:6px">[📋 명단 복사하기]</b> 클릭 &nbsp;→&nbsp; '+_hwpBadge(4,'#059669')+' 한글 문서에서 <b style="color:#059669">자동차도장과 첫 학생 이름이 적힌 칸</b>(아래 표에 ④ 표시) 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b><br>'
         +'<b>⚠ 둘 다 공통:</b> 붙여넣기(Ctrl+V 또는 마우스 오른쪽 버튼 → <b>붙이기</b>)를 하면 <b style="color:#dc2626">"셀 붙이기" 창</b>이 열립니다 — 이때 반드시 <b style="color:#dc2626">덮어쓰기</b>를 선택해야 표가 안 망가집니다<br>'
         +'<span style="font-size:12.5px;color:#475569">· 학과 순서: 설정→학과 순서 변경 저장 순서 (전기+소방 병합) &nbsp;|&nbsp; 숫자: 맑은고딕 11 / 명단: 굴림 8, 줄간격 160%<br>· 입사 명단: 3글자 이름 먼저·4글자 뒤, 당월 입사자는 이름 뒤 입사일 자동 표시 (예: 김형준(13)) &nbsp;|&nbsp; (여학생): 가운데 정렬·남녀 사이 빈 칸 1줄·여학생 이름은 (여학생) 바로 다음 줄부터 &nbsp;|&nbsp; 전기(소방 포함)과는 한 칸에 두 명 나열 &nbsp;|&nbsp; 기숙사 과대표 9pt 가운데 정렬 &nbsp;|&nbsp; 비고: 당일 입사/퇴사자 자동 기록(파란색 굵게)<br>· 버튼이 안 먹히면 아래 미리보기에서 해당 부분을 드래그해 Ctrl+C 해도 됩니다</span></div>'
@@ -23123,7 +23125,7 @@ function openHwpCopyPage(targetDate,kind){
         +_hwpBadge(3,'#059669')+'<button onclick="copyBlock(\'areaB\',this)" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:15px;font-weight:bold;cursor:pointer">📋 명단 복사하기</button> <span style="font-size:13px;font-weight:bold;color:#047857"></span>'
         +'<div style="background:white;padding:20px;border-radius:10px;border:1px solid #e2e8f0;overflow:auto;margin-top:12px">'+buildStatusFullHtml(dd,order,kind,targetDate)+'</div>'
         +'<div id="areaA" style="position:absolute;left:-9999px;top:0">'+buildStatusNumbersHtml(dd,order)+'</div>'
-        +'<div id="areaB" style="position:absolute;left:-9999px;top:0">'+buildStatusNamesHtml(dd,order,targetDate)+'</div>';
+        +'<div id="areaB" style="position:absolute;left:-9999px;top:0">'+buildStatusNamesHtml(dd,order,targetDate)+'</div>'
     }
     var w=window.open('','_blank');
     if(!w){showToast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요','warning');return}
