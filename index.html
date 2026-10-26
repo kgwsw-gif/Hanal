@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.13</title>
+    <title>화성캠 행복관 인원관리 v9.14</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -13701,6 +13701,7 @@ function renderPendingCard(p, isDue, seq) {
                     dueEl.style.display = 'none';
                 }
             }
+            if (window.updateFloatFabBadge) updateFloatFabBadge();
             return;
         }
         
@@ -15896,9 +15897,37 @@ function ensureFloatFabToggle(){
     };
     document.body.appendChild(fab);
   }
-  fab.innerHTML = window._floatFabOpen ? '<i class="fas fa-times"></i>' : '<i class="fas fa-comments"></i>';
+  fab.innerHTML = (window._floatFabOpen ? '<i class="fas fa-times"></i>' : '<i class="fas fa-comments"></i>')
+    + '<span id="floatFabBadge" style="position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;background:#dc2626;color:#fff;border-radius:9999px;font-size:11px;font-weight:900;display:none;align-items:center;justify-content:center;padding:0 5px;border:2px solid #fff;">0</span>';
   return fab;
 }
+// [FAB 뱃지] 폴딩 버튼에도 이벤트 합계 표시 (예비입사자 + 학과대표톡 + 관리자톡)
+function updateFloatFabBadge() {
+  var fab = document.getElementById('floatFabToggle');
+  if (!fab) return;
+  var badge = document.getElementById('floatFabBadge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'floatFabBadge';
+    badge.style.cssText = 'position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;background:#dc2626;color:#fff;border-radius:9999px;font-size:11px;font-weight:900;display:none;align-items:center;justify-content:center;padding:0 5px;border:2px solid #fff;';
+    badge.textContent = '0';
+    fab.appendChild(badge);
+  }
+  var total = 0;
+  var pc = document.querySelector('#pendingFloatBtn .pending-count');
+  if (pc && pc.style.display !== 'none') total += parseInt(pc.textContent, 10) || 0;
+  var lc = document.querySelector('.leader-chat-badge');
+  if (lc && lc.style.display !== 'none') total += parseInt(lc.textContent, 10) || 0;
+  var ac = document.getElementById('adminChatBadge');
+  if (ac && ac.style.display !== 'none') total += parseInt(ac.textContent, 10) || 0;
+  if (total > 0) {
+    badge.textContent = total > 99 ? '99+' : total;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+setInterval(function(){ try { updateFloatFabBadge(); } catch(e) {} }, 1500);
 if (!window._floatFabDocBound) {
   window._floatFabDocBound = true;
   document.addEventListener('click', function(ev){
@@ -15971,6 +16000,8 @@ function alignFloatBtns() { if (window._syncSettingsFloatMode) { try{ window._sy
     p.appendChild(badge);
     p.dataset.aligned = '1';
   }
+
+  updateFloatFabBadge();
 
   if (!window._alignRetried) {
     window._alignRetried = true;
@@ -16045,6 +16076,7 @@ function startLeaderChatListener() {
           badge.style.display = 'none';
         }
       }
+      if (window.updateFloatFabBadge) updateFloatFabBadge();
     }, function(err){
       console.warn('학과대표 메시지 리스너 오류:', err.message);
     });
@@ -23100,7 +23132,8 @@ function buildStatusNamesHtml(dd,order,targetDate){
     h+='</tr>';
     h+='<tr>';
     order.forEach(function(d){h+=_hc(escapeHtml(wlRem[d.key]||'')||'\u00a0',{font:'굴림',pt:8,size:'1',bold:true,align:'left',valign:'top',width:89,color:'#0000ff',extraCss:'color:#0000ff;'})});
-    h+='</tr></table>';
+    h+='</tr>';
+    h+='</table>';
     return h;
 }
 function _hwpBadge(n,color){return '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:9999px;background:'+color+';color:#fff;font-size:12px;font-weight:bold;padding:0 5px;vertical-align:-3px;margin:0 3px">'+n+'</span>'}
@@ -24633,7 +24666,7 @@ window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(
 })();
 </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4bc70e2c01a94c73b74392e4234840661791215815920" integrity="sha512-L0ha0OXavK/8okipN9F8BtP84dg9DUhPERbBXzwI6dgTA55d2+yweo3pn5CSFYs45/r8md2+xvUPtTdvTNRfjA==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
 
