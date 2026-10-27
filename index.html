@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.14</title>
+    <title>화성캠 행복관 인원관리 v9.17</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -855,7 +855,7 @@ var _pw={},_room={},_stu={},_regDate={},_age={},_status={},_expectedDate={},_dep
 function setup(){
 if(!db)return;
 /* [SEC-FIX v2.1] passwords 실시간 구독 제거 — 비밀번호는 서버(Cloud Functions)에서만 검증하며 클라이언트로 전송되지 않음 */
-var _secLoad0=function(){try{if(window._secLive__secLoad0)window._secLive__secLoad0()}catch(e){}window._secLive__secLoad0=db.collection('roomNumbers').onSnapshot(function(s){var _oR=_room,_oA=_age,_oS=_status;_room={};_age={};_status={};_expectedDate={};s.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate;if(d.data().department)_deptByName[d.id]=d.data().department});var _chg=window._loaded&&(JSON.stringify(_oR)!==JSON.stringify(_room)||JSON.stringify(_oA)!==JSON.stringify(_age)||JSON.stringify(_oS)!==JSON.stringify(_status));if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}},function(e){console.error('[SEC-FIX v3.3] roomNumbers 실시간 오류:',e&&e.message)})};_secLoad0();(window._secReloaders=window._secReloaders||[]).push(_secLoad0);;
+var _secLoad0=function(){try{if(window._secLive__secLoad0)window._secLive__secLoad0()}catch(e){}window._secLive__secLoad0=db.collection('roomNumbers').onSnapshot(function(s){var _oR=_room,_oA=_age,_oS=_status;_room={};_age={};_status={};_expectedDate={};s.forEach(function(d){_room[d.id]=d.data().room;_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate;if(d.data().department)_deptByName[d.id]=d.data().department});var _chg=window._loaded&&(JSON.stringify(_oR)!==JSON.stringify(_room)||JSON.stringify(_oA)!==JSON.stringify(_age)||JSON.stringify(_oS)!==JSON.stringify(_status));if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}},function(e){console.error('[SEC-FIX v3.3] roomNumbers 실시간 오류:',e&&e.message)})};_secLoad0();(window._secReloaders=window._secReloaders||[]).push(_secLoad0);;
 var _secLoad1=function(){try{if(window._secLive__secLoad1)window._secLive__secLoad1()}catch(e){}window._secLive__secLoad1=db.collection('students').onSnapshot(function(s){window._studentsLoadError=null;var _ns={};s.forEach(function(d){_ns[d.id]=d.data().students});var _chg=window._loaded&&JSON.stringify(_ns)!==JSON.stringify(_stu);_stu=_ns;window._updateDepartments();if(_chg&&typeof debouncedRender==='function'){try{debouncedRender()}catch(e){}}},function(err){window._studentsLoadError=String((err&&err.message)||err);window._updateDepartments();},function(e){console.error('[SEC-FIX v3.3] students 실시간 오류:',e&&e.message)})};_secLoad1();(window._secReloaders=window._secReloaders||[]).push(_secLoad1);;
 }
 window._secureData={
@@ -875,7 +875,7 @@ refresh:async function(){
 if(!db)return;
 try{
 var s=await db.collection('students').get();_stu={};s.forEach(function(d){_stu[d.id]=d.data().students});
-var r=await db.collection('roomNumbers').get();_room={};_age={};_status={};_expectedDate={};r.forEach(function(d){_room[d.id]=d.data().room;if(d.data().registeredDate&&!_regDate[d.id])_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate;if(d.data().department)_deptByName[d.id]=d.data().department});
+var r=await db.collection('roomNumbers').get();_room={};_age={};_status={};_expectedDate={};r.forEach(function(d){_room[d.id]=d.data().room;_regDate[d.id]=d.data().registeredDate;if(d.data().age)_age[d.id]=d.data().age;if(d.data().status)_status[d.id]=d.data().status;if(d.data().expectedMoveInDate)_expectedDate[d.id]=d.data().expectedMoveInDate;if(d.data().department)_deptByName[d.id]=d.data().department});
 window._updateDepartments();
 }catch(e){console.warn('[_secureData] 수동 새로고침 실패:',e.message)}
 }
@@ -3780,7 +3780,7 @@ var HOLIDAYS={'2026-01-01':'신정','2026-02-14':'설날 연휴','2026-02-15':'�
 var CUSTOM_HOLIDAYS={};
 function getHolidayName(dateStr){return HOLIDAYS[dateStr]||CUSTOM_HOLIDAYS[dateStr]||null}
 function formatDateWithDay(dateStr){var d=new Date(dateStr+'T00:00:00');var days=['일','월','화','수','목','금','토'];var day=days[d.getDay()];var holiday=getHolidayName(dateStr);var isWeekend=d.getDay()===0||d.getDay()===6;var result=dateStr+' ('+day+')';if(holiday)result+=' '+holiday;return{text:result,isHoliday:!!holiday,isWeekend:isWeekend,holiday:holiday}}
-function getCurrentDate(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0')}
+function getCurrentDate(){/* [v9.16] 기기 시간대와 무관하게 항상 한국 시간(UTC+9) 기준 날짜 */var n=new Date(Date.now()+9*3600*1000);return n.getUTCFullYear()+'-'+String(n.getUTCMonth()+1).padStart(2,'0')+'-'+String(n.getUTCDate()).padStart(2,'0')}
 function getDateLabel(s){var p=s.split('-');var date=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));var days=['일','월','화','수','목','금','토'];return parseInt(p[1])+'/'+parseInt(p[2])+' ('+days[date.getDay()]+')'}
 function isHoliday(s){return!!(HOLIDAYS[s]||CUSTOM_HOLIDAYS[s])}
 function isWeekendOrHoliday(dateStr){var d=new Date(dateStr+'T00:00:00');var day=d.getDay();if(day===0||day===5||day===6)return true;if(isHoliday(dateStr))return true;var prevDay=new Date(d);prevDay.setDate(prevDay.getDate()+1);var nextStr=prevDay.getFullYear()+'-'+String(prevDay.getMonth()+1).padStart(2,'0')+'-'+String(prevDay.getDate()).padStart(2,'0');if(isHoliday(nextStr))return true;return false}
@@ -22931,7 +22931,7 @@ function _wlDocOrder(dd){
 //  · 퇴사: 당일 퇴사가 2명 이상이고 그 학과에 그 날 이후 남는 사람이 없으면(전원 퇴소=폐지) 비고 생략
 //  · 퇴사일 = 예정일(resignDate)과 승인 시각(personalDataDeletedAt·approvedDate) 중 빠른 날 — 오늘 승인했으면 오늘 표시 [v6.9a]
 //  · 1명 입·퇴사와 소규모 다수는 모두 표시 / '월간 현황 제외' 인물은 계속 비고에서 제외
-function _worklogRemarks(targetDate){
+function _worklogRemarks(targetDate,monIn){
     var out={};
     try{
         var hid=['이대호'];
@@ -22954,7 +22954,9 @@ function _worklogRemarks(targetDate){
             if(!k) return;
             var reg=ld(e.registeredDate);
             (roster[k]=roster[k]||[]).push({name:name,reg:reg});
-            if(reg&&reg===targetDate)(markIn[k]=markIn[k]||[]).push(strip(name)+'(입사)');
+            /* [v9.16] 입사 비고: 당일만 표시(monIn=true를 넘기면 같은 '월' 내내 표시 — 현재 미사용) */
+            var inMatch=monIn?(reg&&reg.slice(0,7)===targetDate.slice(0,7)&&reg<=targetDate):(reg&&reg===targetDate);
+            if(inMatch)(markIn[k]=markIn[k]||[]).push(strip(name)+'(입사)');
         });
         (typeof resignRequests!=='undefined'?resignRequests:[]).forEach(function(r){
             if(r.status!=='approved'||!r.name||seenOut[r.name]) return;
@@ -23068,8 +23070,11 @@ function buildStatusFullHtml(dd,order,listType,targetDate){
     order.forEach(function(d){
         var data=dd[d.key]||{},roster=(data.roster||[]).filter(function(n){return !window._secureData.isPending(n)});
         var m=_wlSortNames(roster.filter(function(s){return !s.includes('(여)')})),f=_wlSortNames(roster.filter(function(s){return s.includes('(여)')}));
-        var list=m.map(function(s){return s+_wlNameDate(s,targetDate)});
-        if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');list=list.concat(f.map(function(s){return s.replace('(여)','')+_wlNameDate(s,targetDate)}))}
+        /* [v9.15] 당월 입사자는 명단 맨 끝으로 */
+        var _nd=function(s){return _wlNameDate(s,targetDate)};
+        var mOld=m.filter(function(s){return !_nd(s)}),mNew=m.filter(function(s){return _nd(s)});
+        var list=mOld.concat(mNew).map(function(s){return s+_nd(s)});
+        if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');var fOld=f.filter(function(s){return !_nd(s)}),fNew=f.filter(function(s){return _nd(s)});list=list.concat(fOld.concat(fNew).map(function(s){return s.replace('(여)','')+_nd(s)}))}
         h+=_hc('<span style="position:relative;display:block">'+(d.key===order[0].key?'<span style="position:absolute;top:1px;right:1px;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9999px;background:#059669;color:#fff;font-size:11px;font-weight:bold;padding:0 4px">4</span>':'')+_wlCellHtml(list,d.key==='스마트전기과')+'</span>',{font:'굴림',pt:8,size:'1',align:'left',valign:'top',extraCss:'line-height:160%;'});
     });
     h+='</tr>';
@@ -23086,7 +23091,7 @@ function buildStatusFullHtml(dd,order,listType,targetDate){
     order.forEach(function(d){var L=window.DEPARTMENT_LEADERS&&window.DEPARTMENT_LEADERS[d.key];h+=_hc(escapeHtml(L&&L.name?L.name:'')||'\u00a0',{font:'굴림',pt:9,size:'1',align:'center',valign:'middle'})});
     h+='</tr>';
     h+='<tr>'+_hc('비 고',{font:'맑은 고딕',pt:11,colspan:2});
-    var wlRemP=_worklogRemarks(targetDate);
+    var wlRemP=_worklogRemarks(targetDate); /* [v9.16] 비고: 당일 기준 유지 */
     order.forEach(function(d){h+=_hc(escapeHtml(wlRemP[d.key]||'')||'\u00a0',{font:'굴림',pt:8,size:'1',bold:true,align:'left',valign:'top',color:'#0000ff',extraCss:'color:#0000ff;'})});
     h+='</tr>';
     h+='</table>';
@@ -23107,14 +23112,17 @@ function buildStatusNumbersHtml(dd,order){
 }
 // 인원현황 복사용 ②: 명단만 — 굴림 8, 줄간격 160%
 function buildStatusNamesHtml(dd,order,targetDate){
-    var wlRem=_worklogRemarks(targetDate);
+    var wlRem=_worklogRemarks(targetDate); /* [v9.16] 비고: 당일 기준 유지 */
     var h='<table border="1" cellspacing="0" cellpadding="2" style="border-collapse:collapse;table-layout:fixed">';
     h+='<tr>';
     order.forEach(function(d){
         var data=dd[d.key]||{},roster=(data.roster||[]).filter(function(n){return !window._secureData.isPending(n)});
         var m=_wlSortNames(roster.filter(function(s){return !s.includes('(여)')})),f=_wlSortNames(roster.filter(function(s){return s.includes('(여)')}));
-        var list=m.map(function(s){return s+_wlNameDate(s,targetDate)});
-        if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');list=list.concat(f.map(function(s){return s.replace('(여)','')+_wlNameDate(s,targetDate)}))}
+        /* [v9.15] 당월 입사자는 명단 맨 끝으로 */
+        var _nd=function(s){return _wlNameDate(s,targetDate)};
+        var mOld=m.filter(function(s){return !_nd(s)}),mNew=m.filter(function(s){return _nd(s)});
+        var list=mOld.concat(mNew).map(function(s){return s+_nd(s)});
+        if(f.length>0){if(m.length>0)list.push('');list.push('(여학생)');var fOld=f.filter(function(s){return !_nd(s)}),fNew=f.filter(function(s){return _nd(s)});list=list.concat(fOld.concat(fNew).map(function(s){return s.replace('(여)','')+_nd(s)}))}
         h+=_hc(_wlCellHtml(list,d.key==='스마트전기과'),{font:'굴림',pt:8,size:'1',align:'left',valign:'top',width:89,extraCss:'line-height:160%;'});
     });
     h+='</tr>';
@@ -23160,7 +23168,7 @@ function openHwpCopyPage(targetDate,kind){
         +'<b>숫자 넣기:</b> '+_hwpBadge(1,'#7c3aed')+' <b style="background:#f5f3ff;padding:1px 6px;border-radius:6px">[📋 숫자 복사하기]</b> 클릭 &nbsp;→&nbsp; '+_hwpBadge(2,'#7c3aed')+' 한글 문서에서 <b style="color:#7c3aed">"'+td2.total+'/'+td2.totalFemale+'"이 적힌 칸</b>(총원 칸 — 아래 표에 ② 표시) 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b><br>'
         +'<b>명단 넣기:</b> '+_hwpBadge(3,'#059669')+' <b style="background:#ecfdf5;padding:1px 6px;border-radius:6px">[📋 명단 복사하기]</b> 클릭 &nbsp;→&nbsp; '+_hwpBadge(4,'#059669')+' 한글 문서에서 <b style="color:#059669">자동차도장과 첫 학생 이름이 적힌 칸</b>(아래 표에 ④ 표시) 클릭 &nbsp;→&nbsp; <b>Ctrl+V</b><br>'
         +'<b>⚠ 둘 다 공통:</b> 붙여넣기(Ctrl+V 또는 마우스 오른쪽 버튼 → <b>붙이기</b>)를 하면 <b style="color:#dc2626">"셀 붙이기" 창</b>이 열립니다 — 이때 반드시 <b style="color:#dc2626">덮어쓰기</b>를 선택해야 표가 안 망가집니다<br>'
-        +'<span style="font-size:12.5px;color:#475569">· 학과 순서: 설정→학과 순서 변경 저장 순서 (전기+소방 병합) &nbsp;|&nbsp; 숫자: 맑은고딕 11 / 명단: 굴림 8, 줄간격 160%<br>· 입사 명단: 3글자 이름 먼저·4글자 뒤, 당월 입사자는 이름 뒤 입사일 자동 표시 (예: 김형준(13)) &nbsp;|&nbsp; (여학생): 가운데 정렬·남녀 사이 빈 칸 1줄·여학생 이름은 (여학생) 바로 다음 줄부터 &nbsp;|&nbsp; 전기(소방 포함)과는 한 칸에 두 명 나열 &nbsp;|&nbsp; 기숙사 과대표 9pt 가운데 정렬 &nbsp;|&nbsp; 비고: 당일 입사/퇴사자 자동 기록(파란색 굵게)<br>· 버튼이 안 먹히면 아래 미리보기에서 해당 부분을 드래그해 Ctrl+C 해도 됩니다</span></div>'
+        +'<span style="font-size:12.5px;color:#475569">· 학과 순서: 설정→학과 순서 변경 저장 순서 (전기+소방 병합) &nbsp;|&nbsp; 숫자: 맑은고딕 11 / 명단: 굴림 8, 줄간격 160%<br>· 입사 명단: 당월 입사자는 맨 끝·나머지는 3글자 이름 먼저·4글자 뒤, 당월 입사자는 이름 뒤 입사일 자동 표시 (예: 김형준(13)) &nbsp;|&nbsp; (여학생): 가운데 정렬·남녀 사이 빈 칸 1줄·여학생 이름은 (여학생) 바로 다음 줄부터 &nbsp;|&nbsp; 전기(소방 포함)과는 한 칸에 두 명 나열 &nbsp;|&nbsp; 기숙사 과대표 9pt 가운데 정렬 &nbsp;|&nbsp; 비고: 당일 입사/퇴사자 자동 기록(파란색 굵게)<br>· 버튼이 안 먹히면 아래 미리보기에서 해당 부분을 드래그해 Ctrl+C 해도 됩니다</span></div>'
         +_hwpBadge(1,'#7c3aed')+'<button onclick="copyBlock(\'areaA\',this)" style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:15px;font-weight:bold;cursor:pointer">📋 숫자 복사하기</button> <span style="font-size:13px;font-weight:bold;color:#047857"></span>'
         +_hwpBadge(3,'#059669')+'<button onclick="copyBlock(\'areaB\',this)" style="background:#059669;color:#fff;border:none;border-radius:10px;padding:10px 24px;font-size:15px;font-weight:bold;cursor:pointer">📋 명단 복사하기</button> <span style="font-size:13px;font-weight:bold;color:#047857"></span>'
         +'<div style="background:white;padding:20px;border-radius:10px;border:1px solid #e2e8f0;overflow:auto;margin-top:12px">'+buildStatusFullHtml(dd,order,kind,targetDate)+'</div>'
