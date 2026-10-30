@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.18</title>
+    <title>화성캠 행복관 인원관리 v9.22</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -910,15 +910,23 @@ function getApprovedResignSet(targetDate){
     // ★ 예방: roomNumbers에 실제로 살아있는 사람은 approvedSet에서 자동 제외 (고아 데이터 방어)
     var roomEntries=(window._secureData&&window._secureData.getAllRoomEntries)?window._secureData.getAllRoomEntries():{};
     (typeof resignRequests!=='undefined'?resignRequests:[]).filter(function(r){return r.status==='approved'&&r.approvedDate&&r.approvedDate<=baseDate}).forEach(function(r){
-        // roomNumbers에 해당 이름이 있고 status가 'resigned'가 아니면 → 고아 이력이므로 무시
+        /* [v9.19] 퇴사 후 roomNumbers 문서가 남아 있어도(잔여 데이터) 실제 퇴사자는 제외.
+           재등록(입사일이 퇴사일 이후)일 때만 '고아 이력'으로 보아 무시. */
         var entry=roomEntries[r.name];
         if(entry&&entry.status&&entry.status!=='resigned'){
-            // 고아 이력 감지 → 통계에서 제외하지 않음 (추후 자동정리에서 제거됨)
-            return;
+            var _eff=String(r.resignDate||r.approvedDate||'').slice(0,10);
+            var _reg=String(entry.registeredDate||'').slice(0,10);
+            if(_eff&&_reg&&_reg>_eff){ return; } /* 재등록된 사람 → 통계 유지 */
         }
         set.add(r.department+'_'+r.name);
     });
     return set;
+}
+/* [v9.21] 공통 판정: 퇴사자 이름 집합 — 문서·대시보드의 모든 집계가 이 기준 하나를 사용 */
+function getResignedNameSet(targetDate){
+    var _out=Object.create(null);
+    try{ getApprovedResignSet(targetDate).forEach(function(k){ var _p=String(k).indexOf('_'); if(_p>-1) _out[String(k).slice(_p+1)]=1; }); }catch(e){}
+    return _out;
 }
 // ★ 공통 헬퍼: 특정 이름의 잔여 resignRequests 레코드 일괄 삭제 (재등록 시 호출)
 async function cleanupResignHistory(name,opts){
@@ -5987,13 +5995,16 @@ function collectCurrentData(targetDate, listType) {
     var deptData = {}, today = targetDate || getCurrentDate();
     var autoData = getAutoOutSubmissions(today);
     var ts = autoData.submissions;
+    /* [v9.20] 퇴사자는 잔류·외박 집계와 명단에서도 제외 — 총원(퇴사자 제외)과 숫자가 어긋나지 않도록 */
+    var _rsNames = Object.create(null);
+    try { getApprovedResignSet(today).forEach(function(k){ var _p=String(k).indexOf('_'); if(_p>-1) _rsNames[String(k).slice(_p+1)]=1; }); } catch(_e) {}
     
     departments.forEach(function(dept) {
         var active = getDeptStudentList(dept, today, false);
         _secRetroStudents(today).forEach(function(p){ if(p.dept===dept&&active.indexOf(p.name)<0) active.push(p.name); });
         var total = active.length;
         var femTotal = active.filter(function(s) { return s.includes('(여)') }).length;
-        var ds = ts.filter(function(s) { return s.department === dept && !window._secureData.isPending(s.name); });
+        var ds = ts.filter(function(s) { return s.department === dept && !window._secureData.isPending(s.name) && !_rsNames[s.name]; });
         var oN = ds.filter(function(s) { return s.status === 'out' }).map(function(s) { return s.name });
         var sN = ds.filter(function(s) { return s.status === 'stay' }).map(function(s) { return s.name });
         var display = listType === 'stay' ? sN : oN;
@@ -9331,18 +9342,19 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
         /* 수정E: 학과별 총원 현황 X버튼 축소 */
         return'<div class="bg-white rounded-2xl shadow-card border border-surface-200 px-4 py-2 mb-2"><div class="flex items-center justify-between mb-3 cursor-pointer select-none" onclick="toggleDeptCard(\''+safeAttr(dept)+'\')"><div class="flex-1 min-w-0"><h3 class="text-lg font-bold text-gray-800 truncate">'+escapeHtml(dept)+'</h3><div class="flex items-center gap-3 text-sm font-bold flex-wrap mt-1"></i></div><div class="flex items-center gap-3 text-sm font-bold flex-wrap flex-shrink-0"><span class="text-gray-500 whitespace-nowrap">인원'+ds.length+'/'+femT+'</span><span class="text-success-600 whitespace-nowrap">현재'+sc+'</span><span class="text-warning-600 whitespace-nowrap">외박'+oc+'</span><span class="text-info-600 whitespace-nowrap">외출'+ogc+'</span>'+(nc>0?'<span class="text-danger-600 whitespace-nowrap">미제출'+nc+'</span>':'')+'</div></div><i id="deptIcon_'+safeAttr(dept)+'" class="fas fa-chevron-down text-gray-400 transition-transform flex-shrink-0 ml-3"></i></div><div id="deptCard_'+safeAttr(dept)+'" style="display:none" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sl.map(function(item){var cfg={stay:{bg:'bg-success-50 border-success-200',tc:'text-success-700',icon:'fa-check-circle'},out:{bg:'bg-warning-50 border-warning-200',tc:'text-warning-700',icon:'fa-moon'},outing:{bg:'bg-info-50 border-info-200',tc:'text-info-700',icon:'fa-walking'},none:{bg:'bg-surface-50 border-surface-200',tc:'text-gray-600',icon:'fa-minus-circle'}},c=cfg[item.status];var del='';if(item.status==='stay'||item.status==='out')del='<button onclick="deleteSubmission(\''+safeAttr(item.id)+'\',\''+safeAttr(item.student)+'\')" class="text-danger-400 hover:text-danger-600 ml-1" style="font-size:10px"><i class="fas fa-times"></i></button>';else if(item.status==='outing')del='<button onclick="deleteOuting(\''+safeAttr(item.id)+'\',\''+safeAttr(item.student)+'\')" class="text-danger-400 hover:text-danger-600 ml-1" style="font-size:10px"><i class="fas fa-times"></i></button>';else del='<button onclick="quickSubmitAdmin(\''+safeAttr(dept)+'\',\''+safeAttr(item.student)+'\')" class="text-primary-500 hover:text-primary-700 ml-1"><i class="fas fa-plus text-sm"></i></button>';return'<div class="'+c.bg+' border rounded-xl px-3 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><div class="flex items-center gap-2"><i class="fas '+c.icon+' '+c.tc+' text-sm"></i><span class="text-sm font-medium '+c.tc+' truncate cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(item.student)+'\')">'+formatStudentName(item.student)+'</span></div>'+(sortMode==='time'&&item.timestamp?'<div class="text-xs opacity-60 ml-5">'+escapeHtml(item.timestamp)+'</div>':'')+'</div>'+del+'</div>'}).join('')+'</div></div>'}).join('');
 
-    var allNS=[];departments.forEach(function(dept){(students[dept]||[]).filter(function(s){if(window._secureData.isPending(s))return false;var regDate=window._secureData.getRegisteredDate(s);if(regDate&&regDate>currentDate)return false;return !todaySubs.find(function(sub){return sub.department===dept&&sub.name===s})&&!todayOuts.find(function(o){return o.department===dept&&o.name===s})}).forEach(function(name){allNS.push({dept:dept,name:name})})});
-    var nsHtml=departments.map(function(dept){var ns=(students[dept]||[]).filter(function(s){if(window._secureData.isPending(s))return false;var regDate=window._secureData.getRegisteredDate(s);if(regDate&&regDate>currentDate)return false;return !todaySubs.find(function(sub){return sub.department===dept&&sub.name===s})&&!todayOuts.find(function(o){return o.department===dept&&o.name===s})});if(ns.length===0)return'';return'<div class="bg-danger-50 border border-danger-100 rounded-2xl p-5 mb-3"><div class="font-bold text-danger-700 text-base mb-3">'+escapeHtml(dept)+' ('+ns.length+'명)</div><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">'+sortStudentsByRoom(ns).map(function(s){return'<button onclick="quickSubmitAdmin(\''+safeAttr(dept)+'\',\''+safeAttr(s)+'\')" class="text-sm bg-white hover:bg-danger-100 px-4 py-2.5 rounded-xl text-danger-700 font-medium text-left btn-press border border-danger-200 min-h-[52px] flex items-center">'+formatStudentName(s)+'</button>'}).join('')+'</div></div>'}).join('');
+    var _rsnDash=getResignedNameSet(currentDate);
+    var allNS=[];departments.forEach(function(dept){(students[dept]||[]).filter(function(s){if(_rsnDash[s])return false;if(window._secureData.isPending(s))return false;var regDate=window._secureData.getRegisteredDate(s);if(regDate&&regDate>currentDate)return false;return !todaySubs.find(function(sub){return sub.department===dept&&sub.name===s})&&!todayOuts.find(function(o){return o.department===dept&&o.name===s})}).forEach(function(name){allNS.push({dept:dept,name:name})})});
+    var nsHtml=departments.map(function(dept){var ns=(students[dept]||[]).filter(function(s){if(_rsnDash[s])return false;if(window._secureData.isPending(s))return false;var regDate=window._secureData.getRegisteredDate(s);if(regDate&&regDate>currentDate)return false;return !todaySubs.find(function(sub){return sub.department===dept&&sub.name===s})&&!todayOuts.find(function(o){return o.department===dept&&o.name===s})});if(ns.length===0)return'';return'<div class="bg-danger-50 border border-danger-100 rounded-2xl p-5 mb-3"><div class="font-bold text-danger-700 text-base mb-3">'+escapeHtml(dept)+' ('+ns.length+'명)</div><div class="grid grid-cols-2 sm:grid-cols-3 gap-2">'+sortStudentsByRoom(ns).map(function(s){return'<button onclick="quickSubmitAdmin(\''+safeAttr(dept)+'\',\''+safeAttr(s)+'\')" class="text-sm bg-white hover:bg-danger-100 px-4 py-2.5 rounded-xl text-danger-700 font-medium text-left btn-press border border-danger-200 min-h-[52px] flex items-center">'+formatStudentName(s)+'</button>'}).join('')+'</div></div>'}).join('');
 
     var pR=resignRequests.filter(function(r){return r.status==='pending'});
-    var stayList=todaySubs.filter(function(s){return s.status==='stay'&&!window._secureData.isPending(s.name)}),outList=todaySubs.filter(function(s){return s.status==='out'&&!window._secureData.isPending(s.name)}),subNames=todaySubs.filter(function(s){return !window._secureData.isPending(s.name)}).map(function(s){return s.name}),pureOut=todayOuts.filter(function(o){return subNames.indexOf(o.name)===-1&&!window._secureData.isPending(o.name)});
+    var stayList=todaySubs.filter(function(s){return s.status==='stay'&&!_rsnDash[s.name]&&!window._secureData.isPending(s.name)}),outList=todaySubs.filter(function(s){return s.status==='out'&&!_rsnDash[s.name]&&!window._secureData.isPending(s.name)}),subNames=todaySubs.filter(function(s){return !_rsnDash[s.name]&&!window._secureData.isPending(s.name)}).map(function(s){return s.name}),pureOut=todayOuts.filter(function(o){return subNames.indexOf(o.name)===-1&&!_rsnDash[o.name]&&!window._secureData.isPending(o.name)});
     function groupByDept(list){var g={};list.forEach(function(s){var d=s.department;if(!g[d])g[d]=[];g[d].push(s)});return g}
     var stayG=groupByDept(stayList),outG=groupByDept(outList),outingG=groupByDept(pureOut);
 
     // 제출 현황 프로그레스 바
   var total=stats.totalStudents||1;
     var stayPct=Math.round(stats.stayCount/total*100),outPct=Math.round(stats.outCount/total*100),outingPct=Math.round(stats.outingCount/total*100),nrPct=Math.max(0,100-stayPct-outPct-outingPct);
-    var femCount=0;departments.forEach(function(dept){(students[dept]||[]).forEach(function(n){if(n.indexOf('(여)')>-1&&!window._secureData.isPending(n))femCount++})});
+    var femCount=0;departments.forEach(function(dept){(students[dept]||[]).forEach(function(n){if(n.indexOf('(여)')>-1&&!_rsnDash[n]&&!window._secureData.isPending(n))femCount++})});
     var reportedFem=stats.femaleStayCount+stats.femaleOutCount+stats.femaleOutingCount;
     var totalPct=Math.round((stats.stayCount+stats.outCount+stats.outingCount)/total*100);
     var progressBar=(stats.totalStudents===0)?'':'<div style="margin:16px 0 8px;padding:10px 16px;background:transparent;border-radius:12px;border:1px solid #e5e7eb"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-weight:600;color:#374151">제출 현황 '+totalPct+'%</span><span style="font-size:18px;font-weight:700;color:#374151">'+(stats.stayCount+stats.outCount+stats.outingCount)+'/'+reportedFem+'</span></div><div style="display:flex;border-radius:99px;height:14px;overflow:hidden;background:rgba(239,68,68,0.1)">'+(stayPct>0?'<div style="width:'+stayPct+'%;background:rgba(16,185,129,0.3);transition:width 1s"></div>':'')+(outPct>0?'<div style="width:'+outPct+'%;background:rgba(245,158,11,0.3);transition:width 1s"></div>':'')+'</div><div style="display:flex;gap:16px;margin-top:8px;font-size:12px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(16,185,129,0.3)"></span>현재 '+stats.stayCount+'명 ('+stayPct+'%)</span><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(245,158,11,0.3)"></span>외박 '+stats.outCount+'명 ('+outPct+'%)</span><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(239,68,68,0.3)"></span>미제출 '+(total-stats.stayCount-stats.outCount-stats.outingCount)+'명 ('+nrPct+'%)</span></div></div>';
@@ -10069,6 +10081,46 @@ function lookupPassword(){
     document.getElementById('pwLookupResult').innerHTML='<div class="mt-4 p-4 bg-primary-50 rounded-xl border border-primary-200"><div class="grid grid-cols-2 gap-3"><div><div class="text-xs text-gray-500">이름</div><div class="font-bold text-gray-800">'+escapeHtml(name)+'</div></div><div><div class="text-xs text-gray-500">호실</div><div class="font-bold text-gray-800">'+(room?room+'호':'미설정')+'</div></div><div><div class="text-xs text-gray-500">비밀번호</div><div class="font-bold text-primary-600 text-lg tracking-widest">'+escapeHtml(pw||'없음')+'</div></div><div><div class="text-xs text-gray-500">등록일</div><div class="font-bold text-gray-800">'+(regDate||'미설정')+'</div></div></div></div>';
     document.getElementById('pwResetArea').style.display='block';
 }
+/* [v9.22] 퇴사자 잔여 데이터 정리 — 퇴사자 조회에서 실행
+   · 대상: 승인된 퇴사자의 roomNumbers 문서(호실·학과·등록일 등) 중 '재등록되지 않은' 잔여 문서
+   · 재등록자(입사일 > 퇴사일)는 건드리지 않음 / 개인정보는 승인 시 이미 파기됨 */
+async function cleanupResignedLeftovers(){
+    if(!isAdminLoggedIn){ showToast('관리자만 가능합니다','error'); return; }
+    var approved=(typeof resignRequests!=='undefined'?resignRequests:[]).filter(function(r){return r.status==='approved'&&r.name;});
+    if(approved.length===0){ showToast('정리할 퇴사자가 없습니다','info'); return; }
+    if(!confirm('퇴사자 '+approved.length+'명의 잔여 데이터를 정리할까요?\n\n· 남아 있는 호실·학과 문서(roomNumbers)를 삭제합니다\n· 재등록된 학생은 건드리지 않습니다\n· 개인정보(비밀번호·사진·출결)는 이미 파기되었습니다')) return;
+    var entries=(window._secureData&&window._secureData.getAllRoomEntries)?window._secureData.getAllRoomEntries():{};
+    var removed=0, skipped=0, failed=0, deptTouched={};
+    for(var i=0;i<approved.length;i++){
+        var r=approved[i], nm=r.name, dp=r.department||'';
+        var entry=entries[nm];
+        if(!entry){ skipped++; continue; }
+        var eff=String(r.resignDate||r.approvedDate||'').slice(0,10);
+        var reg=String(entry.registeredDate||'').slice(0,10);
+        if(entry.status&&entry.status!=='resigned'&&eff&&reg&&reg>eff){ skipped++; continue; } /* 재등록자 보호 */
+        try{
+            await db.collection('roomNumbers').doc(nm).delete();
+            removed++;
+            if(dp) deptTouched[dp]=1;
+        }catch(e){ failed++; }
+    }
+    var keys=Object.keys(deptTouched);
+    for(var k=0;k<keys.length;k++){
+        try{
+            var ref=db.collection('students').doc(keys[k]);
+            var doc=await ref.get();
+            if(doc.exists){
+                var before=doc.data().students||[];
+                var arr=before.filter(function(n){ return approved.every(function(a){ return a.name!==n; }); });
+                if(before.length!==arr.length) await ref.set({students:arr,updatedAt:new Date().toISOString()},{merge:true});
+            }
+        }catch(e){}
+    }
+    showToast('잔여 데이터 정리 완료 — 삭제 '+removed+'건, 건너뜀 '+skipped+'건'+(failed?' (실패 '+failed+'건)':''),'success');
+    try{ if(window._secReloadAll) window._secReloadAll(); }catch(e){}
+    try{ render(); }catch(e){}
+    try{ var _ov=document.getElementById('resignedModalOverlay'); if(_ov)_ov.remove(); }catch(e){}
+}
 async function showResignedStudentsModal(){
   showToast('퇴사자 목록을 불러오는 중...', 'info');
   
@@ -10143,8 +10195,9 @@ var deptOptions = allDepts.map(function(d){
       +'</select>'
       +'</div></div>'
       +'<div id="resignedListArea" class="flex-1 overflow-y-auto px-6 py-4 space-y-3" style="min-height:300px"></div>'
-      +'<div class="px-6 py-3 border-t border-gray-100">'
-      +'<button onclick="document.getElementById(\'resignedModalOverlay\').remove()" class="w-full py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-700">닫기</button>'
+      +'<div class="px-6 py-3 border-t border-gray-100 flex gap-2">'
+      +'<button onclick="cleanupResignedLeftovers()" class="flex-1 py-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl font-bold text-amber-700">🧹 잔여 데이터 정리</button>'
+      +'<button onclick="document.getElementById(\'resignedModalOverlay\').remove()" class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-700">닫기</button>'
       +'</div></div></div>';
     
     var div = document.createElement('div');
