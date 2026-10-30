@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.22</title>
+    <title>화성캠 행복관 인원관리 v9.23</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -10293,7 +10293,8 @@ function _mmCollect(ym){
       var od=_mmLocalDate(r.approvedDate)||_mmLocalDate(r.personalDataDeletedAt)||_mmLocalDate(r.updatedAt)||_mmLocalDate(r.resignDate);
       if(od&&od.slice(0,7)===ym&&!seenOut[r.name]){seenOut[r.name]=true;outs.push({date:od,name:r.name,dept:r.department||'미분류',reason:r.reason||'',plan:_mmLocalDate(r.resignDate)})}
       var rd=_mmLocalDate(r.registeredDate);
-      if(rd&&rd.slice(0,7)===ym&&!seenIn[r.name]&&hidden.indexOf(r.name)===-1){seenIn[r.name]=true;ins.push({date:rd,name:r.name,dept:r.department||'미분류',room:'',note:'퇴사'})}
+      /* [v9.23] 같은 달에 입사·퇴사한 사람은 입사자 명단에 다시 넣지 않음(퇴사자 현황에만) */
+      if(rd&&rd.slice(0,7)===ym&&!seenIn[r.name]&&hidden.indexOf(r.name)===-1&&!seenOut[r.name]){seenIn[r.name]=true;ins.push({date:rd,name:r.name,dept:r.department||'미분류',room:'',note:'퇴사'})}
     });
   }catch(e){}
   try{
@@ -10310,6 +10311,7 @@ function _mmCollect(ym){
   var hid=window._mmHidden||[];
   var keep=function(x){return hid.indexOf(x.name)===-1};
   ins=ins.filter(keep);outs=outs.filter(keep);planned=planned.filter(keep);
+  ins=ins.filter(function(x){return !seenOut[x.name]}); /* [v9.23] 같은 달 입사+퇴사자는 입사자 현황에서 제외 — 어느 경로에서 와도 동일 적용 */
   ins.sort(byDate);outs.sort(byDate);planned.sort(byDate);
   return {ins:ins,outs:outs,planned:planned};
 }
