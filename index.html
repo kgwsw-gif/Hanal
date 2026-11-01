@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.25</title>
+    <title>화성캠 행복관 인원관리 v9.26</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -7233,9 +7233,11 @@ async function renameDepartment(oldName, newNameArg){
     // 4. Firestore 일괄 처리
     var batch = db.batch();
     
-    // 4-1. config/departments 업데이트
+    // 4-1. config/departments 업데이트 — [v9.26] 최신 목록을 읽어 이름만 치환(순서 보호)
+    var _freshR=newDepts.slice();
+    try{ var _cr=await db.collection('config').doc('departments').get(); if(_cr.exists&&Array.isArray(_cr.data().list)&&_cr.data().list.length){ _freshR=_cr.data().list.map(function(d){ return d===oldName?newName:d; }); newDepts.forEach(function(d){ if(_freshR.indexOf(d)===-1)_freshR.push(d); }); } }catch(_ce4){}
     batch.set(db.collection('config').doc('departments'), {
-      list: newDepts,
+      list: _freshR,
       updatedAt: new Date().toISOString()
     });
     
@@ -7783,7 +7785,11 @@ function uploadStudentsExcel(){
                         for(var dept in byDept){
                             if(!departments.includes(dept)){
                                 departments.push(dept);
-                                await db.collection('config').doc('departments').set({list:departments,updatedAt:new Date().toISOString()});
+                                /* [v9.26] 최신 학과 목록을 읽어 병합 — 오래된 화면이 저장된 순서를 되돌리는 것 방지 */
+                                var _freshU=departments.slice();
+                                try{ var _cu=await db.collection('config').doc('departments').get(); if(_cu.exists&&Array.isArray(_cu.data().list)&&_cu.data().list.length){ _freshU=_cu.data().list.slice(); departments.forEach(function(d){ if(_freshU.indexOf(d)===-1)_freshU.push(d); }); } }catch(_ce3){}
+                                await db.collection('config').doc('departments').set({list:_freshU,updatedAt:new Date().toISOString()});
+                                departments=_freshU.slice();
                             }
                             var existing=window._secureData.getStudentsByDept(dept)||[];
                             for(var si=0;si<byDept[dept].length;si++){
