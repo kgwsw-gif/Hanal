@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.23</title>
+    <title>화성캠 행복관 인원관리 v9.25</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -4277,7 +4277,7 @@ function refreshHvacListener() {
             }else{render()}
         }
     }
-    db.collection('config').doc('departments').onSnapshot(function(doc){if(doc.exists&&doc.data().list)departments=doc.data().list;else departments=window._secureData.getDepartments();checkLoaded()});
+    db.collection('config').doc('departments').onSnapshot(function(doc){if(doc.exists&&doc.data().list){var _prev=departments.slice();departments=doc.data().list;if(window._departmentsLoaded&&_prev.length===departments.length&&_prev.join('|')!==departments.join('|')){try{showToast('⚠️ 학과 목록·순서가 변경되었습니다 — 근무일지·인원현황 작성 전 설정→학과 순서 변경에서 확인하세요','warning')}catch(e){}}window._departmentsLoaded=true;}else if(!window._departmentsLoaded){departments=window._secureData.getDepartments();}checkLoaded()});
     var _secLoad2=function(){try{if(window._secLive__secLoad2)window._secLive__secLoad2()}catch(e){}window._secLive__secLoad2=db.collection('students').onSnapshot(function(){updateStudentsList();checkLoaded()},function(e){console.error('[SEC-FIX v3.3] students 실시간 오류:',e&&e.message)})};_secLoad2();(window._secReloaders=window._secReloaders||[]).push(_secLoad2);;
     var _secLoad3=function(){try{if(window._secLive__secLoad3)window._secLive__secLoad3()}catch(e){}window._secLive__secLoad3=db.collection('departmentLeaders').onSnapshot(function(snap){var nl={};snap.docs.forEach(function(doc){if(doc.data().name)nl[doc.id]={name:doc.data().name,password:null}});/* [SEC-FIX] 비밀번호 필드 제거 */Object.keys(DEPARTMENT_LEADERS).forEach(function(k){delete DEPARTMENT_LEADERS[k]});Object.assign(DEPARTMENT_LEADERS,nl);checkLoaded()},function(e){console.error('[SEC-FIX v3.3] departmentLeaders 실시간 오류:',e&&e.message)})};_secLoad3();(window._secReloaders=window._secReloaders||[]).push(_secLoad3);;
  loadCourses().then(function(){ setTimeout(function(){ if(typeof isAdminLoggedIn !== 'undefined' && isAdminLoggedIn) showCourseAlertToast(); }, 1000); });
@@ -7502,9 +7502,9 @@ async function saveDeptOrder(){
     }catch(e){
         showToast('저장 실패: '+e.message,'error');
     }
-}async function addDepartment(){var name=document.getElementById('addDeptName').value.trim();if(!name){showToast('학과명을 입력하세요','warning');return}if(departments.includes(name)){showToast('이미 존재하는 학과입니다','warning');return}try{departments.push(name);await db.collection('config').doc('departments').set({list:departments,updatedAt:new Date().toISOString()});await db.collection('students').doc(name).set({students:[],updatedAt:new Date().toISOString()});document.getElementById('addDeptName').value='';showToast(name+' 학과 추가 완료','success');render()}catch(e){showToast('추가 실패: '+e.message,'error')}}
+}async function addDepartment(){var name=document.getElementById('addDeptName').value.trim();if(!name){showToast('학과명을 입력하세요','warning');return}if(departments.includes(name)){showToast('이미 존재하는 학과입니다','warning');return}try{/* [v9.24] 최신 학과 목록을 먼저 읽어 병합 — 오래된 화면이 저장된 순서를 되돌리는 것 방지 */var _fresh=departments.slice();try{var _cd=await db.collection('config').doc('departments').get();if(_cd.exists&&Array.isArray(_cd.data().list)&&_cd.data().list.length)_fresh=_cd.data().list.slice();}catch(_ce){}if(_fresh.indexOf(name)===-1)_fresh.push(name);await db.collection('config').doc('departments').set({list:_fresh,updatedAt:new Date().toISOString()});departments=_fresh.slice();await db.collection('students').doc(name).set({students:[],updatedAt:new Date().toISOString()});document.getElementById('addDeptName').value='';showToast(name+' 학과 추가 완료','success');render()}catch(e){showToast('추가 실패: '+e.message,'error')}}
 
-async function deleteDepartmentAction(){var name=document.getElementById('delDeptName').value;if(!name){showToast('선택 필요','warning');return}var deptStudents=(window._secureData.getStudentsByDept(name)||[]).slice();var msg=escapeHtml(name)+' 학과 삭제?';if(deptStudents.length>0){msg+='<br><br>⚠️ 소속 교육생 <b>'+deptStudents.length+'명</b>의 정보(호실/비밀번호/사진/차량번호)도 함께 삭제됩니다.'}openConfirmModal('학과 삭제',msg,async function(){try{var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:departments.filter(function(d){return d!==name}),updatedAt:new Date().toISOString()});batch.delete(db.collection('students').doc(name));batch.delete(db.collection('departmentLeaders').doc(name));deptStudents.forEach(function(sname){var pure=typeof sname==='string'?sname.replace(/\([^)]*\)/,'').trim():sname;[pure,sname].forEach(function(n){batch.delete(db.collection('roomNumbers').doc(n));batch.delete(db.collection('photos').doc(n));batch.delete(db.collection('vehicleNumbers').doc(n))})});await batch.commit();try{for(var _di=0;_di<deptStudents.length;_di++){var _pn=deptStudents[_di],_pp=typeof _pn==='string'?_pn.replace(/\([^)]*\)/,'').trim():_pn;await window._pwApi({action:'adminRemovePassword',name:_pn});if(_pp&&_pp!==_pn)await window._pwApi({action:'adminRemovePassword',name:_pp});}}catch(e){console.warn('[SEC-FIX] 비밀번호 삭제 실패:',e)}showToast(name+' 학과 + 교육생 '+deptStudents.length+'명 삭제 완료','success');render()}catch(e){showToast('삭제 실패: '+e.message,'error')}},'삭제')}
+async function deleteDepartmentAction(){var name=document.getElementById('delDeptName').value;if(!name){showToast('선택 필요','warning');return}var deptStudents=(window._secureData.getStudentsByDept(name)||[]).slice();var msg=escapeHtml(name)+' 학과 삭제?';if(deptStudents.length>0){msg+='<br><br>⚠️ 소속 교육생 <b>'+deptStudents.length+'명</b>의 정보(호실/비밀번호/사진/차량번호)도 함께 삭제됩니다.'}openConfirmModal('학과 삭제',msg,async function(){try{/* [v9.24] 최신 목록 기준으로 삭제 병합 */var _freshD=departments.slice();try{var _cd2=await db.collection('config').doc('departments').get();if(_cd2.exists&&Array.isArray(_cd2.data().list)&&_cd2.data().list.length)_freshD=_cd2.data().list.slice();}catch(_ce2){}_freshD=_freshD.filter(function(d){return d!==name});var batch=db.batch();batch.set(db.collection('config').doc('departments'),{list:_freshD,updatedAt:new Date().toISOString()});batch.delete(db.collection('students').doc(name));batch.delete(db.collection('departmentLeaders').doc(name));deptStudents.forEach(function(sname){var pure=typeof sname==='string'?sname.replace(/\([^)]*\)/,'').trim():sname;[pure,sname].forEach(function(n){batch.delete(db.collection('roomNumbers').doc(n));batch.delete(db.collection('photos').doc(n));batch.delete(db.collection('vehicleNumbers').doc(n))})});await batch.commit();try{for(var _di=0;_di<deptStudents.length;_di++){var _pn=deptStudents[_di],_pp=typeof _pn==='string'?_pn.replace(/\([^)]*\)/,'').trim():_pn;await window._pwApi({action:'adminRemovePassword',name:_pn});if(_pp&&_pp!==_pn)await window._pwApi({action:'adminRemovePassword',name:_pp});}}catch(e){console.warn('[SEC-FIX] 비밀번호 삭제 실패:',e)}showToast(name+' 학과 + 교육생 '+deptStudents.length+'명 삭제 완료','success');render()}catch(e){showToast('삭제 실패: '+e.message,'error')}},'삭제')}
 function updateLeaderStudentList(){var dept=document.getElementById('setLeaderDept').value,sel=document.getElementById('setLeaderStudent');sel.innerHTML='<option value="">선택</option>';if(dept&&students[dept])sortStudentsByRoom(students[dept]).forEach(function(n){var o=document.createElement('option');o.value=n;o.textContent=formatStudentNameRaw(n);sel.appendChild(o)})}
 async function setLeaderAction(){var dept=document.getElementById('setLeaderDept').value,name=document.getElementById('setLeaderStudent').value,pw=document.getElementById('setLeaderPw').value.trim();if(!dept||!name||!pw){showToast('모든 항목 입력','warning');return}var _srvErr='';try{await window._pwApi({action:'adminSetPassword',name:name,newPassword:pw,department:dept})}catch(_se){_srvErr=window._pwApiErr(_se)}/* [v9.9] 문서에 클라이언트 해시 기록 */try{var _h9=await window._pwCrypto.hash(pw);await db.collection('departmentLeaders').doc(dept).set({name:name,password:_h9,mustChangePassword:false,updatedAt:new Date().toISOString()})}catch(_e2){showToast('대표 지정 실패: '+(_e2&&_e2.message||_e2)+(_srvErr?' (서버: '+_srvErr+')':''),'error');return}showToast(dept+' 학과대표 지정 완료','success');render()}
 /* [v9.6] 학과대표 비밀번호 초기화 — 관리자용: 1111로 초기화 + 다음 로그인 때 강제 변경 */
@@ -10566,17 +10566,32 @@ function filterRegisteredList(){
 }
 
 
+/* [v9.24] 관리자 처리자 이름 — 최초 1회 입력 후 자동 사용 */
+function getAdminName(cb){
+    var n=null; try{ n=localStorage.getItem('admin_name'); }catch(e){}
+    if(n){ cb(n); return; }
+    openInputModal('관리자 이름 등록',[{label:'처리자 이름 (이후 기록에 자동 사용)',type:'text',placeholder:'예: 홍길동'}],function(){
+        var v=document.getElementById('modalInput0').value.trim();
+        if(!v){ cb('미지정'); return; }
+        try{ localStorage.setItem('admin_name',v); }catch(e){}
+        cb(v);
+    });
+}
 async function loadPasswordChangeLogs(){
     var area=document.getElementById('pwChangeLogArea');
     area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">조회 중...</div>';
     try{
         var snap=await db.collection('passwordChangeLogs').orderBy('changedAt','desc').limit(30).get();
-        if(snap.empty){area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">변경 이력이 없습니다</div>';return}
+        var items=[];
+        snap.docs.forEach(function(doc){items.push(doc.data())});
+        /* [v9.24] 관리자 초기화 처리자 기록 병합 표시 */
+        try{ var a2=await db.collection('adminActionLogs').orderBy('changedAt','desc').limit(30).get(); a2.docs.forEach(function(doc){ var d=doc.data(); d.device='관리자 초기화'; d.name=d.target||d.name; items.push(d); }); }catch(e){}
+        items.sort(function(a,b){return String(b.changedAt||'').localeCompare(String(a.changedAt||''))});
+        if(items.length===0){area.innerHTML='<div class="text-sm text-gray-400 text-center py-3">변경 이력이 없습니다</div>';return}
         var html='<div class="space-y-2 mt-3 max-h-60 overflow-y-auto">';
-        snap.docs.forEach(function(doc){
-            var d=doc.data();
+        items.slice(0,40).forEach(function(d){
             var date=d.changedAt?new Date(d.changedAt).toLocaleString('ko-KR'):'';
-            html+='<div class="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl border border-surface-200"><div><span class="text-sm font-bold text-gray-700">'+escapeHtml(d.name||'')+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(d.department||'')+']</span></div><div class="text-right"><div class="text-xs text-gray-500">'+date+'</div><div class="text-xs text-gray-400">'+escapeHtml(d.device||'')+'</div></div></div>';
+            html+='<div class="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl border border-surface-200"><div><span class="text-sm font-bold text-gray-700">'+escapeHtml(d.name||'')+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(d.department||'')+']</span></div><div class="text-right"><div class="text-xs text-gray-500">'+date+'</div><div class="text-xs text-gray-400">'+escapeHtml(d.device||'')+(d.adminName?' · 처리자: '+escapeHtml(d.adminName):'')+'</div></div></div>';
         });
         html+='</div>';
         area.innerHTML=html;
@@ -21555,6 +21570,8 @@ function fixDepartmentCounts(){
           if (_r.verified !== true) throw new Error('서버 저장 검증 실패 - 다시 시도해 주세요');
           if (_r.removedTwin) console.log('[v6.6] 잔여 중복 문서 정리:', _r.removedTwin);
           showToast(name + ' 비밀번호 초기화 완료 ✅ 서버 저장·검증됨 (첫 로그인 시 새 비밀번호 설정)', 'success');
+          /* [v9.24] 처리자 이름 기록 — 누가 초기화했는지 비밀번호 변경 이력에 표시 */
+          try{ getAdminName(function(_an){ try{ db.collection('adminActionLogs').add({action:'관리자 초기화',target:name,department:dept||'',adminName:_an,changedAt:new Date().toISOString()}).then(function(){ showToast('✅ '+_an+' 처리자로 기록 완료 — 비밀번호 변경 이력에서 확인하세요','success'); }).catch(function(_ae){ showToast('⚠️ 처리자 기록 실패 (초기화 자체는 완료됨)','warning'); }); }catch(_al){ showToast('⚠️ 처리자 기록 실패 (초기화 자체는 완료됨)','warning'); } }); }catch(_e9){}
           document.getElementById('pwResetValue').value = '';
           if (typeof lookupPassword === 'function') lookupPassword();
         } catch (e) {
