@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.30</title>
+    <title>화성캠 행복관 인원관리 v9.32</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -551,7 +551,7 @@ box-shadow:inset 3px 0 0 0 #1f2937 !important;
     </div>
   </div>
 </div>
-<div id="toastContainer" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none"></div>
+<div id="toastContainer" class="fixed top-16 right-4 z-[80] flex flex-col gap-2 pointer-events-none"></div>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -3865,10 +3865,11 @@ function toggleDeptCard(dept){
     if(!el)return;
     if(el.style.display==='none'){el.style.display='';if(icon)icon.className='fas fa-chevron-up text-gray-400 transition-transform'}
     else{el.style.display='none';if(icon)icon.className='fas fa-chevron-down text-gray-400 transition-transform'}
+    try{window._openDeptCards=window._openDeptCards||{};window._openDeptCards[dept]=(el.style.display!=='none')}catch(e){}
     var allOpen=true;departments.forEach(function(d){var e=document.getElementById('deptCard_'+d);if(e&&e.style.display==='none')allOpen=false});deptCardsExpanded=allOpen;
 }
 function toggleAllDeptCards(expand){
-    deptCardsExpanded=expand;
+    deptCardsExpanded=expand;try{window._openDeptCards=window._openDeptCards||{};departments.forEach(function(d){window._openDeptCards[d]=!!expand})}catch(e){}
     departments.forEach(function(dept){
         var el=document.getElementById('deptCard_'+dept);
         var icon=document.getElementById('deptIcon_'+dept);
@@ -7897,7 +7898,9 @@ document.addEventListener('visibilitychange', async function(){
     }, POLL_INTERVAL_MS);
 })();
 
-function _setAppHTML(html){var app=document.getElementById('app');if(!app)return;if(app._lastHTML===html)return;app._lastHTML=html;app.innerHTML=html;}
+function _setAppHTML(html){var app=document.getElementById('app');if(!app)return;if(app._lastHTML===html)return;app._lastHTML=html;app.innerHTML=html;/* [v9.31] 깜박임 방지: 뱃지·배너·퇴사카드 이동 등 후처리를 화면에 그려지기 전에 즉시 실행 */(window._afterAppHTML||[]).forEach(function(f){try{f()}catch(e){}});}
+window._afterAppHTML=window._afterAppHTML||[];window._openDeptCards=window._openDeptCards||{};
+window._afterAppHTML.push(function(){var o=window._openDeptCards||{};Object.keys(o).forEach(function(d){if(!o[d])return;var el=document.getElementById('deptCard_'+d),ic=document.getElementById('deptIcon_'+d);if(el){el.style.display='';if(ic)ic.className='fas fa-chevron-up text-gray-400 transition-transform'}})});
 function render(){if(currentMode==='nutritionist'){renderNutritionistView();return;}setTimeout(function(){try{_filterSubmitDateSelect();}catch(e){}},100);setTimeout(function(){try{_filterSubmitDateSelect();}catch(e){}},600);if(currentMode==='student'&&typeof currentStudent!=='undefined'&&currentStudent){isAdminLoggedIn=false;isLeaderLoggedIn=false;isSuperAdmin=false;window.isNutritionistLoggedIn=false;}
     initIntervals();var app=document.getElementById('app');if(!app)return;if(!currentDate)currentDate=getCurrentDate();
     var stats=getStats(),todaySubs,todayOuts;if(isWeekendOrHoliday(currentDate)){var _autoData=getAutoOutSubmissions(currentDate);todaySubs=_autoData.submissions;todayOuts=_autoData.outings}else{todaySubs=submissions.filter(function(s){return s.date===currentDate&&s.status!=='cancelled'});todayOuts=outings.filter(function(o){return o.date===currentDate&&(!o.status||o.status!=='cancelled')})}
@@ -8436,7 +8439,7 @@ function viewStudentPhoto(name) {
     var age = window._secureData.getAge(name);
     var html = '<div class="p-6 text-center">';
     if (photo) {
-        html += '<div style="width:200px;height:200px;margin:0 auto 16px;border-radius:24px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.15)"><img src="' + photo + '" style="width:100%;height:100%;object-fit:cover"></div>';
+        html += '<div style="width:200px;height:200px;margin:0 auto 16px;border-radius:24px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.15)"><img src="' + photo + '" decoding="sync" style="width:100%;height:100%;object-fit:cover"></div>';
     } else {
         html += '<div style="width:200px;height:200px;margin:0 auto 16px;border-radius:24px;background:linear-gradient(135deg,#e2e8f0,#cbd5e1);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 30px rgba(0,0,0,0.1)"><i class="fas fa-user" style="font-size:70px;color:#94a3b8"></i></div>';
     }
@@ -8457,7 +8460,7 @@ function photoThumb(name, size) {
     var photo = studentPhotos[name];
     var r = Math.round(size * 0.3);
     if (photo) {
-        return '<div data-photo-name="' + safeAttr(name) + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + r + 'px;overflow:hidden;flex-shrink:0;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.1)" onclick="event.stopPropagation();viewStudentPhoto(\'' + safeAttr(name) + '\')"><img src="' + photo + '" style="width:100%;height:100%;object-fit:cover"></div>';
+        return '<div data-photo-name="' + safeAttr(name) + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + r + 'px;overflow:hidden;flex-shrink:0;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.1)" onclick="event.stopPropagation();viewStudentPhoto(\'' + safeAttr(name) + '\')"><img src="' + photo + '" decoding="sync" style="width:100%;height:100%;object-fit:cover"></div>';
     }
     return '<div data-photo-name="' + safeAttr(name) + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:' + r + 'px;background:' + (photo === null ? '#f1f5f9' : '#e2e8f0') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer" onclick="event.stopPropagation();viewStudentPhoto(\'' + safeAttr(name) + '\')"><i class="fas fa-user" style="font-size:' + Math.round(size * 0.4) + 'px;color:' + (photo === null ? '#cbd5e1' : '#94a3b8') + '"></i></div>';
 }
@@ -9404,7 +9407,7 @@ if(isWeekendOrHoliday(currentDate)){var autoData=getAutoOutSubmissions(currentDa
     '<div id="staySection">'+(stayList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-success-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'stay\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-check-circle text-success-700"></i> 현재 ('+stayList.length+'명)</h2><i class="fas '+(adminSectionOpen.stay?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.stay?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('stay')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(stayList,'stay').map(function(s){return'<div class="bg-success-50 border border-success-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-success-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-success-600 opacity-70">'+escapeHtml(s.department)+(staySortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
     '<div id="outSection">'+(outList.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'out\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-moon text-warning-700"></i> 외박 ('+outList.length+'명)</h2><i class="fas '+(adminSectionOpen.out?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.out?'<div class="flex items-center justify-between mt-4 mb-4">'+renderSortToggle('out')+'</div><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">'+sortByMode(outList,'out').map(function(s){return'<div class="bg-warning-50 border border-warning-100 rounded-xl px-4 py-2.5 flex items-center justify-between"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-warning-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(s.name)+'\')">'+formatStudentName(s.name)+'</span><div class="text-xs text-warning-600 opacity-70">'+escapeHtml(s.department)+(outSortMode==='time'&&s.timestamp?' · '+escapeHtml(s.timestamp):'')+'</div></div><button onclick="deleteSubmission(\''+safeAttr(s.id)+'\',\''+safeAttr(s.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0 ml-2" style="font-size:10px"><i class="fas fa-times"></i></button></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+
     '<div id="outingSection" style="display:'+(menuControlSettings.showOutingRequest!==false?'block':'none')+'">'+(pureOut.length>0?'<div class="bg-white rounded-2xl shadow-card border border-info-200 p-6 mb-5"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'outing\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-walking text-info-700"></i> 외출 ('+pureOut.length+'명)</h2><i class="fas '+(adminSectionOpen.outing?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.outing?renderSortToggle()+'<div class="space-y-2 mt-3">'+sortByMode(pureOut).map(function(o){return'<div class="bg-info-50 border border-info-100 rounded-xl px-4 py-2.5"><div class="flex items-center justify-between mb-1"><div class="flex-1 min-w-0"><span class="text-sm font-medium text-info-800 cursor-pointer hover:underline" onclick="event.stopPropagation();viewStudentPhoto(\''+safeAttr(o.name)+'\')">'+formatStudentName(o.name)+'</span><span class="text-xs text-gray-500 ml-2">['+escapeHtml(o.department)+']</span></div><button onclick="deleteOuting(\''+safeAttr(o.id)+'\',\''+safeAttr(o.name)+'\')" class="text-danger-400 hover:text-danger-600 flex-shrink-0" style="font-size:10px"><i class="fas fa-times"></i></button></div><div class="text-xs text-gray-500">'+escapeHtml(o.outingTime)+'~'+escapeHtml(o.returnTime)+' | '+escapeHtml(o.reason)+(o.returnConfirmed?' <span class="text-success-600 font-bold">✓복귀 '+escapeHtml(o.returnConfirmedAt||'')+'</span>':'')+'</div></div>'}).join('')+'</div><button onclick="scrollToTop()" class="w-full mt-3 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div>':'')+'</div>'+'<div id="deptStatusSection" class="animate-fade-up stagger-3 mt-5"><div class="bg-white rounded-2xl shadow-card border border-surface-200 p-6 mb-4"><h2 class="text-xl font-bold text-gray-800 mb-2"><i class="fas fa-th-list"></i> 학과별 총원 현황</h2>'+'<div class="flex gap-2 mb-3"><button onclick="toggleAllDeptCards(true)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-expand-alt mr-1"></i>전체 펼치기</button><button onclick="toggleAllDeptCards(false)" class="px-4 py-2 bg-surface-100 text-gray-600 rounded-xl text-xs font-bold btn-press"><i class="fas fa-compress-alt mr-1"></i>전체 접기</button></div>'+deptHtml+'<button onclick="scrollToTop()" class="w-full -mt-1 mb-4 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button></div></div>'+
-    (pR.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){var _isOrphaned=!(students[r.department]||[]).includes(r.name)&&!(window._secureData.getStudentsByDept(r.department)||[]).includes(r.name);if(_isOrphaned&&(!r.status||r.status==='pending')&&!r._secSwept){r._secSwept=true;try{db.collection('resignRequests').doc(r.id).update({status:'approved',approvedDate:r.resignDate||getCurrentDate(),approvedBy:'관리자 (자동 정리)',updatedAt:new Date().toISOString()})}catch(e){}}var _rsLocked=_resignLocked(r)&&!_isOrphaned;var _rsLbl=_rsLocked?getDateLabel(String(r.resignDate).slice(0,10)):'';return'<div class="'+(_isOrphaned?'bg-red-50 border-red-300':'bg-warning-50 border-warning-200')+' rounded-2xl p-5 border"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span>'+(_isOrphaned?'<span class="ml-2 px-2 py-0.5 bg-danger-100 text-danger-600 text-xs font-bold rounded-full">이미 삭제된 교육생</span>':'')+'</div><div class="flex gap-2 items-center">'+(_rsLocked?'<span class="text-xs font-bold text-warning-700 mr-1"><i class="fas fa-lock"></i> '+escapeHtml(_rsLbl)+'부터 처리 가능</span><button disabled title="퇴사 예정일부터 승인할 수 있습니다" class="px-4 py-2 bg-gray-300 text-gray-500 rounded-xl text-sm font-bold" style="cursor:not-allowed">승인</button><button disabled title="퇴사 예정일부터 거부할 수 있습니다" class="px-4 py-2 bg-gray-300 text-gray-500 rounded-xl text-sm font-bold" style="cursor:not-allowed">거부</button>':'<button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button>')+''+(_isOrphaned?'<button onclick="autoCleanResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press">자동정리</button>':'')+'</div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
+    (pR.length>0?'<div class="bg-white rounded-2xl shadow-card border border-warning-200 p-6 mb-5"><h2 class="text-xl font-bold text-gray-800 mb-4"><i class="fas fa-door-open text-warning-500"></i> 퇴사 신청 ('+pR.length+'건)</h2><div class="space-y-3">'+pR.map(function(r){var _isOrphaned=!(students[r.department]||[]).includes(r.name)&&!(window._secureData.getStudentsByDept(r.department)||[]).includes(r.name);if(_isOrphaned&&(!r.status||r.status==='pending')&&!r._secSwept){r._secSwept=true;try{db.collection('resignRequests').doc(r.id).update({status:'approved',approvedDate:r.resignDate||getCurrentDate(),approvedBy:'관리자 (자동 정리)',updatedAt:new Date().toISOString()})}catch(e){}}var _rsLocked=_resignLocked(r)&&!_isOrphaned;var _rsLbl=_rsLocked?getDateLabel(String(r.resignDate).slice(0,10)):'';return'<div class="'+(_isOrphaned?'bg-red-50 border-red-300':'bg-warning-50 border-warning-200')+' rounded-2xl p-5 border"><div class="flex items-center justify-between mb-2"><div><span class="font-bold text-lg">'+escapeHtml(r.name)+'</span><span class="text-sm text-gray-500 ml-3">['+escapeHtml(r.department)+']</span>'+(_isOrphaned?'<span class="ml-2 px-2 py-0.5 bg-danger-100 text-danger-600 text-xs font-bold rounded-full">이미 삭제된 교육생</span>':'')+'</div><div class="flex gap-2 items-center">'+(_rsLocked?'<span class="font-bold text-warning-700 mr-2" style="font-size:16px"><i class="fas fa-lock"></i> '+escapeHtml(_rsLbl)+' 퇴사예정일부터 처리 가능</span><button disabled title="퇴사 예정일부터 승인할 수 있습니다" class="px-4 py-2 bg-gray-300 text-gray-500 rounded-xl text-sm font-bold" style="cursor:not-allowed">승인</button><button disabled title="퇴사 예정일부터 거부할 수 있습니다" class="px-4 py-2 bg-gray-300 text-gray-500 rounded-xl text-sm font-bold" style="cursor:not-allowed">거부</button>':'<button onclick="approveResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-success-500 text-white rounded-xl text-sm font-bold btn-press">승인</button><button onclick="rejectResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-danger-500 text-white rounded-xl text-sm font-bold btn-press">거부</button>')+''+(_isOrphaned?'<button onclick="autoCleanResign(\''+safeAttr(r.id)+'\')" class="px-4 py-2 bg-gray-500 text-white rounded-xl text-sm font-bold btn-press">자동정리</button>':'')+'</div></div><div class="text-sm text-gray-600">예정일: '+escapeHtml(r.resignDate)+' · 사유: '+escapeHtml(r.reason)+'</div></div>'}).join('')+'</div></div>':'')+
     '<div id="notSubmittedSection">'+(stats.notSubmitted>0&&!isWeekendOrHoliday(currentDate)?'<div class="rounded-2xl shadow-card border border-danger-200 p-6 mb-5 animate-fade-up" style="background:rgba(255,255,255,0.3);backdrop-filter:blur(10px)"><div class="bg-white rounded-2xl shadow-card border border-danger-200 p-6"><div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleAdminSection(\'notSubmitted\')"><h2 class="text-xl font-bold text-gray-800"><i class="fas fa-exclamation-triangle text-danger-700"></i> 미제출 ('+stats.notSubmitted+'명)</h2><i class="fas '+(adminSectionOpen.notSubmitted?'fa-chevron-up':'fa-chevron-down')+' text-gray-400"></i></div>'+(adminSectionOpen.notSubmitted?'<div class="bg-primary-50 mt-4 border border-primary-200 rounded-2xl p-5 mb-5"><h3 class="font-bold text-primary-700 text-base mb-4"><i class="fas fa-check-double"></i> 일괄 신청</h3><div class="flex gap-3 mb-4"><button onclick="setAdminBatchMode(\'stay\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='stay'?'bg-success-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">잔류(Stay)</button><button onclick="setAdminBatchMode(\'out\')" class="flex-1 py-3 rounded-xl font-bold text-base btn-press transition-all '+(adminBatchMode==='out'?'bg-warning-500 text-white shadow-md':'bg-white text-gray-700 border border-surface-200')+'">외박(Out)</button></div>'+(adminBatchMode&&allNS.length>0?'<div class="flex items-center justify-between mb-3"><span class="text-sm font-semibold text-gray-600">선택: <span id="adminBatchCount">0</span>명</span><div class="flex gap-2"><button onclick="selectAllAdmin()" class="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-bold btn-press">전체</button><button onclick="deselectAllAdmin()" class="px-3 py-1.5 bg-surface-200 text-gray-500 rounded-lg text-xs font-bold btn-press">해제</button></div></div><div class="space-y-1.5 max-h-72 overflow-y-auto mb-4">'+allNS.map(function(s){return'<label class="flex items-center gap-3 p-3 bg-white rounded-xl cursor-pointer hover:bg-surface-50 border border-surface-100"><input type="checkbox" class="admin-batch-check w-5 h-5" value="'+safeAttr(s.name)+'" data-dept="'+safeAttr(s.dept)+'" onchange="updateAdminBatchCount()"><span class="text-sm font-medium text-gray-700">'+formatStudentName(s.name)+' <span class="text-gray-400">['+escapeHtml(s.dept)+']</span></span></label>'}).join('')+'</div><button onclick="confirmAdminBatch()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button"><i class="fas fa-paper-plane mr-1"></i> 일괄 제출</button>':'')+'</div><h3 class="text-lg font-bold text-gray-700 mb-3">학과별 미제출</h3>'+nsHtml+'<button onclick="scrollToTop()" class="w-full mt-3 mb-8 py-3 bg-surface-100 text-gray-500 rounded-xl font-bold text-sm btn-press"><i class="fas fa-arrow-up mr-1"></i> 맨 위로</button>':'')+'</div></div>':'')+'</div>'
 +(menuControlSettings.showLotteryEvent!==false?renderLotteryAdmin():'')+'</div>';
 }
@@ -12235,6 +12238,7 @@ function filterSubmitDetail(mode){
     
     // 페이지 로드 후 한 번 실행
     setTimeout(applyPendingBadges, 1000);
+    try{window._afterAppHTML=window._afterAppHTML||[];window._afterAppHTML.unshift(function(){applyPendingBadges()});}catch(e){}
 })();
 
 // ============ 예비입사자 추가 함수 (관리자용) ============
@@ -18187,6 +18191,17 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
       // 데이터 속성으로도 상태 저장 (필터링 시 안정적)
       card.setAttribute('data-rsf-status', normalized);
 
+      // [v9.31] 같은 뱃지가 이미 있으면 다시 만들지 않음 (깜박임·무한 재생성 방지)
+      var _newBadgeHtml = makeBadgeHtml(status);
+      var _oldWrap = card.querySelector('.rsf-badge-wrap');
+      if(_oldWrap && _oldWrap.parentElement===card && _oldWrap.getAttribute('data-k')===_newBadgeHtml && card.querySelectorAll('.rsf-badge').length===1){
+        counts.all++;
+        if(normalized==='stay') counts.stay++;
+        else if(normalized==='out') counts.out++;
+        else counts.none++;
+        card.classList.toggle('rsf-dim', activeFilter!=='all' && activeFilter!==normalized);
+        return;
+      }
       // 기존 뱃지와 래퍼 모두 제거
       var old = card.querySelector('.rsf-badge');
       if(old){
@@ -18199,7 +18214,8 @@ html.dark .rsf-badge.none{background:rgba(239,68,68,0.25);color:#fca5a5;border-c
       var deptTag = card.querySelector('div[style*="inline-block"][style*="border-radius:4px"]');
       var wrapper = document.createElement('div');
       wrapper.className = 'rsf-badge-wrap';
-      wrapper.innerHTML = makeBadgeHtml(status);
+      wrapper.innerHTML = _newBadgeHtml;
+      wrapper.setAttribute('data-k', _newBadgeHtml);
       
       // 학과 태그가 있는 라인의 부모(이름/학과가 담긴 컨테이너)를 찾음
       var deptLine = deptTag;
@@ -18521,7 +18537,7 @@ function fixDepartmentCounts(){
         if(m.addedNodes && m.addedNodes.length){
           for(var j=0;j<m.addedNodes.length;j++){
             var n = m.addedNodes[j];
-            if(n.nodeType===1 && !n.classList.contains('rsf-badge') && n.id!=='rsfToolbar'){
+            if(n.nodeType===1 && !n.classList.contains('rsf-badge') && !n.classList.contains('rsf-badge-wrap') && !n.classList.contains('pending-badge') && n.id!=='rsfToolbar' && n.id!=='rsfDateBar' && n.id!=='secRetroBanner'){
               meaningful = true; break;
             }
           }
@@ -18557,6 +18573,7 @@ function fixDepartmentCounts(){
     }, true);
   }
 
+   try{window._afterAppHTML=window._afterAppHTML||[];window._afterAppHTML.push(function(){if(isAdminContext())applyBadges()});}catch(e){}
    if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded', init);
   } else {
@@ -21576,6 +21593,8 @@ function fixDepartmentCounts(){
       escapeHtml(name) + '의 비밀번호를<br><b>' + escapeHtml(newPw) + '</b>로 초기화합니다.<br><br>' +
       '<span style="color:#dc2626;font-size:0.9em;">※ 학생이 이 비밀번호로 로그인하면 즉시 새 비밀번호를 설정하도록 안내됩니다.</span>',
       async function() {
+        /* [v9.32] 처리 중 표시 (서버 응답까지 몇 초 걸려 '반응 없음'처럼 보이던 문제) */
+        try{ openModal('<div class="p-8 text-center"><i class="fas fa-spinner fa-spin text-3xl text-primary-500 mb-4"></i><div class="text-lg font-bold text-gray-800">비밀번호 초기화 중...</div><div class="text-sm text-gray-500 mt-2">'+escapeHtml(name)+' · 잠시만 기다려 주세요</div></div>'); }catch(_m0){}
         try {
           // [v6.6] 서버 함수로 저장 + 서버가 저장 직후 재조회 검증(verified)
           var _r = (await window._pwApi({ action: 'adminSetPassword', name: name, newPassword: newPw,
@@ -21583,14 +21602,25 @@ function fixDepartmentCounts(){
           if (_r.ok === true && _r.verified === undefined) throw new Error('서버가 아직 구버전입니다 (비밀번호는 저장됨). functions 배포(firebase deploy --only functions) 후 다시 초기화해 주세요');
           if (_r.verified !== true) throw new Error('서버 저장 검증 실패 - 다시 시도해 주세요');
           if (_r.removedTwin) console.log('[v6.6] 잔여 중복 문서 정리:', _r.removedTwin);
-          showToast(name + ' 비밀번호 초기화 완료 ✅ 서버 저장·검증됨 (첫 로그인 시 새 비밀번호 설정)', 'success');
+          showToast(name + ' 비밀번호 초기화 완료 ✅', 'success');
+          /* [v9.32] 화면 가운데 '변경 완료' 창 표시 (확인 누를 때까지 유지) */
+          var _showDone=function(_an,_logOk){
+            try{ openModal('<div class="p-6 md:p-8 text-center"><div style="width:72px;height:72px;margin:0 auto 14px;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center"><i class="fas fa-check text-white" style="font-size:34px"></i></div>'
+              +'<h3 class="text-2xl font-bold text-gray-900 mb-3">변경 완료</h3>'
+              +'<div class="text-base text-gray-700 mb-1"><b>'+escapeHtml(name)+'</b> ('+escapeHtml(dept)+')</div>'
+              +'<div class="text-base text-gray-700 mb-3">비밀번호가 <b class="text-primary-600">'+escapeHtml(newPw)+'</b> 로 초기화되었습니다.</div>'
+              +'<div class="text-sm text-gray-500 mb-1">학생이 이 비밀번호로 로그인하면 새 비밀번호를 설정하게 됩니다.</div>'
+              +'<div class="text-sm '+(_logOk?'text-gray-500':'text-warning-600')+' mb-5">'+(_logOk?('처리자: '+escapeHtml(_an)+' · 비밀번호 변경 이력에 기록됨'):'⚠️ 처리자 기록 실패 (초기화 자체는 완료됨)')+'</div>'
+              +'<button onclick="closeModal()" class="w-full py-3.5 bg-primary-500 text-white rounded-2xl font-bold text-base btn-press shadow-button">확인</button></div>'); }catch(_m1){ alert('변경 완료: '+name+' 비밀번호 초기화됨'); }
+          };
           /* [v9.24] 처리자 이름 기록 — 누가 초기화했는지 비밀번호 변경 이력에 표시 */
-          try{ getAdminName(function(_an){ try{ db.collection('adminActionLogs').add({action:'관리자 초기화',target:name,department:dept||'',adminName:_an,changedAt:new Date().toISOString()}).then(function(){ showToast('✅ '+_an+' 처리자로 기록 완료 — 비밀번호 변경 이력에서 확인하세요','success'); }).catch(function(_ae){ showToast('⚠️ 처리자 기록 실패 (초기화 자체는 완료됨)','warning'); }); }catch(_al){ showToast('⚠️ 처리자 기록 실패 (초기화 자체는 완료됨)','warning'); } }); }catch(_e9){}
+          try{ getAdminName(function(_an){ try{ db.collection('adminActionLogs').add({action:'관리자 초기화',target:name,department:dept||'',adminName:_an,changedAt:new Date().toISOString()}).then(function(){ _showDone(_an,true); }).catch(function(_ae){ _showDone(_an,false); }); }catch(_al){ _showDone(_an,false); } }); }catch(_e9){ _showDone('',false); }
           document.getElementById('pwResetValue').value = '';
           if (typeof lookupPassword === 'function') lookupPassword();
         } catch (e) {
           console.error('[resetStudentPassword]', e);
           showToast('초기화 실패: ' + window._pwApiErr(e), 'error');
+          try{ openModal('<div class="p-6 md:p-8 text-center"><div style="width:72px;height:72px;margin:0 auto 14px;border-radius:50%;background:#ef4444;display:flex;align-items:center;justify-content:center"><i class="fas fa-times text-white" style="font-size:34px"></i></div><h3 class="text-2xl font-bold text-gray-900 mb-3">초기화 실패</h3><div class="text-sm text-gray-600 mb-5">'+escapeHtml(window._pwApiErr(e))+'</div><button onclick="closeModal()" class="w-full py-3.5 bg-gray-500 text-white rounded-2xl font-bold text-base btn-press">닫기</button></div>'); }catch(_m2){}
         }
       },
      '초기화'
@@ -24668,10 +24698,10 @@ window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(
   function _secRetroBanner(){
     try{
       var grid=document.querySelector('.stat-grid-mobile'); if(!grid)return;
-      var old=document.getElementById('secRetroBanner'); if(old)old.remove();
-      if(typeof currentDate==='undefined'||!currentDate)return;
+      var old=document.getElementById('secRetroBanner');
+      if(typeof currentDate==='undefined'||!currentDate){if(old)old.remove();return;}
       var todayStr=(typeof getCurrentDate==='function')?getCurrentDate():'';
-      if(!todayStr||currentDate>=todayStr)return;
+      if(!todayStr||currentDate>=todayStr){if(old)old.remove();return;}
       var extra=0,fem=0,seen={};
       if(typeof resignRequests!=='undefined')(resignRequests||[]).forEach(function(r){
         if(r.status==='approved'&&r.approvedDate&&r.approvedDate>currentDate&&r.name&&!seen[r.name]){
@@ -24679,11 +24709,15 @@ window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(
       if(typeof deletionLogs!=='undefined')(deletionLogs||[]).forEach(function(d){
         var _dt=String(d.deletedAt||d.date||d.createdAt||'').slice(0,10);
         if(_dt&&_dt>currentDate&&d.name&&!seen[d.name]){seen[d.name]=true;extra++;if(String(d.name).indexOf('(여)')>=0)fem++;}});
-      if(extra===0)return;
+      if(extra===0){if(old)old.remove();return;}
       var tot=0,femNow=0;
       if(typeof students!=='undefined'){for(var k in students){if(Array.isArray(students[k])){tot+=students[k].length;
         students[k].forEach(function(n){if(String(n).indexOf('(여)')>=0)femNow++;});}}}
       tot+=extra; femNow+=fem; var male=tot-femNow;
+      var _txt='📊 '+currentDate+' 기준 인원: 총 '+tot+'명 (남 '+male+' · 여 '+femNow+') — 당일 재원 기준(이후 퇴사자 포함)';
+      /* [v9.31] 내용이 같으면 지웠다 다시 만들지 않음 (3초마다 깜박임 방지) */
+      if(old&&old.parentElement===grid&&old.textContent===_txt)return;
+      if(old)old.remove();
       var div=document.createElement('div'); div.id='secRetroBanner';
       div.style.cssText='grid-column:1/-1;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:10px 14px;text-align:center;font-size:13px;color:#1e40af;font-weight:600';
       div.innerHTML='📊 '+currentDate+' 기준 인원: 총 '+tot+'명 (남 '+male+' · 여 '+femNow+') — 당일 재원 기준(이후 퇴사자 포함)';
@@ -24696,6 +24730,7 @@ window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(
   } else {
     setTimeout(_secRetroBanner,1200); setInterval(_secRetroBanner,3000);
   }
+  try{window._afterAppHTML=window._afterAppHTML||[];window._afterAppHTML.push(_secRetroBanner);}catch(e){}
 })();
 
 </script>
@@ -24755,6 +24790,7 @@ window._secReloadAll=function(){try{(window._secReloaders||[]).forEach(function(
     if(_mo)return;
     try{_mo=new MutationObserver(function(){setTimeout(_secMoveResign,150)});_mo.observe(document.body,{childList:true,subtree:true});}catch(e){}
     setInterval(_secMoveResign,2000);_secMoveResign();
+    try{window._afterAppHTML=window._afterAppHTML||[];window._afterAppHTML.push(_secMoveResign);}catch(e){}
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',_start)}else{_start()}
 })();
