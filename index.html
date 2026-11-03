@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.32</title>
+    <title>화성캠 행복관 인원관리 v9.33</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -599,7 +599,66 @@ setTimeout(function(){
     }
 },8000);
 // ============ XSS 방지 유틸 ============
-function showSuccessAnimation(title,subtitle){if(soundEnabled)playNotifSound();var overlay=document.createElement('div');overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:10000;opacity:0;transition:opacity 0.3s';var card=document.createElement('div');card.style.cssText='background:white;border-radius:24px;padding:48px 40px;text-align:center;transform:scale(0.5);transition:transform 0.5s cubic-bezier(0.175,0.885,0.32,1.275);box-shadow:0 25px 60px rgba(0,0,0,0.3)';card.innerHTML='<div style="width:80px;height:80px;margin:0 auto 20px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;animation:popIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275) 0.2s both"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" style="stroke-dasharray:30;stroke-dashoffset:30;animation:drawCheck 0.5s ease 0.5s forwards"/></svg></div><div style="font-size:22px;font-weight:700;color:#1f2937;margin-bottom:8px">'+title+'</div><div style="font-size:14px;color:#6b7280">'+subtitle+'</div><div id="confettiBox" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden"></div>';overlay.appendChild(card);document.body.appendChild(overlay);var style=document.createElement('style');style.textContent='@keyframes popIn{0%{transform:scale(0)}100%{transform:scale(1)}}@keyframes drawCheck{to{stroke-dashoffset:0}}@keyframes confettiFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(200px) rotate(720deg);opacity:0}}';document.head.appendChild(style);requestAnimationFrame(function(){overlay.style.opacity='1';card.style.transform='scale(1)'});var box=card.querySelector('#confettiBox');var colors=['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#ec4899'];for(var i=0;i<30;i++){var c=document.createElement('div');c.style.cssText='position:absolute;width:8px;height:8px;border-radius:'+((Math.random()>0.5)?'50%':'2px')+';background:'+colors[Math.floor(Math.random()*colors.length)]+';top:50%;left:'+Math.random()*100+'%;animation:confettiFall '+(0.8+Math.random()*1.2)+'s ease '+(Math.random()*0.3)+'s forwards';box.appendChild(c)}if(navigator.vibrate)navigator.vibrate([50,30,80]);overlay.addEventListener('click',function(){overlay.style.opacity='0';setTimeout(function(){overlay.remove()},300)});setTimeout(function(){overlay.style.opacity='0';setTimeout(function(){overlay.remove();style.remove()},300)},2200)}
+/* [v9.33] 신청 완료 팝업 — B(바텀시트+진행링) / E(확인증 티켓) 랜덤 */
+function showSuccessAnimation(title,subtitle){
+  try{if(soundEnabled)playNotifSound()}catch(e){}
+  try{if(navigator.vibrate)navigator.vibrate([50,30,80])}catch(e){}
+  title=String(title==null?'':title);subtitle=String(subtitle==null?'':subtitle);
+  var esc=function(s){try{return escapeHtml(s)}catch(e){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}};
+  var K={c:'#10b981',c2:'#059669',soft:'#ecfdf5',ico:'check'};
+  if(/외박/.test(title))K={c:'#6366f1',c2:'#4338ca',soft:'#eef2ff',ico:'moon'};
+  else if(/외출/.test(title))K={c:'#f59e0b',c2:'#d97706',soft:'#fffbeb',ico:'walk'};
+  else if(/퇴사/.test(title))K={c:'#f43f5e',c2:'#e11d48',soft:'#fff1f2',ico:'check'};
+  else if(/난방|냉방|출입/.test(title))K={c:'#0ea5e9',c2:'#0284c7',soft:'#f0f9ff',ico:'check'};
+  var P={check:'<path d="M5 12.5l4.5 4.5L19 7.5" pathLength="1" class="ssa-dr"/>',
+    moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" pathLength="1" class="ssa-dr"/>',
+    walk:'<path d="M13 4.5a1.5 1.5 0 1 0 0 .01M10 21l2-6 3 3v3M8 12l2-4 4 1 2 3M12 15l-1-4" pathLength="1" class="ssa-dr"/>'};
+  var ic=function(sz,sw){return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round">'+P[K.ico]+'</svg>'};
+  var d=new Date(Date.now()+9*3600*1000),days='일월화수목금토';/* 한국시간 기준 */
+  var today=(d.getUTCMonth()+1)+'월 '+d.getUTCDate()+'일 ('+days[d.getUTCDay()]+')';
+  var _h=d.getUTCHours(),tm=(_h<12?'오전 ':'오후 ')+((_h%12)||12)+':'+String(d.getUTCMinutes()).padStart(2,'0');
+  var parts=subtitle.split(' · ');var nm=parts[0]||'';var rest=parts.slice(1).join(' · ');
+  var isTime=/^(오전|오후)?\s*\d{1,2}:\d{2}/.test(rest)||/^(오전|오후)/.test(rest);
+  var canTicket=/신청/.test(title)&&parts.length>=2&&nm.length>0&&nm.length<=20;
+  var mode=(canTicket&&Math.random()<0.5)?'E':'B';
+  var old=document.getElementById('ssaLayer');if(old)old.remove();
+  var L=document.createElement('div');L.id='ssaLayer';
+  L.style.cssText='position:fixed;inset:0;z-index:10000';
+  var css='#ssaLayer *{box-sizing:border-box;font-family:inherit}#ssaLayer .ssa-dr{stroke-dasharray:1;stroke-dashoffset:1;animation:ssaDr .5s cubic-bezier(.65,0,.35,1) .3s forwards}@keyframes ssaDr{to{stroke-dashoffset:0}}'
+   +'#ssaLayer .ssa-dim{position:absolute;inset:0;background:rgba(15,23,42,.42);opacity:0;transition:opacity .3s}#ssaLayer.on .ssa-dim{opacity:1}'
+   +'@media (prefers-reduced-motion:reduce){#ssaLayer *{animation-duration:.01ms!important;transition-duration:.01ms!important}}';
+  var html='';
+  if(mode==='B'){
+    css+='#ssaLayer .ssa-sh{position:absolute;left:50%;bottom:12px;width:min(440px,calc(100% - 20px));background:#fff;border-radius:28px;padding:30px 22px 20px;text-align:center;transform:translate(-50%,115%);transition:transform .5s cubic-bezier(.2,.9,.2,1);box-shadow:0 -10px 40px rgba(15,23,42,.18)}#ssaLayer.on .ssa-sh{transform:translate(-50%,0)}'
+     +'#ssaLayer .ssa-ring{position:relative;width:78px;height:78px;margin:0 auto 16px}#ssaLayer .ssa-ring svg.ssa-r{position:absolute;inset:0;transform:rotate(-90deg)}#ssaLayer .ssa-ring .ssa-c{position:absolute;inset:9px;border-radius:50%;display:flex;align-items:center;justify-content:center}'
+     +'#ssaLayer .ssa-prog{stroke-dasharray:220;stroke-dashoffset:0;animation:ssaPg 2.8s linear .3s forwards}@keyframes ssaPg{to{stroke-dashoffset:220}}'
+     +'#ssaLayer .ssa-tt{font-size:21px;font-weight:800;color:#111827;letter-spacing:-.02em}#ssaLayer .ssa-st{color:#6b7280;font-size:14.5px;margin-top:6px}'
+     +'#ssaLayer .ssa-chip{display:inline-block;margin-top:14px;padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:700}'
+     +'#ssaLayer .ssa-ok{display:block;width:100%;margin-top:18px;padding:15px;border:0;border-radius:16px;font-size:15.5px;font-weight:700;color:#fff;background:#111827;cursor:pointer}';
+    html='<div class="ssa-dim"></div><div class="ssa-sh"><div class="ssa-ring"><svg class="ssa-r" width="78" height="78"><circle cx="39" cy="39" r="35" fill="none" stroke="#f1f5f9" stroke-width="4"/><circle class="ssa-prog" cx="39" cy="39" r="35" fill="none" stroke="'+K.c+'" stroke-width="4" stroke-linecap="round"/></svg><div class="ssa-c" style="background:'+K.c+'">'+ic(30,3)+'</div></div>'
+      +'<div class="ssa-tt">'+esc(title)+'</div><div class="ssa-st">'+esc(subtitle)+'</div><div class="ssa-chip" style="background:'+K.soft+';color:'+K.c2+'">'+today+'</div><button type="button" class="ssa-ok">확인</button></div>';
+  }else{
+    var head=title.replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
+    css+='#ssaLayer .ssa-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;perspective:900px}'
+     +'#ssaLayer .ssa-tk{width:min(320px,calc(100% - 40px));transform:rotateX(70deg) translateY(30px);opacity:0;transform-origin:top;transition:all .6s cubic-bezier(.2,1.1,.3,1);filter:drop-shadow(0 24px 40px rgba(15,23,42,.35))}#ssaLayer.on .ssa-tk{transform:none;opacity:1}'
+     +'#ssaLayer .ssa-hd{border-radius:22px 22px 0 0;padding:22px 20px 18px;color:#fff;position:relative}#ssaLayer .ssa-hd small{font-size:11.5px;font-weight:700;letter-spacing:.12em;opacity:.88}#ssaLayer .ssa-hd b{display:block;font-size:23px;font-weight:800;margin-top:4px;letter-spacing:-.02em;padding-right:60px}'
+     +'#ssaLayer .ssa-stp{position:absolute;right:16px;top:18px;width:52px;height:52px;border-radius:50%;border:2px solid rgba(255,255,255,.75);display:flex;align-items:center;justify-content:center;transform:rotate(-12deg) scale(2);opacity:0;animation:ssaStp .35s cubic-bezier(.3,1.6,.5,1) .55s forwards}@keyframes ssaStp{to{transform:rotate(-12deg) scale(1);opacity:1}}'
+     +'#ssaLayer .ssa-cut{height:18px;background:radial-gradient(circle at 0 50%,transparent 9px,#fff 9.5px) left/51% 100% no-repeat,radial-gradient(circle at 100% 50%,transparent 9px,#fff 9.5px) right/51% 100% no-repeat;position:relative}#ssaLayer .ssa-cut:after{content:"";position:absolute;left:16px;right:16px;top:50%;border-top:2px dashed #e5e7eb}'
+     +'#ssaLayer .ssa-bd{background:#fff;border-radius:0 0 22px 22px;padding:6px 20px 20px}#ssaLayer dl{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:14px;margin:0}#ssaLayer dt{color:#9ca3af;font-weight:600}#ssaLayer dd{font-weight:700;text-align:right;color:#111827;margin:0;word-break:keep-all}'
+     +'#ssaLayer .ssa-hint{text-align:center;color:#9ca3af;font-size:12px;margin-top:14px}';
+    html='<div class="ssa-dim"></div><div class="ssa-wrap"><div class="ssa-tk"><div class="ssa-hd" style="background:linear-gradient(135deg,'+K.c+','+K.c2+')"><small>행복관 신청 확인증</small><b>'+esc(head)+'</b><div class="ssa-stp">'+ic(24,3)+'</div></div><div class="ssa-cut"></div><div class="ssa-bd"><dl>'
+      +'<dt>이름</dt><dd>'+esc(nm)+'</dd><dt>날짜</dt><dd>'+today+'</dd><dt>접수 시각</dt><dd>'+tm+'</dd>'
+      +((rest&&!isTime)?'<dt>내용</dt><dd>'+esc(rest)+'</dd>':'')
+      +'<dt>상태</dt><dd style="color:'+K.c2+'">● 접수됨</dd></dl><div class="ssa-hint">화면을 누르면 닫힙니다</div></div></div></div>';
+  }
+  L.innerHTML='<style>'+css+'</style>'+html;
+  document.body.appendChild(L);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){L.classList.add('on')})});
+  var closed=false;
+  function close(){if(closed)return;closed=true;L.classList.remove('on');setTimeout(function(){try{L.remove()}catch(e){}},450)}
+  L.addEventListener('click',close);
+  setTimeout(close,mode==='E'?3400:3100);
+}
 function penaltySearchHandler(val){
     window._penaltySearch=val.trim();
     window._penaltyShowCount=10;
