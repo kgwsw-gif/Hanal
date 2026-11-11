@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.41</title>
+    <title>화성캠 행복관 인원관리 v9.42</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -4367,7 +4367,7 @@ function refreshHvacListener() {
   if((typeof isAdminLoggedIn!=='undefined'&&isAdminLoggedIn)||(typeof isLeaderLoggedIn!=='undefined'&&isLeaderLoggedIn)){db.collection('outings').get().then(function(snap){var _full=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});var _ids={};_full.forEach(function(d){_ids[d.id]=1});outings=outings.filter(function(s){return !_ids[s.id]}).concat(_full);if(window._loaded)render();}).catch(function(e){console.error('[SEC-FIX v3.5] outings 전체 이력 로드 실패:',e&&e.message)});}};_secLoad6();(window._secReloaders=window._secReloaders||[]).push(_secLoad6);;
     var _secLoad7=function(){try{if(window._secLive__secLoad7)window._secLive__secLoad7()}catch(e){}window._secLive__secLoad7=db.collection('outingHistory').onSnapshot(function(snap){outingHistory=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});checkLoaded()},function(e){console.error('[SEC-FIX v3.4] outingHistory 실시간 오류:',e&&e.message)})};_secLoad7();(window._secReloaders=window._secReloaders||[]).push(_secLoad7);;
     window._secDelLog=function(){try{if(window._secLive_DelLog)window._secLive_DelLog()}catch(e){}window._secLive_DelLog=db.collection('deletionLogs').onSnapshot(function(snap){deletionLogs=snap.docs.map(function(d){return Object.assign({id:d.id},d.data())});if(typeof debouncedRender==='function')debouncedRender()},function(e){console.error('deletionLogs 실시간 오류:',e&&e.message)})};_secDelLog();
-    db.collection('resignRequests').onSnapshot(function(snap){resignRequests=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});try{_fixResignApprovedDates(resignRequests)}catch(_fx){}updateStudentsList();checkLoaded();
+    db.collection('resignRequests').onSnapshot(function(snap){resignRequests=snap.docs.map(function(doc){return Object.assign({id:doc.id},doc.data())});try{_fixResignApprovedDates(resignRequests)}catch(_fx){}updateStudentsList();checkLoaded();if(typeof debouncedRender==='function')debouncedRender();/* [v9.42] 퇴사신청 변경 시 화면 즉시 갱신 */
         // ★ 자가진단: orphan 퇴사이력 감지 시 콘솔 경고 (관리자만)
         if(typeof isAdminLoggedIn!=='undefined'&&isAdminLoggedIn&&typeof findOrphanResigns==='function'){
             try{
@@ -5465,6 +5465,7 @@ async function executeResignDateChange(reqId){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(nd)){showToast('날짜 형식이 올바르지 않습니다','warning');return}
     try{
         await db.collection('resignRequests').doc(reqId).update({resignDate:nd,updatedAt:new Date().toISOString()});
+        var _r=resignRequests.find(function(x){return x.id===reqId});if(_r)_r.resignDate=nd;
         closeModal();
         showToast('퇴사예정일이 '+nd+'로 변경되었습니다','success');
         render();
@@ -5475,6 +5476,7 @@ async function cancelMyResign(reqId){
     openConfirmModal('퇴사 신청 취소','<b>퇴사 신청을 취소하시겠습니까?</b><br>취소하면 새로 신청할 수 있습니다.',async function(){
         try{
             await db.collection('resignRequests').doc(reqId).update({status:'cancelled',cancelledAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+            var _r=resignRequests.find(function(x){return x.id===reqId});if(_r)_r.status='cancelled';
             showToast('퇴사 신청이 취소되었습니다','success');
             render();
         }catch(e){showToast('취소 실패: '+e.message,'error')}
