@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.42</title>
+    <title>화성캠 행복관 인원관리 v9.43</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -17288,9 +17288,37 @@ window.loadAgreementList = async function() {
       .get();
     
     const list = [];
+    const _orphans = [];
     snap.forEach(doc => {
-      list.push({ id: doc.id, ...doc.data() });
+      const d = { id: doc.id, ...doc.data() };
+      /* [v9.43] 명단에서 사라진 교육생의 서약서는 파기 대상 — 목록 로드 시 자동 파기 */
+      const _nm = d.name || '';
+      let _alive = false;
+      try{
+        if(typeof students !== 'undefined'){
+          for(const _k in students){ if(Array.isArray(students[_k]) && students[_k].includes(_nm)){ _alive = true; break; } }
+        }
+        if(!_alive && window._secureData && typeof window._secureData.getAllStudents === 'function'){
+          const _all = window._secureData.getAllStudents();
+          for(const _k in _all){ if(Array.isArray(_all[_k]) && _all[_k].includes(_nm)){ _alive = true; break; } }
+        }
+        if(!_alive && _nm && window._secureData && typeof window._secureData.isPending === 'function' && window._secureData.isPending(_nm)) _alive = true;
+      }catch(_e){}
+      if(_nm && !_alive) _orphans.push(d); else list.push(d);
     });
+    
+    if(_orphans.length > 0){
+      try{
+        const _batch = db.batch();
+        _orphans.forEach(o => _batch.delete(db.collection('dormitoryAgreements').doc(o.id)));
+        await _batch.commit();
+        console.log('[v9.43] 퇴사·삭제된 교육생 서약서 ' + _orphans.length + '건 자동 파기:', _orphans.map(function(o){return o.name}).join(', '));
+        if(typeof showToast === 'function') showToast('퇴사·삭제된 교육생의 서약서 ' + _orphans.length + '건 자동 파기했습니다', 'info');
+      }catch(e){
+        console.error('서약서 자동 파기 실패:', e);
+        Array.prototype.push.apply(list, _orphans);
+      }
+    }
     
     window._agreementListCache = list;
     renderAgreementList();
