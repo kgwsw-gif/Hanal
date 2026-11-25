@@ -47,7 +47,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>화성캠 행복관 인원관리 v9.43</title>
+    <title>화성캠 행복관 인원관리 v9.44</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -23750,7 +23750,13 @@ async function removeCustomHoliday(date){
         alert(`✅ 폴더가 선택되었습니다.\n\n선택된 폴더: ${result.name}\n\n※ 이 폴더는 이 브라우저에 기억되며, 다음 접속에도 유지됩니다.`);
         await refreshStatus();
         if (window.LocalPhotoSync?.rescan) {
-          await window.LocalPhotoSync.rescan();
+          const _rs = await window.LocalPhotoSync.rescan(); /* [v9.44] 결과 토스트 + 화면 갱신 */
+          if (_rs && _rs.count > 0) {
+            if (typeof debouncedRender === 'function') { try { debouncedRender(); } catch(e){} }
+            showToast('로컬 사진 ' + _rs.count + '장 로드 완료', 'success');
+          } else if (_rs && !_rs.error) {
+            showToast('폴더에서 사진을 찾지 못했습니다 — 파일명(학생이름.jpg)·위치를 확인하세요', 'warning');
+          }
         }
       }
     } catch (err) {
@@ -23864,6 +23870,8 @@ async function removeCustomHoliday(date){
 
       lastSyncCount = Object.keys(map).length;
       const elapsed = Math.round(t2 - t1);
+      /* [v9.44] 사진 주입 후 화면 재렌더 — 이게 없으면 사진을 읽어와도 화면에 안 나타남 */
+      if (lastSyncCount > 0 && typeof debouncedRender === 'function') { try { debouncedRender(); } catch(e){} }
       return { count: lastSyncCount, elapsed };
     } catch (e) {
       console.error('[LocalPhotoSync] 동기화 실패:', e);
